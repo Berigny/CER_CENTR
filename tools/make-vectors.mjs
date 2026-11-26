@@ -266,9 +266,11 @@ vector("004-external-content", {
   object: obj004,
   expect: { ok: true, id: obj004.id, content_checked: false },
 });
+const record5 = { ...record, installation_id: "INS-TEST-000002" };
 const obj005 = seal({
   ...clone(createBody),
   subject: { ...installation, key: "INS-TEST-000002" },
+  content: { media_type: "application/json", hash: ev.digest(record5), inline: record5 },
   ext: { "centr/0": { regime: "national-code", jurisdiction: "VIC" } },
 });
 vector("005-profile-extension", {
