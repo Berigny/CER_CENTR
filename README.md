@@ -97,13 +97,18 @@ Scaffold. The core, the command-line tool, the WebAssembly module and JavaScript
 
 ## Next steps
 
-1. **Packaging for other stacks.** The WebAssembly module and Python package are built and tested. Still to do: wheels for Windows and macOS (maturin in CI), npm and PyPI releases, and short host examples for .NET (Wasmtime) and Java (Chicory) using the same `.wasm` file.
-2. **Capture adapter.** An example that reads changes from an existing database, through change-data-capture or an outbox table, and writes evidence objects without touching the source schema. This shows the "beside, not instead" model on real infrastructure.
-3. **Store.** Append-only storage for objects and attestations, indexed by id and by subject, so `prev` links and histories can be followed.
-4. **Trust policy.** Bind signing keys to people and organisations (a key registry, DIDs or a PKI), with rotation and revocation, and keep production keys in an HSM or key service.
-5. **Trusted time.** RFC 3161 timestamp tokens, recorded as `witness` attestations.
-6. **`centr/0` profile.** Domain rules for the Consumer Energy National Technical Regulator, with their own vectors ([notes](docs/centr-profile-notes.md)).
-7. **Prime coordinates** (proposed; see below).
+The aim is for the layer to become an organisation's memory: a durable, verifiable record that applications read from and, later, write through, with a connector that keeps it reconciled with existing databases. The full plan, with deliverables, acceptance tests and proposed decisions, is in [`docs/roadmap.md`](docs/roadmap.md). The first milestone has a build specification: [`docs/m1-store-spec.md`](docs/m1-store-spec.md).
+
+1. **Verifiable store (M1).** An append-only log with its own position and received time for every entry, signed checkpoints over a Merkle tree, and exports that anyone can verify offline, including in a browser.
+2. **Read-only capture (M2).** Turn every change in an existing database into evidence, using read access only and no schema change. Capture refuses to start until every column is classified for privacy.
+3. **Two-way reconciliation (M3).** Compare the store and the database on a schedule, in both directions, and record every difference as evidence, including edits made outside the normal process. Report only; nothing is repaired automatically.
+4. **Memory reads (M4).** Ask what a record said on any date, under which schema, who changed it and why, through a query API whose answers can be verified.
+5. **Pilot gate (M5).** Keys bound to people and organisations, trusted timestamps (RFC 3161), copies held off the machine, privacy operations, and legal and security review before any real data.
+6. **Change requests in shadow mode (M6).** Applications hand over requests instead of changing the database; requests and their outcomes are recorded as evidence and compared with what staff actually did. No write code.
+7. **Write-through to a test database (M7).** Requests are delivered through the database's own interface, and a change counts as done only when it is read back. Off by default; writing to any real system is a separate decision for its owner.
+8. **Optional:** Postgres and vendor-platform capture; the `centr/0` profile ([notes](docs/centr-profile-notes.md)), public registers as views, and prime coordinates (below).
+
+Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short .NET (Wasmtime) and Java (Chicory) host examples for the WebAssembly module.
 
 ### Proposed: prime coordinates for faceted queries
 
@@ -115,7 +120,7 @@ Scaffold. The core, the command-line tool, the WebAssembly module and JavaScript
 - **Collision-free across domains.** Namespaces that use disjoint prime ranges can share one index: no product of one range's primes can equal a product of another's.
 - **Portable.** Coordinates are plain integers. Kept below 2^53, they are exact in JSON and JavaScript.
 
-**Proposed use.** Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
+**Proposed use** (roadmap M9). Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
 
 **Conditions**, learned from an earlier draft where they were missing:
 - **Derived, never authoritative.** The verifier computes the coordinate from the object and the profile's dictionary. It is never part of the id, and readers recompute it rather than trust a stored value.
