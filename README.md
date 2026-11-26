@@ -97,7 +97,7 @@ Scaffold. The core, the command-line tool, the WebAssembly module and JavaScript
 
 ## Next steps
 
-The aim is for the layer to become an organisation's memory: a durable, verifiable record that applications read from and, later, write through, with a connector that keeps it reconciled with existing databases. The full plan, with deliverables, acceptance tests and proposed decisions, is in [`docs/roadmap.md`](docs/roadmap.md). The first milestone has a build specification: [`docs/m1-store-spec.md`](docs/m1-store-spec.md).
+The aim is for the layer to become an organisation's memory: a durable, verifiable record that applications read from and, later, write through, with a connector that keeps it reconciled with existing databases. The full plan, with deliverables, acceptance tests and the confirmed decisions, is in [`docs/roadmap.md`](docs/roadmap.md). The first milestone has a build specification: [`docs/m1-store-spec.md`](docs/m1-store-spec.md).
 
 1. **Verifiable store (M1).** An append-only log with its own position and received time for every entry, signed checkpoints over a Merkle tree, and exports that anyone can verify offline, including in a browser.
 2. **Read-only capture (M2).** Turn every change in an existing database into evidence, using read access only and no schema change. Capture refuses to start until every column is classified for privacy.

@@ -1,6 +1,6 @@
 # M1 build specification: a verifiable append-only evidence store
 
-**Status:** draft. Ready to build once the proposed decisions in [roadmap.md](roadmap.md) are confirmed.
+**Status:** ready to build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)).
 **Size:** about 5 engineer-weeks for one experienced Rust engineer. That includes the JavaScript reference work D7 requires, roughly a quarter of the effort.
 **Dependencies:** nothing outside this repository.
 **System of record:** not touched; no SoR is read or written.

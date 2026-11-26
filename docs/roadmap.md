@@ -1,6 +1,6 @@
 # Roadmap: from evidence layer to memory
 
-Status: proposed (November 2026). The decisions at the end are recommended defaults awaiting the owner's confirmation. The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md).
+Status: decisions confirmed by the owner on 26 November 2026 (recorded as D11-D13 in [decisions.md](decisions.md); the rest apply as written below). The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md).
 
 ## What's next, in short
 
@@ -278,7 +278,7 @@ Answer domain queries and publish registers as views over the store. Prime coord
 - A register snapshot recomputed at its recorded watermark is byte-identical.
 - On 100k objects, divisibility queries return exactly the same rows as facet queries, every coordinate stays below 2^53, and an unknown facet gives a finding.
 
-## Decisions (proposed defaults)
+## Decisions (confirmed 26 November 2026)
 
 1. **Record D11 now: observe first, writes later only through explicit requests**
    - Options: (a) Record D11 now and keep D3 as written until a write path is separately approved. (b) Amend D3 now to describe the end state. (c) Say nothing until M6.

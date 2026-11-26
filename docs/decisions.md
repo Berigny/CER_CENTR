@@ -49,3 +49,29 @@ The core checks the schema rules in code rather than with a JSON Schema engine, 
 ## D10. Bytes in, not text
 
 Every binding accepts file contents as bytes. If a binding took only text, a host's UTF-8 decoder would replace invalid bytes before the core saw them, and an object the command-line tool rejects with `E_PARSE` could verify in another language.
+
+## D11. Observe before writing
+
+Confirmed 26 November 2026, with the other roadmap decisions ([roadmap](roadmap.md#decisions-confirmed-26-november-2026)).
+
+The evidence layer starts by only reading. It records what it observes in a system of record, and what people and services assert, using read-only access and no change to the system of record.
+
+- Record changes in the log (`create`, `update`, `delete`) are only ever observations of a system of record. Anything the layer or an application states itself (a request, a decision, a check, a first sighting of an existing row) is an `assert`.
+- Applications may later request changes through the layer, but only as explicit requests checked against an allow-list the system-of-record owner publishes, delivered through the system of record's own interface, off by default, and enabled per record type with the owner's agreement.
+- While the layer only reads, D3 holds exactly. Once requests flow through it, turning it off still loses no confirmed change, but requests not yet delivered exist only in the layer, so applications then depend on it being available.
+
+## D12. One SQLite file is the authoritative store
+
+- Entries, objects, attestations and the projections that must agree with them (heads now; capture cursors and change keys from M2) are written in one transaction.
+- Triggers refuse UPDATE and DELETE on the log tables.
+- Query indexes (from M4) live in separate files that can be deleted and rebuilt.
+- The portable form is an export of canonical JSON Lines segments with a manifest. It defines conformance: another backend conforms if its exports verify and match.
+- Git or object storage receive exports as off-machine copies. Neither is ever the primary store.
+
+## D13. Two clocks
+
+- `at` stays the writer's claim and stays inside the id.
+- The store adds its own facts outside the object, in the log entry: a dense position (`seq`) and `received_at`, which never decreases.
+- Questions about what the store knew on a date use the store's clock. Questions about what was true at a time, according to the writers, use `at`.
+- An `at` more than 5 minutes after `received_at` is counted in store reports, never rejected or rewritten.
+- Objects that the store or its services author in a chain take `at` = the later of their clock and their predecessors' `at`, so a clock step backwards cannot break the prev ordering rule.
