@@ -17,7 +17,42 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Clippy for the Python extension (checked here, built by maturin below)
+        run: cargo clippy -p evidence-py --all-targets --locked -- -D warnings
       - run: cargo test --locked
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sh tools/build-wasm.sh
+      - name: Every vector through the WebAssembly module
+        run: node crates/evidence-wasm/js/test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wasm-pkg
+          path: crates/evidence-wasm/pkg/
+
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install ./crates/evidence-py
+      - name: Every vector through the Python package
+        run: python -m unittest discover -s crates/evidence-py/tests -v
 
   vectors:
     runs-on: ubuntu-latest

@@ -40,8 +40,12 @@ This caught a real bug during the scaffold: Rust's shortest float formatting rou
 
 The core is the one part that must give byte-identical answers everywhere: canonicalisation, hashing, signature checks. One Rust implementation can ship as a command-line tool, a WebAssembly module (browser, Node, .NET or Java hosts) and Python or C bindings. Users on other stacks run the binary or module; they do not have to maintain Rust.
 
-Not yet built: the WebAssembly and Python bindings.
+The WebAssembly module uses a one-function JSON ABI (`evidence_alloc`, `evidence_call`, `evidence_free`) rather than generated JavaScript glue, so the same file works in browsers, Node and non-JavaScript hosts. Python uses a native PyO3 extension instead of the WebAssembly module: it is the usual way to ship Python packages, and one abi3 wheel covers every CPython from 3.10.
 
 ## D9. Hand-written shape checks in the core
 
 The core checks the schema rules in code rather than with a JSON Schema engine, to keep its dependencies to SHA-256, Ed25519 and base64. `tools/check_schema_vectors.py` runs the published JSON Schema over the same vectors in CI, so the two cannot drift silently.
+
+## D10. Bytes in, not text
+
+Every binding accepts file contents as bytes. If a binding took only text, a host's UTF-8 decoder would replace invalid bytes before the core saw them, and an object the command-line tool rejects with `E_PARSE` could verify in another language.

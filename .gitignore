@@ -3,3 +3,7 @@
 !test-vectors/keys/*.seed
 node_modules/
 __pycache__/
+/crates/evidence-wasm/pkg/
+/dist/
+*.egg-info/
+.venv/

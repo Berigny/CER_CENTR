@@ -10,7 +10,9 @@
 //! - [`object`]: shape rules, ids, and integrity checks
 //! - [`attest`]: Ed25519 attestations kept outside the object
 //! - [`verify`]: the full verification pipeline and its report
+//! - [`api`]: byte-level entry points shared by the CLI and the language bindings
 
+pub mod api;
 pub mod attest;
 pub mod canon;
 pub mod error;

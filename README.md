@@ -25,6 +25,8 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`test-vectors/`](test-vectors/) | The conformance contract: canonicalisation, number formatting and object cases with expected results |
 | [`crates/evidence-core/`](crates/evidence-core/) | Rust core: strict JSON parser, RFC 8785 canonicalisation, ids, Ed25519 attestations, verifier |
 | [`crates/evidence-cli/`](crates/evidence-cli/) | `evidence` command-line tool |
+| [`crates/evidence-wasm/`](crates/evidence-wasm/) | The core as one WebAssembly module, with a JavaScript wrapper for browsers and Node, and a small ABI for other hosts |
+| [`crates/evidence-py/`](crates/evidence-py/) | Python package `evidence_layer`, built from the same core |
 | [`tools/reference/evidence.mjs`](tools/reference/evidence.mjs) | Independent JavaScript reference, used to generate and cross-check the vectors |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 
@@ -55,11 +57,33 @@ $E sign object.json --seed dev.seed --signer person:me --purpose approve >> atte
 $E verify object.json --attestations attestations.jsonl --require approve
 ```
 
+## From JavaScript and Python
+
+The WebAssembly module and the Python package are the same Rust core, so they return byte-for-byte the same results as the command-line tool. Both run every test vector in CI.
+
+```js
+// sh tools/build-wasm.sh   (needs: rustup target add wasm32-unknown-unknown)
+import { load } from "./crates/evidence-wasm/pkg/evidence.mjs";
+const ev = await load();   // in Node: await load("crates/evidence-wasm/pkg/evidence_wasm.wasm")
+const report = ev.verify(objectBytes, { attestations, require: ["approve"] });
+```
+
+```python
+# pip install ./crates/evidence-py
+import evidence_layer as ev
+report = ev.verify(open("object.json", "rb").read(), require=["approve"],
+                   attestations=open("attestations.jsonl", "rb").read())
+```
+
+Details: [`crates/evidence-wasm/README.md`](crates/evidence-wasm/README.md) (including the ABI for .NET, Java and other WebAssembly hosts) and [`crates/evidence-py/README.md`](crates/evidence-py/README.md).
+
 ## Checks
 
 ```sh
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
 cargo test                                      # Rust core against every vector
+sh tools/build-wasm.sh && node crates/evidence-wasm/js/test.mjs       # WebAssembly module
+pip install ./crates/evidence-py && python -m unittest discover -s crates/evidence-py/tests   # Python
 node tools/check-vectors.mjs                    # JS reference against the vectors
 python tools/check_schema_vectors.py            # JSON Schemas against the vectors (needs jsonschema)
 node tools/make-vectors.mjs && git diff --exit-code test-vectors   # vectors are reproducible
@@ -69,11 +93,11 @@ CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Status
 
-Scaffold. The core, the command-line tool, the spec and the vectors work and are tested.
+Scaffold. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the spec and the vectors work and are tested.
 
 ## Next steps
 
-1. **Bindings for other stacks.** Build the core as a WebAssembly module (browsers, Node, .NET and Java hosts) and a Python package. Every system then calls the same canonicaliser and verifier, and any reimplementation is checked against the vectors.
+1. **Packaging for other stacks.** The WebAssembly module and Python package are built and tested. Still to do: wheels for Windows and macOS (maturin in CI), npm and PyPI releases, and short host examples for .NET (Wasmtime) and Java (Chicory) using the same `.wasm` file.
 2. **Capture adapter.** An example that reads changes from an existing database, through change-data-capture or an outbox table, and writes evidence objects without touching the source schema. This shows the "beside, not instead" model on real infrastructure.
 3. **Store.** Append-only storage for objects and attestations, indexed by id and by subject, so `prev` links and histories can be followed.
 4. **Trust policy.** Bind signing keys to people and organisations (a key registry, DIDs or a PKI), with rotation and revocation, and keep production keys in an HSM or key service.

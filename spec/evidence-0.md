@@ -92,6 +92,8 @@ Checks run in this order and stop at the first failure. Every implementation rep
 | 7 | Each attestation line is well formed; each line for this id has a valid signature (lines for other ids are ignored) | `E_ATTESTATION_SHAPE`, `E_SIGNATURE_INVALID` |
 | 8 | Every required purpose has a valid attestation | `E_ATTESTATION_MISSING` |
 
+Programming interfaces also use `E_USAGE` for invalid arguments, such as a malformed seed, an unknown purpose or an invalid store object. It is never a verification result.
+
 When content is held elsewhere (`uri`, no `inline`), step 5 is skipped and the report says `content_checked: false`. Fetching and checking external bytes is the caller's job in v0.
 
 ## Profiles

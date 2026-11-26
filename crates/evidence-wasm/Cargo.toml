@@ -1,0 +1,15 @@
+[package]
+name = "evidence-wasm"
+description = "evidence/0 core as a WebAssembly module with a one-function JSON ABI"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+base64 = "0.23"
+evidence-core = { path = "../evidence-core" }

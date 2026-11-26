@@ -1,6 +1,18 @@
 [workspace]
 resolver = "2"
-members = ["crates/evidence-core", "crates/evidence-cli"]
+members = [
+    "crates/evidence-core",
+    "crates/evidence-cli",
+    "crates/evidence-wasm",
+    "crates/evidence-py",
+]
+# The Python extension is built and tested by maturin (see crates/evidence-py),
+# not by plain `cargo test`.
+default-members = [
+    "crates/evidence-core",
+    "crates/evidence-cli",
+    "crates/evidence-wasm",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,3 +20,8 @@ edition = "2021"
 publish = false
 license = "Apache-2.0"
 repository = "https://github.com/Berigny/CER_CENTR"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

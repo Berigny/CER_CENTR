@@ -1,0 +1,17 @@
+{
+  "name": "evidence-layer",
+  "version": "0.1.0",
+  "description": "evidence/0 core as a WebAssembly module, with a JavaScript wrapper for browsers and Node",
+  "license": "Apache-2.0",
+  "repository": "github:Berigny/CER_CENTR",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./evidence.d.ts",
+      "default": "./evidence.mjs"
+    },
+    "./evidence_wasm.wasm": "./evidence_wasm.wasm"
+  },
+  "files": ["evidence.mjs", "evidence.d.ts", "evidence_wasm.wasm"],
+  "engines": { "node": ">=18" }
+}

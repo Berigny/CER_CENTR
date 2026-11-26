@@ -29,6 +29,9 @@ pub enum Code {
     SignatureInvalid,
     /// A required attestation purpose is absent.
     AttestationMissing,
+    /// API only, never a verification outcome: an invalid argument such as a
+    /// malformed seed, an unknown purpose or an invalid store object.
+    Usage,
 }
 
 impl Code {
@@ -46,6 +49,7 @@ impl Code {
             Code::AttestationShape => "E_ATTESTATION_SHAPE",
             Code::SignatureInvalid => "E_SIGNATURE_INVALID",
             Code::AttestationMissing => "E_ATTESTATION_MISSING",
+            Code::Usage => "E_USAGE",
         }
     }
 }

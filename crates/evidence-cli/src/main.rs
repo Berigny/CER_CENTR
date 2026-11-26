@@ -4,8 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use evidence_core::verify::{self, Options, Store};
-use evidence_core::{attest, canon, json, object, time, Value};
+use evidence_core::api::{self, VerifyArgs};
+use evidence_core::{canon, object, time};
 
 const USAGE: &str = "\
 evidence: create and verify evidence/0 objects
@@ -46,50 +46,34 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         return Err("usage: missing command".into());
     };
     let flags = Flags::parse(rest)?;
+    let text = |r: evidence_core::Result<String>| r.map_err(|e| e.to_string());
     match cmd.as_str() {
-        "canon" => {
-            println!("{}", canon::canonicalize(&read_json(flags.one_path()?)?));
-        }
-        "content-hash" => {
-            println!("{}", canon::digest(&read_json(flags.one_path()?)?));
-        }
-        "file-hash" => {
-            println!("{}", canon::sha256_hex(&read(flags.one_path()?)?));
-        }
-        "id" => {
-            println!("{}", object::compute_id(&read_json(flags.one_path()?)?));
-        }
+        "canon" => println!("{}", text(api::canonicalize(&read(flags.one_path()?)?))?),
+        "content-hash" => println!("{}", text(api::content_hash(&read(flags.one_path()?)?))?),
+        "file-hash" => println!("{}", api::file_hash(&read(flags.one_path()?)?)),
+        "id" => println!("{}", text(api::compute_id(&read(flags.one_path()?)?))?),
         "seal" => {
-            let sealed = object::seal(&read_json(flags.one_path()?)?);
-            let text = canon::canonicalize(&sealed);
-            if let Err(e) = object::check(text.as_bytes()) {
+            let sealed = text(api::seal(&read(flags.one_path()?)?))?;
+            println!("{sealed}");
+            if let Err(e) = object::check(sealed.as_bytes()) {
                 eprintln!("evidence: sealed, but the object is not valid: {e}");
-                println!("{text}");
                 return Ok(ExitCode::from(1));
             }
-            println!("{text}");
         }
         "verify" => {
             let bytes = read(flags.one_path()?)?;
             let attestations = flags.value("--attestations").map(read).transpose()?;
             let store = flags.value("--store").map(load_store).transpose()?;
             let require = flags.values("--require");
-            for p in &require {
-                if !attest::PURPOSES.contains(&p.as_str()) {
-                    return Err(format!(
-                        "usage: --require must be one of {:?}",
-                        attest::PURPOSES
-                    ));
-                }
-            }
-            let report = verify::verify(
+            let report = api::verify(
                 &bytes,
-                &Options {
+                &VerifyArgs {
                     attestations: attestations.as_deref(),
-                    store: store.as_ref(),
+                    store: store.as_deref(),
                     require: &require,
                 },
-            );
+            )
+            .map_err(|e| format!("usage: {}", e.detail))?;
             println!("{}", canon::canonicalize(&report.to_value()));
             return Ok(if report.ok() {
                 ExitCode::SUCCESS
@@ -99,25 +83,19 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         }
         "sign" => {
             let bytes = read(flags.one_path()?)?;
-            let checked = object::check(&bytes).map_err(|e| format!("refusing to sign: {e}"))?;
-            let seed = read_seed(&flags.required("--seed")?)?;
-            let purpose = flags.required("--purpose")?;
-            if !attest::PURPOSES.contains(&purpose.as_str()) {
-                return Err(format!(
-                    "usage: --purpose must be one of {:?}",
-                    attest::PURPOSES
-                ));
-            }
+            let seed_path = flags.required("--seed")?;
+            let seed = String::from_utf8(read(&seed_path)?)
+                .map_err(|_| format!("{seed_path}: not text"))?;
             let at = flags.value("--at").unwrap_or_else(time::now);
-            let att = attest::sign(
-                &checked.id,
-                &purpose,
-                &flags.required("--signer")?,
-                &at,
+            let line = api::sign(
+                &bytes,
                 &seed,
+                &flags.required("--signer")?,
+                &flags.required("--purpose")?,
+                &at,
             )
-            .map_err(|e| e.to_string())?;
-            println!("{}", canon::canonicalize(&att));
+            .map_err(|e| format!("refusing to sign: {e}"))?;
+            println!("{line}");
         }
         "keygen" => {
             let path = flags.one_path()?;
@@ -128,7 +106,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             getrandom::fill(&mut seed).map_err(|e| format!("no system randomness: {e}"))?;
             let hex: String = seed.iter().map(|b| format!("{b:02x}")).collect();
             write_private(&path, &format!("{hex}\n"))?;
-            println!("{}", attest::public_key(&seed));
+            println!("{}", text(api::public_key(&hex))?);
         }
         "help" | "-h" | "--help" => println!("{USAGE}"),
         other => return Err(format!("usage: unknown command {other:?}")),
@@ -197,37 +175,15 @@ fn read(path: impl AsRef<Path>) -> Result<Vec<u8>, String> {
     fs::read(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn read_json(path: PathBuf) -> Result<Value, String> {
-    json::parse(&read(&path)?).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-fn read_seed(path: &str) -> Result<[u8; 32], String> {
-    let text = String::from_utf8(read(path)?).map_err(|_| format!("{path}: not text"))?;
-    let hex = text.trim();
-    if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(format!("{path}: expected 64 hex digits"));
-    }
-    let mut seed = [0u8; 32];
-    for (i, byte) in seed.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("hex checked");
-    }
-    Ok(seed)
-}
-
-fn load_store(dir: String) -> Result<Store, String> {
+/// Every `*.json` file in `dir`, in name order.
+fn load_store(dir: String) -> Result<Vec<Vec<u8>>, String> {
     let mut paths: Vec<PathBuf> = fs::read_dir(&dir)
         .map_err(|e| format!("{dir}: {e}"))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "json"))
         .collect();
     paths.sort();
-    let mut store = Store::new();
-    for p in paths {
-        store
-            .insert(&read(&p)?)
-            .map_err(|e| format!("store object {} is not valid: {e}", p.display()))?;
-    }
-    Ok(store)
+    paths.iter().map(read).collect()
 }
 
 fn write_private(path: &Path, text: &str) -> Result<(), String> {
