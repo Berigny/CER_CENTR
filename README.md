@@ -28,6 +28,8 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`crates/evidence-wasm/`](crates/evidence-wasm/) | The core as one WebAssembly module, with a JavaScript wrapper for browsers and Node, and a small ABI for other hosts |
 | [`crates/evidence-py/`](crates/evidence-py/) | Python package `evidence_layer`, built from the same core |
 | [`tools/reference/evidence.mjs`](tools/reference/evidence.mjs) | Independent JavaScript reference, used to generate and cross-check the vectors |
+| [`spec/store-0.md`](spec/store-0.md) | Store spec: log entries, checkpoints, exports and their verification (milestone M1, in progress) |
+| [`crates/evidence-log/`](crates/evidence-log/) | Pure store formats: log entries, RFC 9162 tree and proofs, genesis and checkpoints (M1, in progress) |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 
 ## Quick start
@@ -119,6 +121,8 @@ Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short
 - **Queries become arithmetic.** An object has a facet if that facet's prime divides its coordinate. It has all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" becomes a divisibility test on one integer field, which any database or language can run.
 - **Collision-free across domains.** Namespaces that use disjoint prime ranges can share one index: no product of one range's primes can equal a product of another's.
 - **Portable.** Coordinates are plain integers. Kept below 2^53, they are exact in JSON and JavaScript.
+
+A draft profile that applies this to certificate lifecycles is in [`docs/kernel-2.md`](docs/kernel-2.md).
 
 **Proposed use** (roadmap M9). Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
 
