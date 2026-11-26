@@ -414,7 +414,7 @@ mod tests {
                 attestation,
             ),
             format!("{{\"entry\":1,\"object\":{OBJECT}}}"),
-            format!("{{\"attestation\":[1,2],\"entry\":\"e,\"}}"),
+            r#"{"attestation":[1,2],"entry":"e,"}"#.to_string(),
         ];
         seeds.push(render_line(
             &entry(Kind::Attestation).canonical(),
