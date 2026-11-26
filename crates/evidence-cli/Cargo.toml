@@ -4,6 +4,8 @@ description = "Command-line tool for evidence/0 objects"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "evidence"

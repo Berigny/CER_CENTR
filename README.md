@@ -67,14 +67,40 @@ node tools/make-vectors.mjs && git diff --exit-code test-vectors   # vectors are
 
 CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
-## Status and next steps
+## Status
 
-Scaffold. The core, the command-line tool, the spec and the vectors work and are tested. Not yet built:
+Scaffold. The core, the command-line tool, the spec and the vectors work and are tested.
 
-- WebAssembly and Python bindings, so other stacks call the same core
-- Trust policy: binding keys to people and organisations, rotation and revocation
-- Trusted timestamps (RFC 3161)
-- A store backend and an example capture adapter (change-data-capture or outbox) for an existing database
-- The `centr/0` profile, with its own vectors
+## Next steps
 
-No licence has been chosen yet. Choose one before sharing outside the team.
+1. **Bindings for other stacks.** Build the core as a WebAssembly module (browsers, Node, .NET and Java hosts) and a Python package. Every system then calls the same canonicaliser and verifier, and any reimplementation is checked against the vectors.
+2. **Capture adapter.** An example that reads changes from an existing database, through change-data-capture or an outbox table, and writes evidence objects without touching the source schema. This shows the "beside, not instead" model on real infrastructure.
+3. **Store.** Append-only storage for objects and attestations, indexed by id and by subject, so `prev` links and histories can be followed.
+4. **Trust policy.** Bind signing keys to people and organisations (a key registry, DIDs or a PKI), with rotation and revocation, and keep production keys in an HSM or key service.
+5. **Trusted time.** RFC 3161 timestamp tokens, recorded as `witness` attestations.
+6. **`centr/0` profile.** Domain rules for the Consumer Energy National Technical Regulator, with their own vectors ([notes](docs/centr-profile-notes.md)).
+7. **Prime coordinates** (proposed; see below).
+
+### Proposed: prime coordinates for faceted queries
+
+**What.** A derived index number for each object. Each categorical facet gets its own prime number from one published dictionary: record type, product class, standard family, actor role, jurisdiction and so on. An object's coordinate is the product of the primes for the facets it has. For example, if installation record = 3, inverter = 5, AS/NZS 4777.2 = 7 and Victoria = 11, an installation record for an inverter under AS/NZS 4777.2 in Victoria has coordinate 3 × 5 × 7 × 11 = 1155.
+
+**Why.**
+- **Lossless.** By unique factorisation, a coordinate decodes back to exactly one set of facets.
+- **Queries become arithmetic.** An object has a facet if that facet's prime divides its coordinate. It has all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" becomes a divisibility test on one integer field, which any database or language can run.
+- **Collision-free across domains.** Namespaces that use disjoint prime ranges can share one index: no product of one range's primes can equal a product of another's.
+- **Portable.** Coordinates are plain integers. Kept below 2^53, they are exact in JSON and JavaScript.
+
+**Proposed use.** Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
+
+**Conditions**, learned from an earlier draft where they were missing:
+- **Derived, never authoritative.** The verifier computes the coordinate from the object and the profile's dictionary. It is never part of the id, and readers recompute it rather than trust a stored value.
+- **One dictionary per namespace.** Published, versioned, and the only source; schemas and code are generated from it, not hand-copied.
+- **Unknown facets are errors,** never silently skipped.
+- **At most one prime per single-valued facet.** Multi-valued facets need an explicit rule.
+- **A shared registry of prime ranges,** so a new namespace cannot overlap another prime-based scheme.
+- **Kept below 2^53,** or carried as strings, so coordinates survive JSON.
+
+## Licence
+
+[Apache License 2.0](LICENSE). It is permissive, so an agency, its vendors and other regulators can adopt the spec and code with no obligation beyond keeping the notices. It also includes an explicit patent licence from contributors, which matters for a format that others are meant to implement.
