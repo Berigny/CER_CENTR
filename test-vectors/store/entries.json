@@ -1,0 +1,116 @@
+{
+  "valid": [
+    {
+      "name": "genesis",
+      "entry": {
+        "v": "log-entry/0",
+        "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "seq": 1,
+        "kind": "object",
+        "ref": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "received_at": "2026-11-26T00:00:00.000Z",
+        "epoch": 1,
+        "prev": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3"
+      },
+      "canonical": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"received_at\":\"2026-11-26T00:00:00.000Z\",\"ref\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"seq\":1,\"v\":\"log-entry/0\"}",
+      "hash": "sha256:8c18afea94386ef5a2c0df1a58c0e6e1e336a9b382ac629c282644e9dc470d87"
+    },
+    {
+      "name": "genesis-author-attestation",
+      "entry": {
+        "v": "log-entry/0",
+        "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "seq": 2,
+        "kind": "attestation",
+        "ref": "sha256:d4757f4fedffe5fa6d0aa8c65808d42928159021561f6176ca1b8bcb2311cc6b",
+        "received_at": "2026-11-26T00:00:00.000Z",
+        "epoch": 1,
+        "prev": "sha256:8c18afea94386ef5a2c0df1a58c0e6e1e336a9b382ac629c282644e9dc470d87"
+      },
+      "canonical": "{\"epoch\":1,\"kind\":\"attestation\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:8c18afea94386ef5a2c0df1a58c0e6e1e336a9b382ac629c282644e9dc470d87\",\"received_at\":\"2026-11-26T00:00:00.000Z\",\"ref\":\"sha256:d4757f4fedffe5fa6d0aa8c65808d42928159021561f6176ca1b8bcb2311cc6b\",\"seq\":2,\"v\":\"log-entry/0\"}",
+      "hash": "sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb"
+    },
+    {
+      "name": "object",
+      "entry": {
+        "v": "log-entry/0",
+        "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "seq": 3,
+        "kind": "object",
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4",
+        "received_at": "2026-11-26T00:00:01.000Z",
+        "epoch": 1,
+        "prev": "sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb"
+      },
+      "canonical": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "hash": "sha256:00c8a5496d7aaa62de6994506f618d809e7224a0502b76b491dc55f3e98b8c35"
+    },
+    {
+      "name": "received-at-nine-fraction-digits",
+      "entry": {
+        "v": "log-entry/0",
+        "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "seq": 4,
+        "kind": "object",
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d",
+        "received_at": "2026-11-26T00:00:02.123456789Z",
+        "epoch": 1,
+        "prev": "sha256:00c8a5496d7aaa62de6994506f618d809e7224a0502b76b491dc55f3e98b8c35"
+      },
+      "canonical": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:00c8a5496d7aaa62de6994506f618d809e7224a0502b76b491dc55f3e98b8c35\",\"received_at\":\"2026-11-26T00:00:02.123456789Z\",\"ref\":\"sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d\",\"seq\":4,\"v\":\"log-entry/0\"}",
+      "hash": "sha256:6e5f8e62c308e7e2bf63c74ef367f5502280bba6accd5e9be8b20fdd3d257810"
+    },
+    {
+      "name": "epoch-7",
+      "entry": {
+        "v": "log-entry/0",
+        "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+        "seq": 5,
+        "kind": "object",
+        "ref": "sha256:7d7f86709389d95ac2d8a7cf943b992a0576cdd6500a217914347bc04ee87115",
+        "received_at": "2026-11-26T00:00:03.000Z",
+        "epoch": 7,
+        "prev": "sha256:6e5f8e62c308e7e2bf63c74ef367f5502280bba6accd5e9be8b20fdd3d257810"
+      },
+      "canonical": "{\"epoch\":7,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:6e5f8e62c308e7e2bf63c74ef367f5502280bba6accd5e9be8b20fdd3d257810\",\"received_at\":\"2026-11-26T00:00:03.000Z\",\"ref\":\"sha256:7d7f86709389d95ac2d8a7cf943b992a0576cdd6500a217914347bc04ee87115\",\"seq\":5,\"v\":\"log-entry/0\"}",
+      "hash": "sha256:b7ab2ccc05b6fc54c1e2eb0e5b69860ecefdc9580a92150b6155f2f30e5ec0e9"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "seq-zero",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":0,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "seq-not-integer",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":1.5,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "unknown-member",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"note\":\"free text\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "prev-missing",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "kind-blob",
+      "input": "{\"epoch\":1,\"kind\":\"blob\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "received-at-with-offset",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"sha256:37bc2455ea4a5a17e6646a2480ca5c24fa68f3beca69b900eb4e77eb81dd1beb\",\"received_at\":\"2026-11-26T11:00:01.000+11:00\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    },
+    {
+      "name": "prev-not-a-hash",
+      "input": "{\"epoch\":1,\"kind\":\"object\",\"log\":\"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3\",\"prev\":\"SHA256:37BC2455EA4A5A17E6646A2480CA5C24FA68F3BECA69B900EB4E77EB81DD1BEB\",\"received_at\":\"2026-11-26T00:00:01.000Z\",\"ref\":\"sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4\",\"seq\":3,\"v\":\"log-entry/0\"}",
+      "error": "S_ENTRY_INVALID"
+    }
+  ]
+}

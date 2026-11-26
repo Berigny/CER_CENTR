@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:store-genesis:0",
+  "title": "Store genesis content (store/0)",
+  "description": "The content.inline of a store's genesis object, the evidence/0 object at seq 1 whose id is the log id. It names the store and declares the store key that signs its author attestation and its checkpoint witnesses. Rules the schema cannot express (signer is service:evidence-store/ followed by name, and the shape of the genesis object around this content) are in spec/store-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "name", "signer", "key"],
+  "properties": {
+    "v": { "const": "store/0" },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,62}$",
+      "description": "The store's name. Also the genesis subject key."
+    },
+    "signer": {
+      "type": "string",
+      "pattern": "^service:evidence-store/[a-z0-9][a-z0-9.-]{0,62}$",
+      "description": "service:evidence-store/ followed by name. The actor of the genesis and of every checkpoint, and the signer of their attestations."
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "description": "The store key: an Ed25519 public key, 32 bytes, unpadded base64url in its one canonical spelling."
+    }
+  }
+}

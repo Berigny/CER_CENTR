@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:log-entry:0",
+  "title": "Log entry (log-entry/0)",
+  "description": "The store's own facts about one item in a store/0 log: which log, its dense position, what kind of item it is, which item, when the store received it, the writer epoch and the hash of the entry before it. The entry hash is sha256 of the RFC 8785 canonical form of the whole entry. Rules the schema cannot express (calendar-valid received_at, the number range, and the rules that relate an entry to its neighbours) are in spec/store-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "log", "seq", "kind", "ref", "received_at", "epoch", "prev"],
+  "properties": {
+    "v": { "const": "log-entry/0" },
+    "log": { "$ref": "#/$defs/hash", "description": "The log id: the id of the log's genesis object." },
+    "seq": {
+      "$ref": "#/$defs/position",
+      "description": "Dense position in the log: entry n has seq n."
+    },
+    "kind": {
+      "enum": ["object", "attestation"],
+      "description": "object: an evidence/0 object. attestation: an attestation/0 line."
+    },
+    "ref": {
+      "$ref": "#/$defs/hash",
+      "description": "For an object, its id. For an attestation, sha256 of its canonical form, including sig."
+    },
+    "received_at": {
+      "$ref": "#/$defs/timestamp",
+      "description": "When the store received the item. Never less than the previous entry's. Writers emit exactly 3 fraction digits; verifiers accept any valid timestamp."
+    },
+    "epoch": {
+      "$ref": "#/$defs/position",
+      "description": "The writer epoch. Never less than the previous entry's."
+    },
+    "prev": {
+      "$ref": "#/$defs/hash",
+      "description": "The entry hash of seq - 1. For seq 1, the log id."
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "position": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+      "description": "UTC only. Must also be a real calendar instant (checked outside the schema)."
+    }
+  }
+}

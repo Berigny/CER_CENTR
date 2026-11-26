@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:store-report:0",
+  "title": "Store report (store-report/0)",
+  "description": "The result of verifying a live store or an export. It collects every finding, up to a limit, rather than stopping at the first, and carries no free text, so every implementation emits identical bytes for the same input. Codes are listed in sort order. Verification rules are in spec/store-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "ok", "source", "checked", "counts", "findings", "truncated"],
+  "properties": {
+    "v": { "const": "store-report/0" },
+    "ok": { "type": "boolean", "description": "True exactly when findings is empty." },
+    "source": { "enum": ["store", "export"] },
+    "log": { "$ref": "#/$defs/hash", "description": "The log id. Omitted when unknown." },
+    "head": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "entry_hash"],
+      "properties": {
+        "seq": { "$ref": "#/$defs/position" },
+        "entry_hash": { "$ref": "#/$defs/hash" }
+      },
+      "description": "The last entry checked. Omitted when unknown or empty."
+    },
+    "covered": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "checkpoint"],
+      "properties": {
+        "size": { "$ref": "#/$defs/position" },
+        "checkpoint": { "$ref": "#/$defs/hash", "description": "The checkpoint's id." }
+      },
+      "description": "The highest checkpoint that verified and has a valid witness. Omitted when there is none."
+    },
+    "checked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "objects", "attestations", "checkpoints"],
+      "properties": {
+        "entries": { "$ref": "#/$defs/count" },
+        "objects": { "$ref": "#/$defs/count" },
+        "attestations": { "$ref": "#/$defs/count" },
+        "checkpoints": { "$ref": "#/$defs/count" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forks", "at_after_received"],
+      "properties": {
+        "forks": { "$ref": "#/$defs/count", "description": "Record-lane subjects with more than one head." },
+        "at_after_received": {
+          "$ref": "#/$defs/count",
+          "description": "Objects whose at is more than 300 seconds after their entry's received_at. Informational, never a finding."
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "description": "Sorted by seq (findings without seq first), then by the position of code in the code list."
+    },
+    "truncated": { "type": "boolean", "description": "True when more findings were found than the limit allowed." }
+  },
+  "if": { "required": ["ok"], "properties": { "ok": { "const": true } } },
+  "then": { "properties": { "findings": { "maxItems": 0 } } },
+  "else": { "properties": { "findings": { "minItems": 1 } } },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "position": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "enum": [
+            "S_MANIFEST_INVALID",
+            "S_SEGMENT_HASH",
+            "S_MANIFEST_MISMATCH",
+            "S_LINE_INVALID",
+            "S_ENTRY_INVALID",
+            "S_WRONG_LOG",
+            "S_SEQ_GAP",
+            "S_CHAIN_BREAK",
+            "S_RECEIVED_REGRESSION",
+            "S_EPOCH_REGRESSION",
+            "S_REF_MISMATCH",
+            "S_DUPLICATE_REF",
+            "S_GENESIS_INVALID",
+            "S_RESERVED_SUBJECT",
+            "S_OBJECT_INVALID",
+            "S_PREV_POSITION",
+            "S_ATTESTATION_INVALID",
+            "S_ATTESTATION_TARGET",
+            "S_CHECKPOINT_INVALID",
+            "S_CHECKPOINT_MISMATCH",
+            "S_CHECKPOINT_UNSIGNED",
+            "S_PROJECTION_DRIFT",
+            "S_TRIGGERS_MISSING",
+            "S_META_MISMATCH"
+          ]
+        },
+        "seq": { "$ref": "#/$defs/position", "description": "The seq of the entry the finding is about." },
+        "ref": { "$ref": "#/$defs/hash", "description": "The ref of the entry the finding is about." },
+        "core": {
+          "enum": [
+            "E_PARSE",
+            "E_DUPLICATE_KEY",
+            "E_NUMBER_RANGE",
+            "E_SHAPE",
+            "E_TIMESTAMP",
+            "E_ID_MISMATCH",
+            "E_CONTENT_HASH_MISMATCH",
+            "E_PREV_MISSING",
+            "E_PREV_ORDER",
+            "E_ATTESTATION_SHAPE",
+            "E_SIGNATURE_INVALID",
+            "E_ATTESTATION_MISSING"
+          ],
+          "description": "The evidence/0 code behind S_OBJECT_INVALID or S_ATTESTATION_INVALID."
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^([0-9]{6}|[1-9][0-9]{6,})\\.jsonl$",
+          "description": "The segment file behind S_SEGMENT_HASH."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["code"], "properties": { "code": { "enum": ["S_OBJECT_INVALID", "S_ATTESTATION_INVALID"] } } },
+          "then": { "required": ["core"] },
+          "else": { "not": { "required": ["core"] } }
+        },
+        {
+          "if": { "required": ["code"], "properties": { "code": { "const": "S_SEGMENT_HASH" } } },
+          "then": { "required": ["file"] },
+          "else": { "not": { "required": ["file"] } }
+        }
+      ]
+    }
+  }
+}

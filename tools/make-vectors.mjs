@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import * as ev from "./reference/evidence.mjs";
+import * as log from "./reference/log.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "test-vectors");
 const write = (rel, text) => {
@@ -371,3 +372,159 @@ vector("115-attestation-bad-key", {
 });
 
 console.log(`wrote ${canon.length} canon, ${numbers.length} number and 20 object vectors to ${ROOT}`);
+
+// --- Store vectors (store/0) ------------------------------------------------------
+// Built with tools/reference/log.mjs. Only entries.json and merkle.json are
+// written here; nothing else under store/ is touched.
+
+const assert = (cond, what) => {
+  if (!cond) throw new Error(`generator check failed: ${what}`);
+};
+const entryError = (fn) => {
+  try {
+    fn();
+    return null;
+  } catch (e) {
+    if (!(e instanceof ev.EvidenceError)) throw e;
+    return e.code;
+  }
+};
+
+// The demo store key, derived like the other test keys. Its seed file is not
+// written yet; the export vectors will add keys/store-demo.seed.
+const storeSeed = createHash("sha256").update("evidence/0 test-vector key: store-demo").digest("hex");
+const demoGenesis = log.makeGenesis("cer-demo", ev.publicKey(storeSeed));
+const genesisObj = log.genesisObject(demoGenesis, "2026-11-26T00:00:00.000Z");
+assert(log.genesisFromObject(genesisObj).key === demoGenesis.key, "genesis reads back");
+const logId = genesisObj.id;
+const genesisAuthor = ev.signAttestation(
+  { object: logId, purpose: "author", signer: demoGenesis.signer, at: genesisObj.at },
+  storeSeed,
+);
+
+// One short, coherent chain: the genesis, its author attestation, then three
+// objects from the object vectors. Each entry's prev is the hash of the one before.
+const chain = [];
+const chainEntry = (name, members) => {
+  const prev = chain.length ? log.entryHash(chain.at(-1).entry) : logId;
+  const entry = log.makeEntry({ log: logId, seq: chain.length + 1, prev, ...members });
+  chain.push({ name, entry });
+  return entry;
+};
+chainEntry("genesis", { kind: "object", ref: logId, received_at: "2026-11-26T00:00:00.000Z", epoch: 1 });
+chainEntry("genesis-author-attestation", {
+  kind: "attestation",
+  ref: log.attestationRef(genesisAuthor),
+  received_at: "2026-11-26T00:00:00.000Z",
+  epoch: 1,
+});
+const objectEntry = chainEntry("object", {
+  kind: "object",
+  ref: obj001.id,
+  received_at: "2026-11-26T00:00:01.000Z",
+  epoch: 1,
+});
+chainEntry("received-at-nine-fraction-digits", {
+  kind: "object",
+  ref: obj002.id,
+  received_at: "2026-11-26T00:00:02.123456789Z",
+  epoch: 1,
+});
+chainEntry("epoch-7", { kind: "object", ref: obj003.id, received_at: "2026-11-26T00:00:03.000Z", epoch: 7 });
+const genesisEntry = chain[0].entry;
+assert(genesisEntry.log === logId && genesisEntry.ref === logId && genesisEntry.prev === logId, "seq 1 equalities");
+
+const validEntries = chain.map(({ name, entry }) => {
+  const canonical = log.entryCanonical(entry);
+  return { name, entry, canonical, hash: ev.sha256(Buffer.from(canonical, "utf8")) };
+});
+
+// Each invalid case changes one thing in the object entry.
+const withEntry = (change) => {
+  const e = { ...objectEntry };
+  change(e);
+  return ev.canonicalize(e);
+};
+const invalidEntries = [
+  ["seq-zero", (e) => (e.seq = 0)],
+  ["seq-not-integer", (e) => (e.seq = 1.5)],
+  ["unknown-member", (e) => (e.note = "free text")],
+  ["prev-missing", (e) => delete e.prev],
+  ["kind-blob", (e) => (e.kind = "blob")],
+  ["received-at-with-offset", (e) => (e.received_at = "2026-11-26T11:00:01.000+11:00")],
+  ["prev-not-a-hash", (e) => (e.prev = e.prev.toUpperCase())],
+].map(([name, change]) => ({ name, input: withEntry(change), error: "S_ENTRY_INVALID" }));
+
+for (const c of validEntries) {
+  assert(entryError(() => log.parseEntry(c.canonical)) === null, `entries/${c.name} is valid`);
+}
+for (const c of invalidEntries) {
+  assert(entryError(() => log.parseEntry(c.input)) === c.error, `entries/${c.name} is invalid`);
+}
+write("store/entries.json", pretty({ valid: validEntries, invalid: invalidEntries }));
+
+// Merkle trees over the UTF-8 leaves "leaf-0" ... "leaf-(n-1)".
+const leafText = (i) => `leaf-${i}`;
+const flipByte = (proof, element) =>
+  proof.map((d, i) => {
+    const copy = Buffer.from(d);
+    if (i === element) copy[0] ^= 0xff;
+    return copy;
+  });
+const texts = (proof) => proof.map(log.digestToText);
+const merkle = [1, 2, 3, 4, 5, 7, 8, 9, 16, 17, 100].map((n) => {
+  const leaves = Array.from({ length: n }, (_, i) => leafText(i));
+  const hashes = leaves.map((s) => log.leafHash(Buffer.from(s, "utf8")));
+  const root = log.merkleRoot(hashes);
+  const leafAt = (i) => log.leafHash(Buffer.from(leafText(i), "utf8"));
+
+  const inclusion = [...new Set([0, Math.floor(n / 2), n - 1])]
+    .sort((a, b) => a - b)
+    .map((index) => ({ index, proof: log.inclusionProof(hashes, index), valid: true }));
+  if (n >= 2) {
+    // The middle index's proof with the first byte of its last element inverted.
+    const middle = inclusion.find((c) => c.index === Math.floor(n / 2));
+    inclusion.push({ index: middle.index, proof: flipByte(middle.proof, middle.proof.length - 1), valid: false });
+    // An index equal to the tree size, with an empty proof.
+    inclusion.push({ index: n, proof: [], valid: false });
+  }
+  for (const c of inclusion) {
+    assert(log.verifyInclusion(leafAt(c.index), c.index, n, c.proof, root) === c.valid, `inclusion ${n}/${c.index}`);
+  }
+
+  const consistency = [...new Set([1, 2, 3, n - 1])]
+    .filter((m) => m >= 1 && m < n)
+    .sort((a, b) => a - b)
+    .map((m) => ({
+      old_size: m,
+      old_root: log.merkleRoot(hashes.slice(0, m)),
+      proof: log.consistencyProof(hashes, m),
+      valid: true,
+    }));
+  if (n >= 3) {
+    // The proof from n - 1 with the first byte of its last element inverted.
+    const last = consistency.find((c) => c.old_size === n - 1);
+    consistency.push({ ...last, proof: flipByte(last.proof, last.proof.length - 1), valid: false });
+  }
+  for (const c of consistency) {
+    const ok = log.verifyConsistency(c.old_size, n, c.old_root, root, c.proof);
+    assert(ok === c.valid, `consistency ${c.old_size}->${n}`);
+  }
+
+  return {
+    name: `size-${n}`,
+    leaves,
+    root: log.digestToText(root),
+    inclusion: inclusion.map(({ index, proof, valid }) => ({ index, proof: texts(proof), valid })),
+    consistency: consistency.map(({ old_size, old_root, proof, valid }) => ({
+      old_size,
+      old_root: log.digestToText(old_root),
+      proof: texts(proof),
+      valid,
+    })),
+  };
+});
+write("store/merkle.json", pretty(merkle));
+
+const entryCount = validEntries.length + invalidEntries.length;
+console.log(`wrote ${entryCount} entry and ${merkle.length} Merkle tree vectors to ${join(ROOT, "store")}`);

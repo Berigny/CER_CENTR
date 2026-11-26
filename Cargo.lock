@@ -125,6 +125,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "evidence-log"
+version = "0.1.0"
+dependencies = [
+ "evidence-core",
+ "sha2",
+]
+
+[[package]]
 name = "evidence-py"
 version = "0.1.0"
 dependencies = [

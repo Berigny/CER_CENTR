@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:segments:0",
+  "title": "Export manifest (segments/0)",
+  "description": "manifest.json of a store export: the log it is from, its size and head, and the segment files that hold its canonical lines in seq order. Rules the schema cannot express (the segment list follows from size and segment_size, file hashes, and agreement with the lines) are in spec/store-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "log", "size", "head", "segment_size", "segments"],
+  "properties": {
+    "v": { "const": "segments/0" },
+    "log": { "$ref": "#/$defs/hash", "description": "The log id." },
+    "size": { "$ref": "#/$defs/position", "description": "The number of entries exported: the seq of the last one." },
+    "head": { "$ref": "#/$defs/hash", "description": "The entry hash of seq = size." },
+    "segment_size": {
+      "$ref": "#/$defs/position",
+      "description": "Lines per segment file. Every segment except the last holds exactly this many."
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "first", "last", "hash"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "pattern": "^([0-9]{6}|[1-9][0-9]{6,})\\.jsonl$",
+            "description": "The segment's number, counting from 1, zero-padded to six digits, then .jsonl."
+          },
+          "first": { "$ref": "#/$defs/position", "description": "The seq of the segment's first line." },
+          "last": { "$ref": "#/$defs/position", "description": "The seq of the segment's last line." },
+          "hash": { "$ref": "#/$defs/hash", "description": "sha256 of the segment file's bytes." }
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "size"],
+      "properties": {
+        "id": { "$ref": "#/$defs/hash", "description": "The id of the latest checkpoint in the export." },
+        "size": { "$ref": "#/$defs/position", "description": "That checkpoint's size." }
+      },
+      "description": "The latest checkpoint. Omitted when the export holds no checkpoint."
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "position": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+  }
+}

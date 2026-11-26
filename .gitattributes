@@ -1,0 +1,4 @@
+# Files whose exact bytes are hashed (schema hashes, fixture hashes, vectors)
+# must never have their line endings converted on checkout.
+spec/schema/*.json -text
+test-vectors/** -text

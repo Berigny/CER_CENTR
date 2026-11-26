@@ -18,3 +18,24 @@ All data here is synthetic. The keys in `keys/` are public test keys derived fro
 | `keys/` | Test seeds (hex) and `public.json`. |
 
 Cases `0xx` must verify; cases `1xx` must fail with the stated code. An implementation conforms if it matches every case.
+
+## Store
+
+Vectors for [store/0](../spec/store-0.md), generated through the independent JavaScript implementation `tools/reference/log.mjs`.
+
+| Path | Contents |
+|---|---|
+| `store/entries.json` | `{valid, invalid}`. Each `valid` case is `{name, entry, canonical, hash}`: a `log-entry/0` object, its RFC 8785 canonical text, and its entry hash (`sha256:` + hex SHA-256 of `canonical`). Each `invalid` case is `{name, input, error}`: JSON text that is not a valid entry, and the code `S_ENTRY_INVALID`. |
+| `store/merkle.json` | A list of `{name, leaves, root, inclusion, consistency}`. `leaves` are strings whose UTF-8 bytes are the leaves; `root` is the RFC 9162 tree hash. `inclusion` is a list of `{index, proof, valid}` (0-based leaf index); `consistency` is a list of `{old_size, old_root, proof, valid}`, from `old_size` to the full tree. Hashes are written `sha256:` + hex. |
+
+`entries.json`:
+
+- The valid entries form one short chain, seq 1 to 5, each `prev` being the hash of the entry before: the genesis entry of a demo log (`log` = `ref` = `prev` = the log id), its author attestation, an object entry (object vector 001), a `received_at` with 9 fraction digits, and epoch 7.
+- Each invalid case changes one member of the object entry: seq 0, seq 1.5, an unknown member, `prev` missing, kind `"blob"`, `received_at` with an offset, and a `prev` in upper-case hex.
+
+`merkle.json`:
+
+- Trees of 1, 2, 3, 4, 5, 7, 8, 9, 16, 17 and 100 leaves, named `size-<n>`, with leaves `"leaf-0"` to `"leaf-<n-1>"`.
+- Proofs marked `valid: true` are the ones RFC 9162 sections 2.1.3.1 and 2.1.4.1 produce: inclusion for the first, middle (n / 2, rounded down) and last index; consistency from old sizes 1, 2, 3 and n − 1, where 0 < old size < n.
+- Proofs marked `valid: false` must fail verification (RFC 9162 sections 2.1.3.2 and 2.1.4.2). For n ≥ 2: the middle index's proof with the first byte of its last element inverted, and index n (outside the tree) with an empty proof. For n ≥ 3: the consistency proof from n − 1 with the first byte of its last element inverted.
+- For an index outside the tree there is no leaf; verification must answer false whatever leaf hash is supplied. The JavaScript checker uses the leaf `"leaf-<index>"`.

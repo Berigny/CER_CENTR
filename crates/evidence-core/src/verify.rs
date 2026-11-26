@@ -48,12 +48,59 @@ impl Store {
     }
 }
 
+/// Where step 6 looks up the claimed time of a `prev` object.
+///
+/// [`Store`] is one lookup; a persistent store of verified objects can be
+/// another, so step 6 runs the same way whatever holds the objects.
+pub trait PrevLookup {
+    /// `at` of a verified object with this id, or None if it is not held.
+    fn prev_at(&self, id: &str) -> Option<Timestamp>;
+}
+
+impl PrevLookup for Store {
+    fn prev_at(&self, id: &str) -> Option<Timestamp> {
+        self.at(id)
+    }
+}
+
+/// Step 6 on its own: every prev resolves, and none is dated after `checked.at`.
+/// Returns E_PREV_MISSING or E_PREV_ORDER exactly as `verify` does.
+pub fn check_prev(checked: &object::Checked, lookup: &dyn PrevLookup) -> Result<(), Error> {
+    for p in &checked.prev {
+        let at = lookup.prev_at(p).ok_or_else(|| {
+            Error::new(Code::PrevMissing, format!("prev {p} is not in the store"))
+        })?;
+        if at > checked.at {
+            return Err(Error::new(
+                Code::PrevOrder,
+                format!(
+                    "prev {p} is dated {} but this object is dated {}",
+                    time::format_secs(at.secs),
+                    time::format_secs(checked.at.secs)
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Default)]
 pub struct Options<'a> {
     /// Attestation lines (JSON Lines). Lines for other objects are ignored.
     pub attestations: Option<&'a [u8]>,
     /// When given, every `prev` hash must resolve in the store.
     pub store: Option<&'a Store>,
+    /// Attestation purposes that must be present with a valid signature.
+    pub require: &'a [String],
+}
+
+/// [`Options`] with step 6 run against any [`PrevLookup`], not only a [`Store`].
+#[derive(Default)]
+pub struct LookupOptions<'a> {
+    /// Attestation lines (JSON Lines). Lines for other objects are ignored.
+    pub attestations: Option<&'a [u8]>,
+    /// When given, every `prev` hash must resolve through this lookup.
+    pub prev: Option<&'a dyn PrevLookup>,
     /// Attestation purposes that must be present with a valid signature.
     pub require: &'a [String],
 }
@@ -96,6 +143,18 @@ impl Report {
 }
 
 pub fn verify(bytes: &[u8], opts: &Options) -> Report {
+    verify_lookup(
+        bytes,
+        &LookupOptions {
+            attestations: opts.attestations,
+            prev: opts.store.map(|s| s as &dyn PrevLookup),
+            require: opts.require,
+        },
+    )
+}
+
+/// The same pipeline as `verify`, with step 6 run against any lookup.
+pub fn verify_lookup(bytes: &[u8], opts: &LookupOptions) -> Report {
     let mut report = Report::default();
     if let Err(e) = run(bytes, opts, &mut report) {
         report.error = Some(e);
@@ -103,7 +162,7 @@ pub fn verify(bytes: &[u8], opts: &Options) -> Report {
     report
 }
 
-fn run(bytes: &[u8], opts: &Options, report: &mut Report) -> Result<(), Error> {
+fn run(bytes: &[u8], opts: &LookupOptions, report: &mut Report) -> Result<(), Error> {
     let parsed = crate::json::parse(bytes)?;
     if let Some(id) = parsed.get("id").and_then(Value::as_str) {
         report.id = Some(id.to_string());
@@ -111,22 +170,8 @@ fn run(bytes: &[u8], opts: &Options, report: &mut Report) -> Result<(), Error> {
     let checked = object::check_value(parsed)?;
     report.content_checked = checked.content_checked;
 
-    if let Some(store) = opts.store {
-        for p in &checked.prev {
-            let at = store.at(p).ok_or_else(|| {
-                Error::new(Code::PrevMissing, format!("prev {p} is not in the store"))
-            })?;
-            if at > checked.at {
-                return Err(Error::new(
-                    Code::PrevOrder,
-                    format!(
-                        "prev {p} is dated {} but this object is dated {}",
-                        time::format_secs(at.secs),
-                        time::format_secs(checked.at.secs)
-                    ),
-                ));
-            }
-        }
+    if let Some(lookup) = opts.prev {
+        check_prev(&checked, lookup)?;
     }
 
     if let Some(lines) = opts.attestations {
