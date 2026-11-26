@@ -109,7 +109,7 @@ Every item in the log has one entry, `log-entry/0`. All members are required; no
 
 **Entry validity.** An entry is valid `log-entry/0` when it is a JSON object with exactly the members above, each of the type and pattern given, and its `received_at` is a real calendar instant. Anything else is `S_ENTRY_INVALID`. The rules that relate an entry to the rest of the log (dense seq, the chain, non-decreasing `received_at` and epoch, the log id, and the seq 1 equalities) are checked during [verification](#verification), each with its own code. Breaking one of them does not make the entry itself invalid.
 
-**Writer epoch.** A store's epoch starts at 1 when it is created, and increases by one each time a writer opens it. Entries written by one writer session carry that session's epoch.
+**Writer epoch.** A store's epoch starts at 1 when it is created, and increases by one each time a writer opens it. Entries written by one writer session carry that session's epoch. A store rebuilt from an export continues from the highest epoch among its entries: the first writer to open it has that epoch + 1.
 
 ## Lanes and heads
 
@@ -141,7 +141,7 @@ Intake is what a writer checks, in order, before it appends an item. A verifier 
 2. If `subject.system` is `"evidence-store"`, reject with `S_RESERVED_SUBJECT`. Only the store itself writes store subjects: the genesis when the store is created, and checkpoints.
 3. If the id is already held, return the existing entry's receipt with `duplicate: true`. `if_heads` is not evaluated, so a compare-and-set append that is retried after it landed still succeeds.
 4. evidence/0 step 6 against the held objects: every `prev` must be held and none may be dated after `at`. Failure gives `E_PREV_MISSING` or `E_PREV_ORDER`.
-5. If `if_heads` is given, the set `heads(subject, lane)` must equal it exactly. An empty `if_heads` means the subject and lane must have no heads. Otherwise reject with `S_STALE_HEADS`, and return the current heads.
+5. If `if_heads` is given, the set `heads(subject, lane)` must equal it exactly, compared as sets (order and repeated ids do not matter). An empty `if_heads` means the subject and lane must have no heads. Otherwise reject with `S_STALE_HEADS`, and return the current heads.
 6. Append:
    - `seq` = the last entry's seq + 1;
    - `received_at` = the later of the writer's clock, truncated to milliseconds, and the last entry's `received_at` (see [Two clocks](#two-clocks));
@@ -161,6 +161,7 @@ Intake is what a writer checks, in order, before it appends an item. A verifier 
 
 - An accepted item gets a **receipt**: its kind, ref, seq, entry hash, `received_at`, and `duplicate`.
 - A batch of items is written in one transaction and is all or nothing. If any item is rejected, nothing in the batch is appended, and the rejection names the item's position in the batch. Duplicates inside a batch do not fail it.
+- The items of a batch are checked in order, each against the log as it would be with the batch's earlier accepted items appended. A `prev` or an attestation's target may be an object earlier in the batch, `if_heads` is compared with the heads after the earlier items, and an item that repeats an earlier item of the batch returns that item's receipt with `duplicate: true`. The new entries take consecutive seqs in batch order and, because the writer reads its clock once per transaction (see [Two clocks](#two-clocks)), all have the same `received_at`.
 - Rejected input is not stored anywhere (see [Privacy](#privacy)).
 
 ## Checkpoint and tree
@@ -212,7 +213,8 @@ sha256:fa9f7b8bcfc8d2adba92090d2722e0ab9e89de8eb298d5641b7a074bc91ee540
 As with the genesis, the file is authoritative and implementations test their constant against it.
 
 - **Witness attestation.** Purpose `witness`, `object` the checkpoint id, `signer` and `key` as in the genesis, and `at` equal to the checkpoint's `at`.
-- **Wrong key.** If the key offered to sign a checkpoint differs from the genesis key, the request is refused with `S_STORE_KEY` before anything is written.
+- **Wrong key.** If the key offered to sign a checkpoint differs from the genesis key, or the witness it produces does not verify under the genesis key, the request is refused with `S_STORE_KEY` before anything is written.
+- **When.** A writer may write a checkpoint at any time after the store is created, directly after another checkpoint included: `size` then covers the previous checkpoint and its witness.
 
 ### Merkle tree
 
@@ -453,12 +455,12 @@ In sort order:
 
 ### Intake and operation codes
 
-These are returned by writers and tools, and never appear in a report. `S_RESERVED_SUBJECT` and `S_ATTESTATION_TARGET` are used both at intake and in reports.
+These are returned by writers and tools, and never appear in a report. `S_RESERVED_SUBJECT` and `S_ATTESTATION_TARGET` are used both at intake and in reports. An invalid argument to a store operation, such as a store name that does not match the name pattern, a segment size of 0 or a proof position outside the log, gives evidence/0's `E_USAGE`, as in the [programming interfaces](#programming-interfaces).
 
 | Code | Meaning |
 |---|---|
 | `S_STALE_HEADS` | A compare-and-set append found heads different from `if_heads`. The current heads are returned. |
-| `S_STORE_KEY` | The key offered to sign a checkpoint is not the genesis key. Nothing is written. |
+| `S_STORE_KEY` | The key offered to sign a checkpoint is not the genesis key, or what it signs does not verify under the genesis key. Nothing is written. |
 | `S_LOCKED` | Another writer holds the store. |
 | `S_NOT_A_STORE` | The directory is not a store. |
 | `S_EXISTS` | The target already exists: a store directory that is not empty, or an export or import destination. |

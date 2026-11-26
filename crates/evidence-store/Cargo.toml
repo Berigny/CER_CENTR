@@ -1,0 +1,18 @@
+[package]
+name = "evidence-store"
+description = "store/0 writer and reader: the append-only evidence log in one SQLite file, an in-memory reference log, export, import, verification and Merkle proofs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+evidence-core = { path = "../evidence-core" }
+evidence-log = { path = "../evidence-log" }
+rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"

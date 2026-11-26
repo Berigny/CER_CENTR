@@ -1,6 +1,6 @@
 # M1 build specification: a verifiable append-only evidence store
 
-**Status:** in build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors) and B (export verifier and bindings) are done; C to E (the SQLite store, export and import, the CLI) are next.
+**Status:** in build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors), B (export verifier and bindings), and C and D (the store library: in-memory and SQLite logs, export, import, verification, proofs) are done; E (the command-line commands, crash test, browser page, CI and docs) is next.
 **Size:** about 5 engineer-weeks for one experienced Rust engineer. That includes the JavaScript reference work D7 requires, roughly a quarter of the effort.
 **Dependencies:** nothing outside this repository.
 **System of record:** not touched; no SoR is read or written.
@@ -437,25 +437,29 @@ The Verifier keeps per-entry hashes in memory: about 200 MB per million entries,
 
 ## 7. crate evidence-store (I/O)
 
+The interfaces below are the code's: `crates/evidence-store/src`. The rules of this crate's writers are written out in full as rustdoc in `src/api.rs` (module docs) and in each module; 7.5 lists them in brief. The rules every writer must follow are normative in `spec/store-0.md`. Two private modules hold shared plumbing and no interface: `src/sqlite/db.rs` (every query and insert over one `log.db` connection, used by the writer, the reader, the writer's `IntakeState` and import) and `src/files.rs` (the partial-directory and durable-rename steps of export, import and init).
+
 ### 7.1 On-disk layout
 
 ```
 <store>/
-  log.db            authoritative SQLite (WAL); log.db-wal, log.db-shm alongside
-  LOCK              writer lease (advisory flock); text "pid <pid>\nepoch <n>\n" for diagnostics only
+  log.db            authoritative SQLite (WAL); log.db-wal, log.db-shm alongside while open
+  LOCK              writer lease (File::try_lock); text "pid <pid>\nepoch <n>\n" for diagnostics only
+  log.db.init       only while SqliteLog::init builds the store, or after an init that was killed
 ```
 
 - Seed files are never kept in the store directory.
-- Exports go to a directory the caller names.
+- Exports go to a directory the caller names. Export and import build in `<target>.partial-<pid>-<n>` beside their target, for the first `n` from 1 whose name `create_dir` can create, and rename it into place, so a crash never leaves a half-written target. A partial directory that a killed attempt left is skipped and left alone, so it never blocks a retry, even by a later process with the same pid (pids repeat, for example in containers); it can be deleted by hand. S_EXISTS only when the first 1000 names all exist.
+- `SqliteLog::init` builds the new store as `log.db.init` and renames it to `log.db` once it is complete, so `log.db` only ever names a complete store. An init killed at any moment leaves a store, or a directory holding nothing but `LOCK` and `log.db.init` with SQLite's files beside it, which the next `init` takes.
 - The store must be on a local disk, because flock is unreliable on NFS.
 
 ### 7.2 log.db schema (src/sqlite/schema.sql; PRAGMA user_version = 1)
 
 ```sql
-PRAGMA application_id = 0x45564430;   -- 'EVD0'
-PRAGMA journal_mode = WAL;  PRAGMA synchronous = FULL;  PRAGMA foreign_keys = ON;  PRAGMA busy_timeout = 5000;
+PRAGMA application_id = 1163281456;   -- 0x45564430, 'EVD0'
+PRAGMA user_version = 1;
 CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL) STRICT;
-  -- format='store/0', log_id, name, store_signer, store_key, writer_epoch
+  -- rows written by code: format='store/0', log_id, name, store_signer, store_key, writer_epoch (decimal text)
 CREATE TABLE entries (
   seq INTEGER PRIMARY KEY CHECK (seq >= 1),
   kind TEXT NOT NULL CHECK (kind IN ('object','attestation')),
@@ -492,59 +496,74 @@ CREATE TRIGGER entries_no_delete BEFORE DELETE ON entries BEGIN SELECT RAISE(ABO
 -- the same two triggers on objects and on attestations
 ```
 
+- `schema.sql` runs once, inside the transaction that creates a store (init) or rebuilds one (import). `application_id` and `user_version` live in the database header and roll back with that transaction, so a store that failed half way holds no schema.
+- Connection settings are not in `schema.sql`: `journal_mode` cannot change inside a transaction and `foreign_keys` does nothing inside one. Every connection runs them when it opens. Writers run `WRITER_PRAGMAS`: `journal_mode = WAL`, `synchronous = FULL`, `foreign_keys = ON`, `busy_timeout = 5000`. Readers open with `SQLITE_OPEN_READ_ONLY` and run `READER_PRAGMAS`: `foreign_keys = ON`, `busy_timeout = 5000`, `query_only = ON`.
+- **Reading a store the reader cannot write.** SQLite reads a WAL database through `log.db-wal` and `log.db-shm`, creating them when absent, which needs write access to the store directory. When a reader's first read fails with SQLITE_CANTOPEN or SQLITE_READONLY (a read-only file system, a directory of another user) and the store has no WAL content (`log.db-wal` absent or an empty regular file, SQLite's own rule), `log.db` holds the whole log and no writer has it open, so `SqliteReader::open` opens it as an immutable file instead (URI `file://<absolute path>?mode=ro&immutable=1`, the path percent-encoded) and creates nothing; `SqliteReader::is_immutable` says so. SQLite does not watch an immutable file, so the reader keeps `LOCK`'s text (or its absence) from before it opened and, after every read transaction, checks that it is unchanged and that `log.db-wal` still has no content; otherwise that read is S_IO and a new reader is needed. A writer creates or rewrites `LOCK` before it changes `log.db`, and has `log.db-wal` while open. A store with WAL content (a writer open, or one that did not close) is not read without write access: S_IO, as SQLite reports it. `verify_store`, export and proofs read through `SqliteReader`, so all of them work on a read-only copy of a store that was closed cleanly.
 - Each write is `BEGIN IMMEDIATE … COMMIT`.
-- Readers open with `SQLITE_OPEN_READ_ONLY` and `PRAGMA query_only = ON`, and use one read transaction per call. Exports read all their lines inside a single read transaction.
-- A `user_version` other than 1 gives S_FORMAT. Migrations come with M2's schema v2.
+- Readers run each call in its own read transaction. `SqliteReader::snapshot` runs several calls in one; `verify_store` uses it, so the lines and the projections it compares are of one moment while a writer appends.
+- Opening (`SqliteLog::open`, `SqliteReader::open`) checks, in order: `log.db` exists (else S_NOT_A_STORE, and nothing is created); it is an SQLite database with this `application_id` (else S_NOT_A_STORE); `user_version` is 1 (else S_FORMAT); `meta.format` is `store/0` (S_FORMAT if it is something else); every other `meta` row is present and valid (else S_NOT_A_STORE). The log id and the genesis (name, signer, key) come from `meta`; opening never reads the lines. `verify_store` checks `meta.log_id` against them (S_META_MISMATCH).
+- `verify_store` gives S_TRIGGERS_MISSING unless each of the six triggers is in `sqlite_master` with the `tbl_name` and `sql` that a fresh in-memory database built from `schema.sql` gives it.
 
 ### 7.3 Lease and epoch
 
-1. `SqliteLog::open` opens `<dir>/LOCK` with create, read and write.
-2. It calls `std::fs::File::try_lock()` (stable since Rust 1.89). `WouldBlock` gives `StoreError::Locked { holder }`, where `holder` is the file's text.
+1. `SqliteLog::open` runs the open checks of 7.2 first, so `LOCK` is never created outside a store.
+2. It opens `<dir>/LOCK` with create, read and write (never truncating) and calls `std::fs::File::try_lock()` (stable since Rust 1.89). `WouldBlock` gives `StoreError::Locked { holder }`, where `holder` is the file's text. The lock is per open file, so a second open in the same process is refused too.
 3. On success it runs, in one transaction, `writer_epoch = writer_epoch + 1`, then rewrites LOCK's diagnostic text.
 
-The lock is held for the lifetime of the `SqliteLog` value. Every entry carries the epoch. `MemLog` uses epoch 1.
+- `SqliteLog::init` takes the lease before it creates `log.db.init` (and so before `log.db`), and writes `writer_epoch` 1.
+- A failed `init` removes the `LOCK` it created while it still holds the lease. A process that opened that file before and locks it after would hold a file that is no longer the store's `LOCK`, so on Unix `Lease::acquire` checks, after `try_lock`, that `<dir>/LOCK` still names the file it locked (device and inode), and otherwise opens the name again (up to 8 times, then S_LOCKED).
+- The lock is held for the lifetime of the `SqliteLog` value and released when it drops.
+- Every entry carries the epoch. `MemLog` starts at epoch 1; `MemLog::reopen` adds one, with no clock reading, as closing and reopening a `SqliteLog` does.
+- `import` sets `writer_epoch` to the highest epoch in the export, so the first writer to open the result appends at that + 1.
 
-### 7.4 Traits and types
+### 7.4 Modules, traits and types
 
 ```rust
 // clock.rs
 pub trait Clock: Send { fn now(&self) -> Timestamp; }
 pub struct SystemClock;
-pub struct ScriptClock { /* VecDeque<Timestamp>; panics when exhausted */ }
-impl ScriptClock { pub fn new(times: &[&str]) -> ScriptClock; }
+#[derive(Clone)] pub struct ScriptClock { /* Arc<Mutex<VecDeque<Timestamp>>>: clones share one queue */ }
+impl ScriptClock {
+    pub fn new(times: &[&str]) -> ScriptClock;                 // panics on a reading that is not a timestamp
+    pub fn from_timestamps(times: impl IntoIterator<Item = Timestamp>) -> ScriptClock;
+    pub fn push(&self, time: Timestamp);
+    pub fn remaining(&self) -> usize;                          // readings left, across clones
+}                                                              // now() panics when none is left (a test clock)
 // signer.rs
 pub trait Signer {
     fn public_key(&self) -> String;                                          // "ed25519:…"
     fn sign(&self, object_id: &str, purpose: &str, signer: &str, at: &str) -> Result<String, StoreError>; // canonical line
 }
 pub struct SeedSigner { seed: [u8; 32] }          // development only; wraps evidence_core::attest::sign
-impl SeedSigner { pub fn from_hex(hex: &str) -> Result<SeedSigner, StoreError>;
-                  pub fn from_file(path: &Path) -> Result<SeedSigner, StoreError>; }
+impl SeedSigner { pub fn from_hex(hex: &str) -> Result<SeedSigner, StoreError>;      // E_USAGE
+                  pub fn from_file(path: &Path) -> Result<SeedSigner, StoreError>; } // S_IO, E_USAGE
 // api.rs
-pub struct Head { pub seq: u64, pub entry_hash: String }
+pub struct Head { pub seq: u64, pub entry_hash: String }                                  // + to_value
 pub struct Receipt { pub kind: Kind, pub reference: String, pub seq: u64, pub entry_hash: String,
-                     pub received_at: String, pub duplicate: bool }
+                     pub received_at: String, pub duplicate: bool }                       // + to_value
 pub struct StoredObject { pub id: String, pub seq: u64, pub received_at: String, pub bytes: String }
 pub struct StoredAttestation { pub hash: String, pub seq: u64, pub line: String }
-pub struct CheckpointInfo { pub id: String, pub seq: u64, pub size: u64, pub root: String, pub head: String }
+pub struct CheckpointInfo { pub id: String, pub seq: u64, pub size: u64, pub root: String, pub head: String } // + to_value
 pub enum Item<'a> { Object { bytes: &'a [u8], if_heads: Option<&'a [String]> }, Attestation { line: &'a [u8] } }
-#[derive(Debug)] pub enum RejectCode { Core(evidence_core::Code), StaleHeads, ReservedSubject, AttestationTarget }
-#[derive(Debug)] pub struct Rejected { pub index: usize, pub code: RejectCode, pub detail: String, pub heads: Vec<String> }
-impl Rejected { pub fn code_str(&self) -> &'static str; }       // the E_ code, or S_STALE_HEADS etc.
-#[derive(Debug)] pub enum StoreError { Rejected(Rejected), StoreKey, Locked { holder: String },
-    NotAStore(PathBuf), Exists(PathBuf), Format(String), Sqlite(String), Io(String) }
-impl StoreError { pub fn code_str(&self) -> &'static str; }
+pub enum RejectCode { Core(evidence_core::Code), StaleHeads, ReservedSubject, AttestationTarget }
+pub struct Rejected { pub index: usize, pub code: RejectCode, pub detail: String, pub heads: Vec<String> }
+impl Rejected { pub fn new(index: usize, code: RejectCode, detail: impl Into<String>) -> Rejected;
+                pub fn code_str(&self) -> &'static str; }      // the E_ code, or S_STALE_HEADS etc.
+pub enum StoreError { Rejected(Rejected), StoreKey, Locked { holder: String },
+    NotAStore(PathBuf), Exists(PathBuf), Format(String), Usage(String), Sqlite(String), Io(String) }
+impl StoreError { pub fn code_str(&self) -> &'static str; }   // + Display, Error, From<Rejected | io::Error | rusqlite::Error>
 
 pub trait LogRead {
     fn log_id(&self) -> &str;
     fn genesis(&self) -> &Genesis;
     fn head(&self) -> Result<Head, StoreError>;
-    fn lines(&self, from_seq: u64, limit: usize) -> Result<Vec<String>, StoreError>;   // canonical segment lines
+    fn lines(&self, from_seq: u64, limit: usize) -> Result<Vec<(u64, String)>, StoreError>;  // (seq, canonical line)
     fn object(&self, id: &str) -> Result<Option<StoredObject>, StoreError>;
     fn attestations(&self, object_id: &str) -> Result<Vec<StoredAttestation>, StoreError>;
     fn heads(&self, subject: &SubjectKey, lane: &str) -> Result<Vec<String>, StoreError>;
+    fn head_rows(&self) -> Result<Vec<(SubjectKey, String, String)>, StoreError>;  // every heads row, as Heads::rows
     fn checkpoints(&self) -> Result<Vec<CheckpointInfo>, StoreError>;
-    fn leaf_hashes(&self, upto: u64) -> Result<Vec<Digest>, StoreError>;
+    fn leaf_hashes(&self, upto: u64) -> Result<Vec<Digest>, StoreError>;          // E_USAGE above the head
 }
 pub trait LogWrite: LogRead {
     fn epoch(&self) -> u64;
@@ -555,27 +574,91 @@ pub trait LogWrite: LogRead {
     fn attest(&mut self, line: &[u8]) -> Result<Receipt, StoreError>;                          // provided
     fn checkpoint(&mut self, signer: &dyn Signer) -> Result<CheckpointInfo, StoreError>;
 }
-pub struct MemLog;     impl MemLog { pub fn init(name: &str, signer: &dyn Signer, clock: Box<dyn Clock>) -> Result<MemLog, StoreError>; }
+// intake.rs: the intake rules, shared by every writer. Planners read through IntakeState and write nothing;
+// a writer reads its clock once, plans, then applies the plan's entries in order.
+pub struct Tip { pub seq: u64, pub entry_hash: String, pub received_at: Timestamp }
+pub trait IntakeState {
+    fn tip(&self) -> Result<Tip, StoreError>;
+    fn receipt(&self, reference: &str) -> Result<Option<Receipt>, StoreError>;   // held ref → its receipt
+    fn object_at(&self, id: &str) -> Result<Option<Timestamp>, StoreError>;      // held object → at
+    fn heads(&self, subject: &SubjectKey, lane: &str) -> Result<Vec<String>, StoreError>;
+    fn latest_checkpoint(&self) -> Result<Option<CheckpointInfo>, StoreError>;
+    fn root(&self, size: u64) -> Result<Digest, StoreError>;
+}
+pub struct NewEntry { pub entry: Entry, pub canonical: String, pub hash: String, pub leaf: Digest,
+                      pub line: String, pub item: NewItem }                       // + receipt()
+pub enum NewItem { Object(NewObject), Attestation(NewAttestation) }               // the objects / attestations rows
+pub struct Plan { pub receipts: Vec<Receipt>, pub entries: Vec<NewEntry>, pub checkpoint: Option<CheckpointInfo> }
+pub fn plan_commit(state: &dyn IntakeState, log_id: &str, epoch: u64, now: Timestamp, items: &[Item<'_>]) -> Result<Plan, StoreError>;
+pub fn new_genesis(name: &str, signer: &dyn Signer) -> Result<Genesis, StoreError>;                    // E_USAGE
+pub fn plan_genesis(genesis: &Genesis, signer: &dyn Signer, now: Timestamp) -> Result<(String, Plan), StoreError>;
+pub fn check_store_key(genesis: &Genesis, signer: &dyn Signer) -> Result<(), StoreError>;            // S_STORE_KEY
+pub fn plan_checkpoint(state: &dyn IntakeState, genesis: &Genesis, log_id: &str, epoch: u64,
+                       signer: &dyn Signer, now: Timestamp) -> Result<Plan, StoreError>;
+pub fn sign_checked(signer: &dyn Signer, genesis: &Genesis, object_id: &str, purpose: &str, at: &str)
+    -> Result<evidence_core::attest::Attestation, StoreError>;                                       // S_STORE_KEY
+// mem.rs
+pub struct MemLog;  impl MemLog {
+    pub fn init(name: &str, signer: &dyn Signer, clock: Box<dyn Clock>) -> Result<MemLog, StoreError>;
+    pub fn reopen(&mut self); }                                    // epoch += 1, no clock reading
+// sqlite/mod.rs, sqlite/lease.rs
+pub const DB_FILE, INIT_FILE, APPLICATION_ID, USER_VERSION, FORMAT, META_KEYS, SCHEMA_SQL, WRITER_PRAGMAS, READER_PRAGMAS, TRIGGERS;
 pub struct SqliteLog;  impl SqliteLog {
-    pub fn init(dir: &Path, name: &str, signer: &dyn Signer, clock: Box<dyn Clock>) -> Result<SqliteLog, StoreError>; // dir must not exist or be empty
-    pub fn open(dir: &Path, clock: Box<dyn Clock>) -> Result<SqliteLog, StoreError>; }  // takes the lease, epoch += 1
-pub struct SqliteReader; impl SqliteReader { pub fn open(dir: &Path) -> Result<SqliteReader, StoreError>; }
-// verify.rs
-pub fn verify_store(dir: &Path, opts: VerifyOptions) -> Result<StoreReport, StoreError>;   // pure Verifier + live checks
-pub fn verify_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<StoreReport, StoreError>;
+    pub fn init(dir: &Path, name: &str, signer: &dyn Signer, clock: Box<dyn Clock>) -> Result<SqliteLog, StoreError>; // dir absent, empty, or a killed init's
+    pub fn open(dir: &Path, clock: Box<dyn Clock>) -> Result<SqliteLog, StoreError>;   // takes the lease, epoch += 1
+    pub fn dir(&self) -> &Path; }
+pub struct SqliteReader; impl SqliteReader {
+    pub fn open(dir: &Path) -> Result<SqliteReader, StoreError>;   // immutable when it cannot write dir (7.2)
+    pub fn is_immutable(&self) -> bool;
+    pub fn dir(&self) -> &Path;
+    pub fn snapshot<T>(&self, f: impl FnOnce(&SqliteReader) -> Result<T, StoreError>) -> Result<T, StoreError>;
+    pub fn has_append_only_triggers(&self) -> Result<bool, StoreError>; }
+pub const LOCK_FILE: &str = "LOCK";
+pub struct Lease;  impl Lease {
+    pub fn acquire(dir: &Path) -> Result<Lease, StoreError>;      // S_LOCKED
+    pub fn record(&mut self, epoch: u64) -> Result<(), StoreError>;
+    pub fn holder(dir: &Path) -> Result<String, StoreError>; }
 // export.rs
+pub const DEFAULT_SEGMENT_SIZE: u64 = 10_000;
+pub struct ExportFiles { pub manifest: Manifest, pub files: Vec<(String, Vec<u8>)> }  // segments in order, then manifest.json
+pub fn export_files(log: &dyn LogRead, segment_size: u64) -> Result<ExportFiles, StoreError>;   // in memory, for tests
 pub fn export(log: &dyn LogRead, out: &Path, segment_size: u64) -> Result<Manifest, StoreError>;
+pub fn partial_path(target: &Path, n: u32) -> Result<PathBuf, StoreError>;                     // <target>.partial-<pid>-<n>
+pub struct ExportBytes { pub manifest: Vec<u8>, pub segments: Vec<Vec<u8>> }                     // + segment_slices
+pub fn read_export_dir(dir: &Path) -> Result<ExportBytes, StoreError>;                         // regular files only
+// import.rs
 pub fn import(export_dir: &Path, into: &Path) -> Result<StoreReport, StoreError>;
+// verify.rs
+pub fn verify_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<StoreReport, StoreError>;   // lines + projection drift
+pub fn verify_store(dir: &Path, opts: VerifyOptions) -> Result<StoreReport, StoreError>;        // + triggers, meta.log_id
+pub fn verify_export_dir(dir: &Path, opts: VerifyOptions) -> Result<StoreReport, StoreError>;   // read_export_dir + verify_export
+// prove.rs
+pub struct InclusionProof { pub seq: u64, pub size: u64, pub entry: Entry, pub leaf_hash: Digest,
+                            pub proof: Vec<Digest>, pub root: Digest, pub checkpoint: Option<String> }   // + to_value, verify
+pub struct ConsistencyProof { pub old_size: u64, pub new_size: u64, pub old_root: Digest,
+                              pub new_root: Digest, pub proof: Vec<Digest> }                           // + to_value, verify
+pub fn inclusion(log: &dyn LogRead, seq: u64, size: u64) -> Result<InclusionProof, StoreError>;
+pub fn consistency(log: &dyn LogRead, old_size: u64, new_size: u64) -> Result<ConsistencyProof, StoreError>;
 ```
 
-- `SqliteLog`, `SqliteReader` and `MemLog` implement `evidence_core::verify::PrevLookup`. `evidence verify --store <store dir>` and `store get` use it.
-- **Clock reads.** Each `commit`, `init` and `checkpoint` reads the clock exactly once. That one reading gives received_at for every entry in the transaction, through `next_received`, and the `at` of store-authored objects, through `service_at`.
-- **init** writes the genesis object (`at` = `service_at(now, [])`) and its author attestation in one transaction, at epoch 1.
-- **export** writes into `<out>.partial-<pid>`, fsyncs every file and the directory, then renames to `<out>`. If `<out>` already exists it returns S_EXISTS.
-- **import** works in three steps:
-  1. It runs `verify_export`. If the report is not ok, it returns the report and writes nothing.
-  2. It builds `<into>.partial-<pid>`, inserting the exact canonical rows, recomputing `heads` and `checkpoints`, and setting `writer_epoch` to the highest epoch seen.
-  3. It runs `verify_store`, then renames the directory into place.
+- `SqliteLog`, `SqliteReader` and `MemLog` implement `evidence_core::verify::PrevLookup`: `prev_at(id)` is the parsed `at` of the held object, or None. It has no error channel, so a storage error also reads as None; `evidence verify --store <store dir>` and `store get` use it. Intake does not: it resolves prevs through `IntakeState`, which reports errors.
+- `StoreError::code_str`: Rejected → the item's code; StoreKey → S_STORE_KEY; Locked → S_LOCKED; NotAStore → S_NOT_A_STORE; Exists → S_EXISTS; Format → S_FORMAT; Usage → E_USAGE (evidence/0's existing code for invalid arguments, as in the bindings); Sqlite and Io → S_IO.
+
+### 7.5 Writer rules (in brief; rustdoc in src/api.rs has them in full)
+
+- **Clock reads.** Each `init`, `commit` and `checkpoint` reads the clock exactly once. `commit` reads it first, before any intake check, so a rejected, all-duplicate or empty batch uses one reading (the reference writer also reads before it checks). `init` and `checkpoint` read it after their argument checks: a refusal with E_USAGE, S_EXISTS or (key mismatch) S_STORE_KEY reads nothing. That one reading gives every entry of the transaction the same `received_at`, through `next_received`, and store-authored objects their `at`, through `service_at`.
+- **Batches.** Items are checked in order against the log plus the batch's earlier accepted items: a `prev` or an attestation target may be earlier in the batch, and `if_heads` (compared as a set; empty means no heads) sees the earlier items' heads changes. A duplicate of a held item or of an earlier batch item returns that receipt with `duplicate: true`, adds no entry and does not fail the batch. The first rejection fails the batch with `Rejected.index` = its position from 0; `Rejected.heads` is filled for S_STALE_HEADS only. Receipts come back one per item, in batch order.
+- **init** writes, in one transaction at epoch 1, the genesis at seq 1 (`at` = `service_at(now, [])`) and its author attestation at seq 2, plus the genesis's heads row. `SqliteLog::init` refuses a path that exists and is neither an empty directory nor one holding only what a killed init leaves (`LOCK`, `log.db.init`, `log.db.init-journal`, `-wal`, `-shm`) with S_EXISTS. It takes the lease (S_LOCKED if held), checks the directory again under it (S_EXISTS if `log.db` or anything else appeared), removes those leftovers, reads the clock, and builds the store in `log.db.init`: schema, `meta` and the plan's rows in one transaction. It closes that connection (which checkpoints and removes the WAL; S_IO if a WAL with content is left), syncs the file, renames it to `log.db` (S_EXISTS if `log.db` appeared), syncs the store directory and the parent of every directory it created, and only then opens `log.db` as the writer and records epoch 1 in `LOCK`. A failure after the lease is taken removes what this call created (`log.db.init` and its files, `log.db` and its WAL files if renamed, `LOCK` if it created it) while still holding the lease, then the directory if this call created it and it is empty.
+- **checkpoint** refuses a signer whose public key is not the genesis key (S_STORE_KEY) before reading the clock. Then, in one transaction: the checkpoint object at seq size + 1 over entries 1..size (every entry before it), with `prev` = the previous checkpoint's id (none for the first) and `at` = `service_at(now, [previous at])`; its witness at seq size + 2; and its `checkpoints` row. A checkpoint directly after another is allowed, as in the reference writer: its size covers the previous witness.
+- **Signer output is checked.** The author and witness lines must parse, verify, and attest exactly what was asked with the genesis key; otherwise S_STORE_KEY and nothing is written. They are stored in canonical form.
+- **Reopening.** `SqliteLog::open` takes the lease and increments `writer_epoch`; `MemLog::reopen` increments the epoch. A replay of an `inputs.json` `reopen` drops the `SqliteLog` and opens it again, handing it a clone of the same `ScriptClock` (clones share one queue), or calls `MemLog::reopen`.
+- **export** fixes `size` and `head` from `head()` first, reads only lines 1..size (S_IO if they are not exactly those seqs), and names in the manifest the last checkpoint with seq ≤ size. It writes `<out>.partial-<pid>-<n>` (7.1), syncs every file and the directory, then renames to `<out>`; S_EXISTS if `<out>` exists; E_USAGE unless 1 ≤ `segment_size` ≤ 2^53 − 1; the partial directory is removed on failure.
+- **import** works in five steps: S_EXISTS if `<into>` exists; `verify_export`, returning the report and writing nothing if it is not ok; `<into>.partial-<pid>-<n>` (7.1) built in one transaction with the exact canonical rows, the recomputed `heads` and `checkpoints`, and `writer_epoch` = the highest epoch (no `LOCK` until a writer opens it); `verify_store` on it (not ok: removed, report returned); then sync and rename. A partial directory is removed on any failure. Before the rename one read through a writable connection settles the WAL, so the imported store holds `log.db` alone.
+- **Never half a target.** Export and import share one placement step: sync the partial directory, S_EXISTS if the target appeared meanwhile, rename, sync the parent. If the parent cannot be synced after the rename, the target is removed again, so an error never leaves an export or a store behind. A partial directory that a killed export or import left stays, and never blocks a later one. A failed `SqliteLog::init` removes only the files it created and the directory only if it created it; another `init` racing it on the same directory gets S_LOCKED (it holds the lease) or S_EXISTS (its `log.db` exists), and its files are left alone. A killed `init` leaves a complete store or a directory the next `init` takes.
+- **Limits and damage.** Seqs, sizes and epochs are at most 2^53 − 1. A stored `writer_epoch` outside 1 to 2^53 − 1 is S_NOT_A_STORE when the store is opened, and an open that would pass 2^53 − 1 is S_IO; so is an append to a log at seq 2^53 − 1. A planner also refuses with S_IO, writing nothing, a stored log id that is not a hash and a clock reading whose millisecond form is not a timestamp (outside the years 0000 to 9999). `leaf_hashes` is E_USAGE above the head and S_IO for a missing seq below it; export (a missing seq, or a line holding an LF) and prove (a line that is missing, does not parse or does not match its leaf) give S_IO for damaged content, while `verify_store` reports the same damage as findings. `verify_store` reads `meta.log_id` again inside its snapshot.
+- **Readers leave WAL files.** A read-only connection to a store with no writer open may leave `log.db-wal` and `log.db-shm` behind; this is SQLite's WAL behaviour, and the next writer to open and close the store removes them. A reader that cannot write the store directory creates nothing, and reads `log.db` as an immutable file when the store has no WAL content (7.2).
+- **verify_log** works for any `LogRead`: every line through `evidence_log::Verifier` with source `store`, then one S_PROJECTION_DRIFT if `head_rows()` or `checkpoints()` differ from the fold. **verify_store** adds S_TRIGGERS_MISSING and S_META_MISMATCH, all in one reader snapshot. **verify_export_dir** reads an export as `spec/store-0.md` asks a host to and runs `verify_export`. `read_export_dir` (used by it and by import) reads only regular files, a symlink followed to one: a listed segment that is a FIFO, a device, a socket or a directory reads as empty bytes (S_SEGMENT_HASH), and such a `manifest.json` is S_IO, so an export from elsewhere cannot block a read or make it endless.
+- **prove** returns the shapes of section 8 (`InclusionProof::to_value`, `ConsistencyProof::to_value`); `checkpoint` names the checkpoint whose size is `size`, omitted if there is none. E_USAGE unless 1 ≤ seq ≤ size ≤ head, or 1 ≤ old_size < new_size ≤ head. The default size stays in the CLI.
 
 ## 8. CLI (all output is canonical JSON on stdout; exit 0 ok, 1 rejected or findings, 2 usage, I/O or S_LOCKED)
 

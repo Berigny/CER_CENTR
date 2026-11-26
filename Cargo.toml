@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/evidence-core",
     "crates/evidence-log",
+    "crates/evidence-store",
     "crates/evidence-cli",
     "crates/evidence-wasm",
     "crates/evidence-py",
@@ -12,6 +13,7 @@ members = [
 default-members = [
     "crates/evidence-core",
     "crates/evidence-log",
+    "crates/evidence-store",
     "crates/evidence-cli",
     "crates/evidence-wasm",
 ]
@@ -28,3 +30,16 @@ repository = "https://github.com/Berigny/CER_CENTR"
 lto = true
 codegen-units = 1
 strip = true
+
+# Ed25519 and SHA-256 dominate the store tests in an unoptimised build (the
+# property test T5 above all: every attestation and checkpoint is signed,
+# then verified at intake and again by every verification). Optimise those
+# crates in dev and test builds too; nothing else changes.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+
+[profile.dev.package.ed25519-dalek]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3

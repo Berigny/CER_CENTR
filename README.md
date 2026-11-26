@@ -30,6 +30,7 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`tools/reference/`](tools/reference/) | Independent JavaScript reference for objects and stores, used to generate and cross-check the vectors |
 | [`spec/store-0.md`](spec/store-0.md) | Store spec: log entries, checkpoints, exports and their verification (milestone M1, in progress) |
 | [`crates/evidence-log/`](crates/evidence-log/) | Pure store formats and the export verifier: log entries, RFC 9162 tree and proofs, genesis, checkpoints, store reports (M1, in progress) |
+| [`crates/evidence-store/`](crates/evidence-store/) | The store: an append-only log in one SQLite file (and an in-memory reference), writer lease, signed checkpoints, export, import, live verification and Merkle proofs (M1, in progress) |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 
 ## Quick start
@@ -95,7 +96,7 @@ CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Status
 
-Scaffold, with milestone M1 in build. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the spec and the vectors work and are tested. The store formats and the export verifier are done: Rust, the WebAssembly module, Python and the independent JavaScript reference give the same report, byte for byte, on all 42 export cases. The store itself (SQLite, export and import, command-line commands) comes next.
+Scaffold, with milestone M1 in build. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the spec and the vectors work and are tested. The store formats and the export verifier are done: Rust, the WebAssembly module, Python and the independent JavaScript reference give the same report, byte for byte, on all 42 export cases. The store itself is built as a Rust library: a SQLite store and an in-memory reference pass the same tests, replay every valid case to its committed export byte for byte, and export, import and verify each other's logs. The command-line store commands, a browser page that verifies an export, and the crash tests come next.
 
 ## Next steps
 
