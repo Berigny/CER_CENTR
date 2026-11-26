@@ -1,0 +1,8 @@
+{
+  "description": "An object cannot replace a version dated after itself.",
+  "store": true,
+  "expect": {
+    "ok": false,
+    "code": "E_PREV_ORDER"
+  }
+}

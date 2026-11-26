@@ -1,0 +1,7 @@
+{
+  "description": "Integers above 2^53 - 1 lose precision in many languages; they must be strings.",
+  "expect": {
+    "ok": false,
+    "code": "E_NUMBER_RANGE"
+  }
+}

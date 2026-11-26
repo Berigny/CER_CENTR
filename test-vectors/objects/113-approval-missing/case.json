@@ -1,0 +1,10 @@
+{
+  "description": "Only the agent signed; an approval is required.",
+  "require": [
+    "approve"
+  ],
+  "expect": {
+    "ok": false,
+    "code": "E_ATTESTATION_MISSING"
+  }
+}

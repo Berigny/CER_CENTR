@@ -1,0 +1,25 @@
+{
+  "v": "evidence/0",
+  "id": "sha256:62831b6150025f0161cc889c2958ac46982411a9faa71b0b27ed48f2d222d097",
+  "op": "create",
+  "schema": {
+    "ref": "lab-report@1",
+    "hash": "sha256:25a727eb6be78a149c47a0b0d1ef5681b29b90e01adbc18254e16064d52b87c5"
+  },
+  "subject": {
+    "system": "product-certification",
+    "type": "test-report",
+    "key": "TR-TEST-0001"
+  },
+  "content": {
+    "media_type": "text/plain",
+    "hash": "sha256:92370a58a7e4b42ef08ac20a342d38c82b9fe819050ff64849bba09801c42d87",
+    "uri": "fixtures/test-report.txt"
+  },
+  "actor": {
+    "id": "person:lab-officer-01",
+    "kind": "human"
+  },
+  "at": "2026-11-18T23:00:00Z",
+  "prev": []
+}

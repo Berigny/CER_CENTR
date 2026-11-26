@@ -1,0 +1,8 @@
+{
+  "description": "prev points at an object the store does not hold.",
+  "store": true,
+  "expect": {
+    "ok": false,
+    "code": "E_PREV_MISSING"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "v": "evidence/0",
+  "id": "sha256:a04e6bb9161c12b57a8b496cf81d550e2683e87e291482921ea0ada326e0b253",
+  "op": "create",
+  "schema": {
+    "ref": "rec-registry/installation@12",
+    "hash": "sha256:3b0598a132cc74905124168a2dcd6b67f316db84793ebeffb29c6f88bba3ddb7"
+  },
+  "subject": {
+    "system": "rec-registry",
+    "type": "installation",
+    "key": "INS-TEST-000001"
+  },
+  "content": {
+    "media_type": "text/plain",
+    "hash": "sha256:c12fe0fd115de1526045602cf51d4a8132f7db129b88347195f9d8b4a2828f74",
+    "inline": {
+      "installation_id": "INS-TEST-000001",
+      "system_type": "solar-pv+battery",
+      "inverter_model": "TEST-INV-5K",
+      "battery_model": "TEST-BAT-10",
+      "installer_accreditation": "SAA-TEST-0001",
+      "commissioned_on": "2026-11-20",
+      "capacity_kw": 6.6,
+      "status": "commissioned"
+    }
+  },
+  "actor": {
+    "id": "service:rec-registry-cdc",
+    "kind": "service"
+  },
+  "at": "2026-11-20T05:12:44Z",
+  "prev": []
+}

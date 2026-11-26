@@ -1,0 +1,7 @@
+{
+  "description": "Inline content is JSON, so the media type must say so.",
+  "expect": {
+    "ok": false,
+    "code": "E_SHAPE"
+  }
+}

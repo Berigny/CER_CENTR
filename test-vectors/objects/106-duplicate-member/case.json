@@ -1,0 +1,7 @@
+{
+  "description": "Two op members. A last-one-wins parser reads op=create and accepts the id; a strict parser refuses.",
+  "expect": {
+    "ok": false,
+    "code": "E_DUPLICATE_KEY"
+  }
+}

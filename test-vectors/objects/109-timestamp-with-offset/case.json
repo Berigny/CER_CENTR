@@ -1,0 +1,7 @@
+{
+  "description": "Timestamps are UTC with Z so they order without time-zone rules.",
+  "expect": {
+    "ok": false,
+    "code": "E_SHAPE"
+  }
+}

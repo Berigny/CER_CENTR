@@ -1,0 +1,7 @@
+{
+  "description": "A string that is not valid Unicode text.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "v": "evidence/0",
+  "id": "sha256:7d7f86709389d95ac2d8a7cf943b992a0576cdd6500a217914347bc04ee87115",
+  "op": "assert",
+  "schema": {
+    "ref": "photo-check/result@1",
+    "hash": "sha256:71563807c8aa8a1791356c673a3e35d143550fb3e7aeb96beaaa66f0a2400cbb"
+  },
+  "subject": {
+    "system": "rec-registry",
+    "type": "installation",
+    "key": "INS-TEST-000001"
+  },
+  "content": {
+    "media_type": "application/json",
+    "hash": "sha256:9846197d85b298b7c37b673ed160019cdf9ccb4a5f67fbb5c1da43a4f4c065c1",
+    "inline": {
+      "check": "installer-attendance-photos",
+      "model": "test-photo-model-1",
+      "inputs": [
+        "sha256:21ef9a44651b8fa12881511713bbf4b6aa2600068cb5ff10cba83cdee97c3f6e",
+        "sha256:f9b56e96cfb3d93f3cbe97f5422cb215c43c4efc65d0936c36333e1b5d32d3d9",
+        "sha256:cf16ed34037db95c5591e011fb53cf32068f41016eeefea57e8be2f491df906a"
+      ],
+      "result": "pass",
+      "score": 0.93
+    }
+  },
+  "actor": {
+    "id": "agent:photo-check",
+    "kind": "agent",
+    "on_behalf_of": "person:assessor-01"
+  },
+  "at": "2026-11-21T02:30:00Z",
+  "prev": []
+}

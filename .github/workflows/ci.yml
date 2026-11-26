@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  vectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Vectors are reproducible from the JS reference
+        run: |
+          node tools/make-vectors.mjs
+          git diff --exit-code -- test-vectors
+      - name: JS reference agrees with the vectors
+        run: node tools/check-vectors.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: JSON Schemas agree with the vectors
+        run: |
+          pip install "jsonschema>=4.23,<5"
+          python tools/check_schema_vectors.py

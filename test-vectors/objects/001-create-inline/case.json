@@ -1,0 +1,8 @@
+{
+  "description": "A system-of-record row captured as evidence. The file is pretty-printed; the id is over canonical bytes.",
+  "expect": {
+    "ok": true,
+    "id": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4",
+    "content_checked": true
+  }
+}

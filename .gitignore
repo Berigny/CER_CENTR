@@ -1,0 +1,5 @@
+/target
+*.seed
+!test-vectors/keys/*.seed
+node_modules/
+__pycache__/

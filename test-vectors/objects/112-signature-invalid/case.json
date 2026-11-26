@@ -1,0 +1,10 @@
+{
+  "description": "The approval's time was edited after signing.",
+  "require": [
+    "approve"
+  ],
+  "expect": {
+    "ok": false,
+    "code": "E_SIGNATURE_INVALID"
+  }
+}

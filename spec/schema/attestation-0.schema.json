@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:attestation:0",
+  "title": "Attestation (attestation/0)",
+  "description": "A signature over an evidence object, stored outside it (one per line in a .jsonl file). The signed message is the RFC 8785 canonical form of this object without sig.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "object", "purpose", "signer", "key", "at", "sig"],
+  "properties": {
+    "v": { "const": "attestation/0" },
+    "object": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "The id of the evidence object." },
+    "purpose": {
+      "enum": ["author", "approve", "witness"],
+      "description": "author: I made this. approve: I accept this as the accountable person or body. witness: I saw this at this time."
+    },
+    "signer": { "type": "string", "minLength": 1 },
+    "key": {
+      "type": "string",
+      "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "description": "Ed25519 public key, 32 bytes, unpadded base64url in its one canonical spelling. Whether the key belongs to the signer is a trust-policy question outside this schema."
+    },
+    "at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "sig": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+      "description": "Ed25519 signature, 64 bytes, unpadded canonical base64url."
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Synthetic AI photo-check result",
+  "type": "object",
+  "required": [
+    "check",
+    "model",
+    "inputs",
+    "result"
+  ],
+  "properties": {
+    "check": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "fail",
+        "refer"
+      ]
+    },
+    "score": {
+      "type": "number"
+    }
+  }
+}

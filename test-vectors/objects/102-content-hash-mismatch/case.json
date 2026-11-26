@@ -1,0 +1,7 @@
+{
+  "description": "Inline content changed and the object resealed: the id is consistent, the content hash is not.",
+  "expect": {
+    "ok": false,
+    "code": "E_CONTENT_HASH_MISMATCH"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "An update that points at the version it replaces. The store holds that version.",
+  "store": true,
+  "expect": {
+    "ok": true,
+    "id": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d",
+    "content_checked": true
+  }
+}

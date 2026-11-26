@@ -1,0 +1,8 @@
+{
+  "description": "Content held elsewhere: the object carries only its hash and location, so content_checked is false.",
+  "expect": {
+    "ok": true,
+    "id": "sha256:62831b6150025f0161cc889c2958ac46982411a9faa71b0b27ed48f2d222d097",
+    "content_checked": false
+  }
+}

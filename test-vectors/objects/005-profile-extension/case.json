@@ -1,0 +1,8 @@
+{
+  "description": "Profile data under ext, keyed by profile id. Covered by the id like everything else.",
+  "expect": {
+    "ok": true,
+    "id": "sha256:64cda75fb6ca4ada0e9fce40d29c51e0ac1253a8cd2cf682a6a5e7e4db4ae060",
+    "content_checked": true
+  }
+}

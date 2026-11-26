@@ -1,0 +1,102 @@
+[
+  {
+    "name": "literals-and-whitespace",
+    "input": " [ true , false , null ] ",
+    "expected": "[true,false,null]"
+  },
+  {
+    "name": "nesting-and-member-order",
+    "input": "{ \"b\" : [ 1 , { \"d\" : 2 , \"c\" : 3 } ] , \"a\" : {} , \"\": [] }",
+    "expected": "{\"\":[],\"a\":{},\"b\":[1,{\"c\":3,\"d\":2}]}"
+  },
+  {
+    "name": "rfc8785-member-order-is-utf16",
+    "input": "{\"\\u20ac\":\"Euro\",\"\\u000d\":\"CR\",\"\\ufb33\":\"Hebrew\",\"1\":\"One\",\"\\ud83d\\ude00\":\"Smiley\",\"\\u0080\":\"Control\",\"\\u00f6\":\"Latin\"}",
+    "expected": "{\"\\r\":\"CR\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin\",\"€\":\"Euro\",\"😀\":\"Smiley\",\"דּ\":\"Hebrew\"}"
+  },
+  {
+    "name": "string-escapes",
+    "input": "\"\\u0000\\u0008\\u0009\\u000a\\u000c\\u000d\\u001f\\u0022\\u005c\\/\\u007f\\u2028\\u00e9\\ud83d\\ude00\"",
+    "expected": "\"\\u0000\\b\\t\\n\\f\\r\\u001f\\\"\\\\/ é😀\""
+  },
+  {
+    "name": "no-unicode-normalisation",
+    "input": "{\"\\u00e9\":1,\"e\\u0301\":2}",
+    "expected": "{\"é\":2,\"é\":1}"
+  },
+  {
+    "name": "numbers",
+    "input": "[1.0, -0, 0.1, 1e-7, 1E2, 123456789.125, 9007199254740991, -9007199254740991, 5e-324, 1e-400]",
+    "expected": "[1,0,0.1,1e-7,100,123456789.125,9007199254740991,-9007199254740991,5e-324,0]"
+  },
+  {
+    "name": "top-level-string",
+    "input": "\"evidence\"",
+    "expected": "\"evidence\""
+  },
+  {
+    "name": "duplicate-member",
+    "input": "{\"a\":1,\"a\":2}",
+    "error": "E_DUPLICATE_KEY"
+  },
+  {
+    "name": "duplicate-member-after-unescaping",
+    "input": "{\"a\":1,\"\\u0061\":2}",
+    "error": "E_DUPLICATE_KEY"
+  },
+  {
+    "name": "integer-above-2^53-1",
+    "input": "9007199254740992",
+    "error": "E_NUMBER_RANGE"
+  },
+  {
+    "name": "float-above-2^53-1",
+    "input": "1e16",
+    "error": "E_NUMBER_RANGE"
+  },
+  {
+    "name": "overflow-to-infinity",
+    "input": "-1e400",
+    "error": "E_NUMBER_RANGE"
+  },
+  {
+    "name": "lone-high-surrogate",
+    "input": "\"\\ud800\"",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "lone-low-surrogate",
+    "input": "\"\\udc00x\"",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "unescaped-control-character",
+    "input": "\"a\tb\"",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "leading-zero",
+    "input": "01",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "trailing-comma",
+    "input": "[1,]",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "trailing-content",
+    "input": "[1] 2",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "byte-order-mark",
+    "input": "﻿{}",
+    "error": "E_PARSE"
+  },
+  {
+    "name": "nan",
+    "input": "NaN",
+    "error": "E_PARSE"
+  }
+]

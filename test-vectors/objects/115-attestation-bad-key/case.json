@@ -1,0 +1,7 @@
+{
+  "description": "An attestation whose public key is not 32 bytes.",
+  "expect": {
+    "ok": false,
+    "code": "E_ATTESTATION_SHAPE"
+  }
+}

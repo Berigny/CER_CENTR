@@ -1,0 +1,7 @@
+{
+  "description": "Members outside the schema are rejected; profile data belongs under ext.",
+  "expect": {
+    "ok": false,
+    "code": "E_SHAPE"
+  }
+}

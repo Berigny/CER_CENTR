@@ -1,0 +1,7 @@
+{
+  "description": "Matches the timestamp pattern but 30 February does not exist.",
+  "expect": {
+    "ok": false,
+    "code": "E_TIMESTAMP"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:evidence-object:0",
+  "title": "Evidence object (evidence/0)",
+  "description": "Proves what a record said, under which schema version, who wrote it, when, and what it replaced. The domain model stays in the system of record; this object points at it. Rules the schema cannot express (canonical id, calendar-valid timestamps, number range, duplicate members) are in spec/evidence-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "id", "op", "schema", "subject", "content", "actor", "at", "prev"],
+  "properties": {
+    "v": { "const": "evidence/0" },
+    "id": {
+      "$ref": "#/$defs/hash",
+      "description": "sha256 of the RFC 8785 canonical form of this object without id."
+    },
+    "op": {
+      "enum": ["create", "update", "delete", "assert"],
+      "description": "create/update/delete: a change to a record. assert: a statement about a subject (a decision, a check result) that is not itself a record change."
+    },
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "hash"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/text", "description": "The system of record's own name and version for the definition, e.g. rec-registry/installation@12." },
+        "hash": { "$ref": "#/$defs/hash", "description": "sha256 of the definition document's bytes as published (DDL, JSON Schema, data dictionary)." }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "type", "key"],
+      "properties": {
+        "system": { "$ref": "#/$defs/text", "description": "The system of record, e.g. rec-registry." },
+        "type": { "$ref": "#/$defs/text", "description": "The record type in that system, e.g. installation." },
+        "key": { "$ref": "#/$defs/text", "description": "The record's key in that system." }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["media_type", "hash"],
+      "properties": {
+        "media_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+        },
+        "hash": {
+          "$ref": "#/$defs/hash",
+          "description": "For application/json: sha256 of the record's canonical form. Otherwise: sha256 of the bytes."
+        },
+        "uri": { "$ref": "#/$defs/text", "description": "Where the bytes can be fetched. Optional." },
+        "inline": { "description": "The record itself, for small JSON records. Must hash to content.hash." }
+      },
+      "dependentSchemas": {
+        "inline": { "properties": { "media_type": { "const": "application/json" } } }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/text" },
+        "kind": { "enum": ["human", "service", "agent"] },
+        "on_behalf_of": { "$ref": "#/$defs/text", "description": "Required for agents: the person or body accountable for the agent's output." }
+      },
+      "if": { "required": ["kind"], "properties": { "kind": { "const": "agent" } } },
+      "then": { "required": ["on_behalf_of"] }
+    },
+    "at": { "$ref": "#/$defs/timestamp" },
+    "prev": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/hash" },
+      "description": "Ids of the versions this object replaces. Empty for a first version. A list, so histories can merge."
+    },
+    "ext": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9][a-z0-9.-]*/[0-9]+$" },
+      "description": "Profile data keyed by profile id (e.g. centr/0). Covered by the id. Profiles define their own rules."
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1 },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+      "description": "UTC only. Must also be a real calendar instant (checked outside the schema)."
+    }
+  }
+}

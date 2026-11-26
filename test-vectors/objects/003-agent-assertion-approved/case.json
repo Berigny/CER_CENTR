@@ -1,0 +1,15 @@
+{
+  "description": "An AI check recorded as an assertion by an agent, signed by the agent and approved by a person. The line for another object is ignored.",
+  "require": [
+    "approve"
+  ],
+  "expect": {
+    "ok": true,
+    "id": "sha256:7d7f86709389d95ac2d8a7cf943b992a0576cdd6500a217914347bc04ee87115",
+    "content_checked": true,
+    "attestations": {
+      "approve": 1,
+      "author": 1
+    }
+  }
+}
