@@ -1,0 +1,309 @@
+/* The verify page: plain, readable at phone width, light and dark. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #555555;
+  --line: #c4c4c4;
+  --panel: #f3f3f3;
+  --link: #0b57b0;
+  --focus: #0b57b0;
+  --ok-bg: #e6f4ea;
+  --ok-fg: #0f5223;
+  --ok-line: #2e7d32;
+  --bad-bg: #fce8e8;
+  --bad-fg: #7d1111;
+  --bad-line: #c62828;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #e6e6e6;
+    --muted: #a9a9a9;
+    --line: #4a4a4a;
+    --panel: #1f1f1f;
+    --link: #8ab4f8;
+    --focus: #8ab4f8;
+    --ok-bg: #11301b;
+    --ok-fg: #a8dcb0;
+    --ok-line: #5cb865;
+    --bad-bg: #3b1515;
+    --bad-fg: #ffb8b8;
+    --bad-line: #ef6461;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  line-height: 1.25;
+  margin: 0.5rem 0 1rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 2rem 0 0.75rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+a {
+  color: var(--link);
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+code {
+  overflow-wrap: anywhere;
+}
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.help,
+.note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.25rem 0 0;
+}
+
+/* Status: one line, always visible. */
+
+#status {
+  border-left: 4px solid var(--line);
+  background: var(--panel);
+  padding: 0.5rem 0.75rem;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+
+/* Only an error is marked; the verdict below carries the result. */
+body[data-state="error"] #status {
+  border-left-color: var(--bad-line);
+}
+
+/* Choosing the export. */
+
+.choose {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+input[type="file"],
+input[type="number"] {
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+input[type="number"] {
+  width: 12rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  background: var(--bg);
+}
+
+input:disabled {
+  opacity: 0.6;
+}
+
+#drop {
+  margin-top: 1rem;
+  padding: 1.5rem 1rem;
+  border: 2px dashed var(--line);
+  border-radius: 0.5rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+#drop.over {
+  border-color: var(--focus);
+  background: var(--panel);
+  color: var(--fg);
+}
+
+#drop[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+/* The result. */
+
+.verdict {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 2px solid;
+}
+
+.verdict.ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  border-color: var(--ok-line);
+}
+
+.verdict.bad {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+  border-color: var(--bad-line);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+  margin: 1rem 0;
+}
+
+.summary dt {
+  font-weight: 600;
+}
+
+.summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+th,
+td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--panel);
+}
+
+td.hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+#report {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+/* Narrow screens: one block per row, each value under its column name. */
+
+@media (max-width: 40rem) {
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  .summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .summary dd {
+    margin-bottom: 0.5rem;
+  }
+
+  table.stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  table.stack,
+  table.stack tbody,
+  table.stack tr,
+  table.stack td {
+    display: block;
+  }
+
+  table.stack tr {
+    border: 1px solid var(--line);
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0;
+  }
+
+  table.stack td {
+    border: 0;
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.15rem 0.5rem;
+  }
+
+  table.stack td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.9rem;
+  }
+
+  table.stack td:empty {
+    display: none;
+  }
+}

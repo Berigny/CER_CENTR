@@ -1,6 +1,6 @@
 # M1 build specification: a verifiable append-only evidence store
 
-**Status:** in build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors), B (export verifier and bindings), and C and D (the store library: in-memory and SQLite logs, export, import, verification, proofs) are done; E (the command-line commands, crash test, browser page, CI and docs) is next.
+**Status:** built; complete once CI passes. Decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors), B (export verifier and bindings), C and D (the store library: in-memory and SQLite logs, export, import, verification, proofs) and E (the command-line store commands, crash test, browser page, CI, nightly runs and docs) are done, and every acceptance test of section 11 passes locally. M1 is done, by section 1, when they pass in CI.
 **Size:** about 5 engineer-weeks for one experienced Rust engineer. That includes the JavaScript reference work D7 requires, roughly a quarter of the effort.
 **Dependencies:** nothing outside this repository.
 **System of record:** not touched; no SoR is read or written.
@@ -98,21 +98,28 @@ crates/evidence-store/                       NEW  native library with I/O
   tests/common/mod.rs  tests/contract.rs  tests/sqlite_only.rs  tests/init_killed.rs
   tests/relative_paths.rs  tests/props.rs  tests/writer_vectors.rs
   examples/bench_append.rs
-crates/evidence-cli/Cargo.toml               + evidence-log, evidence-store
-crates/evidence-cli/src/main.rs              CHANGED: `store` subcommand dispatch; `verify --store <store dir>`
-crates/evidence-cli/src/store_cmd.rs         NEW
-crates/evidence-cli/tests/store_cli.rs       NEW
-crates/evidence-cli/tests/store_crash.rs     NEW (#[cfg(unix)])
+crates/evidence-cli/Cargo.toml               + evidence-log, evidence-store; dev-deps: tempfile = "3"; rust-version.workspace
+crates/evidence-cli/README.md                NEW  the commands, their output, exit status and codes
+crates/evidence-cli/src/main.rs              CHANGED: `store` dispatched before option parsing; `verify --store <store dir>`; USAGE
+crates/evidence-cli/src/store_cmd.rs         NEW  section 8: arguments, output, exit status, the commands
+crates/evidence-cli/tests/store_cli.rs       NEW  T3, CLI contract, T7 (CLI), T10, T11 (Rust), T12
+crates/evidence-cli/tests/store_crash.rs     NEW  T6 (#![cfg(unix)])
+crates/evidence-store/README.md              NEW
 crates/evidence-wasm/Cargo.toml, src/lib.rs  CHANGED: + evidence-log, 5 ABI functions
 crates/evidence-wasm/js/evidence.mjs, evidence.d.ts, test.mjs     CHANGED
 crates/evidence-py/Cargo.toml, src/lib.rs, python/evidence_layer/__init__.py, _native.pyi   CHANGED
 crates/evidence-py/tests/test_store_vectors.py   NEW
+crates/evidence-py/tests/test_cli_proofs.py  NEW  T11 through Python (EVIDENCE_BIN)
 tools/reference/log.mjs                      NEW  independent JS implementation (writer + verifier)
 tools/make-vectors.mjs, tools/check-vectors.mjs, tools/check_schema_vectors.py   CHANGED
-tools/verify-page/index.html, tools/verify-page/page.mjs   NEW  static offline verifier
+tools/check-proofs.mjs                       NEW  T11 through WebAssembly in Node (EVIDENCE_BIN)
+tools/verify-page/index.html, page.mjs, page.css   NEW  static offline verifier (section 9)
+tools/verify-page/smoke.mjs                  NEW  Playwright smoke test of the page over every export case
+tools/verify-page/README.md                  NEW  serving and using the page, its security rules, the smoke test, the manual check
 test-vectors/store/...                       NEW (section 10)
 test-vectors/keys/store-demo.seed            NEW (+ one member in keys/public.json)
 test-vectors/README.md, README.md, docs/decisions.md   CHANGED
+spec/store-0.md                              CHANGED in phase E: + S_NOT_HELD (operation code of `store get`)
 .github/workflows/ci.yml                     CHANGED;  .github/workflows/nightly.yml  NEW
 ```
 
@@ -338,7 +345,7 @@ Lines are processed in order.
 **Report codes**, in sort order:
 S_MANIFEST_INVALID, S_SEGMENT_HASH, S_MANIFEST_MISMATCH, S_LINE_INVALID, S_ENTRY_INVALID, S_WRONG_LOG, S_SEQ_GAP, S_CHAIN_BREAK, S_RECEIVED_REGRESSION, S_EPOCH_REGRESSION, S_REF_MISMATCH, S_DUPLICATE_REF, S_GENESIS_INVALID, S_RESERVED_SUBJECT, S_OBJECT_INVALID, S_PREV_POSITION, S_ATTESTATION_INVALID, S_ATTESTATION_TARGET, S_CHECKPOINT_INVALID, S_CHECKPOINT_MISMATCH, S_CHECKPOINT_UNSIGNED, S_PROJECTION_DRIFT, S_TRIGGERS_MISSING, S_META_MISMATCH.
 
-**Intake and operation codes** (never in a report): S_STALE_HEADS, S_STORE_KEY, S_LOCKED, S_NOT_A_STORE, S_EXISTS, S_FORMAT, S_IO. S_RESERVED_SUBJECT and S_ATTESTATION_TARGET are used both at intake and in reports.
+**Intake and operation codes** (never in a report): S_STALE_HEADS, S_STORE_KEY, S_LOCKED, S_NOT_A_STORE, S_EXISTS, S_FORMAT, S_IO, and S_NOT_HELD (the CLI's `store get` of an id the store does not hold; section 8). S_RESERVED_SUBJECT and S_ATTESTATION_TARGET are used both at intake and in reports.
 
 ## 6. crate evidence-log (pure)
 
@@ -675,37 +682,108 @@ pub fn consistency(log: &dyn LogRead, old_size: u64, new_size: u64) -> Result<Co
 - **verify_log** works for any `LogRead`: every line through `evidence_log::Verifier` with source `store`, then one S_PROJECTION_DRIFT if `head_rows()` or `checkpoints()` differ from the fold. **verify_store** adds, all in one reader snapshot: S_PROJECTION_DRIFT (still at most one) if SQLite's `PRAGMA integrity_check` fails, if any column of an `entries`, `objects` or `attestations` row differs from its line (`entries.entry` must be the line's canonical entry, not merely render to the same line) or if an `objects` or `attestations` row is at no entry of its kind; S_TRIGGERS_MISSING unless the triggers are exactly the six; and S_META_MISMATCH (at most one) unless `meta.log_id`, `name`, `store_key` and `store_signer` are the lines' and `writer_epoch` is at least every line's epoch. These are what lookups and the writer read, so a store that verifies answers from what its lines say. **verify_export_dir** reads an export as `spec/store-0.md` asks a host to and runs `verify_export`. `read_export_dir` (used by it and by import) reads only regular files, a symlink followed to one, each opened without blocking (`O_NONBLOCK`, its type checked again on the open file) and read only up to the size it reports: a listed segment that is a FIFO, a device, a socket, a directory, or a file that holds more than its size says (a `/proc` file reports size 0 and may never end) reads as empty bytes (S_SEGMENT_HASH), and such a `manifest.json` is S_IO, so an export from elsewhere cannot block a read or make it endless. Memory is the sum of the sizes the export's files report.
 - **prove** returns the shapes of section 8 (`InclusionProof::to_value`, `ConsistencyProof::to_value`); `checkpoint` names the first checkpoint, in seq order, whose size is `size`, omitted if there is none (a log this crate writes has at most one per size; an imported one may have several). A checkpoint of a size a proof covers (`size`, or either size of a consistency proof) whose root is not the computed root is S_IO: the stored entries are not the ones it signed, and a proof never names a signed checkpoint whose root it does not have. E_USAGE unless 1 ≤ seq ≤ size ≤ head, or 1 ≤ old_size < new_size ≤ head. The default size stays in the CLI.
 
-## 8. CLI (all output is canonical JSON on stdout; exit 0 ok, 1 rejected or findings, 2 usage, I/O or S_LOCKED)
+## 8. CLI
 
-```
-evidence store init <dir> --name <name> --seed <seed-file>
-  -> {"log":"sha256:…","name":"…","key":"ed25519:…","head":{"seq":2,"entry_hash":"…"}}
-evidence store append <dir> <object.json>... [--if-heads <id>[,<id>…] | --if-heads none]
-  one transaction per file, in argument order; one line per file:
-  {"ok":true,"file":"…","kind":"object","ref":"sha256:…","seq":7,"entry_hash":"…","received_at":"…","duplicate":false}
-  {"ok":false,"file":"…","code":"E_ID_MISMATCH"}        {"ok":false,"file":"…","code":"S_STALE_HEADS","heads":[…]}
-  --if-heads requires exactly one file; "none" means the subject/lane must have no heads
-evidence store attest <dir> <attestations.jsonl>
-  one transaction per non-blank line; receipts as above with "line":n
-evidence store checkpoint <dir> --seed <seed-file>
-  -> {"checkpoint":"sha256:…","seq":11,"size":10,"root":"sha256:…","head":"sha256:…"}
-evidence store get <dir> <id> [--require <purpose>]...
-  -> {"object":{…},"entry":{…},"attestations":[…],"report":{core report: store as prev lookup, stored attestations}}
-  verify-on-read from stored bytes; exit 1 if the report is not ok, 2 if the id is not held
-evidence store heads <dir> <system> <type> <key> [--lane record]   -> {"lane":"record","heads":[…]}
-evidence store log <dir> [--from <seq>] [--limit <n>]              -> segment lines (default 1, 100)
-evidence store verify <dir> [--max-findings <n>]                   -> store-report/0
-  <dir> holding log.db is a live store; holding manifest.json is an export
-evidence store export <dir> --out <dir> [--segment-size <n>]       -> the manifest
-evidence store import <export-dir> --into <dir>                    -> store-report/0; exit 1 and nothing written if not ok
-evidence store prove <dir> --seq <n> [--size <m>]
-  -> {"seq":n,"size":m,"entry":{…},"leaf_hash":"sha256:…","proof":["sha256:…"],"root":"sha256:…","checkpoint":"sha256:…"}
-  default size = latest checkpoint's size; refused if n > size
-evidence store prove <dir> --from <old-size> --to <new-size>
-  -> {"old_size":…,"new_size":…,"old_root":"…","new_root":"…","proof":[…]}
-evidence verify <file> --store <dir>      unchanged output; uses the store read-only when <dir> holds log.db,
-                                          otherwise the existing folder-of-.json behaviour
-```
+The store commands are `evidence store <command>`, in `crates/evidence-cli/src/store_cmd.rs`; `main.rs` dispatches to them before it parses any option, and adds the store form of `evidence verify --store`. This section is the contract; `crates/evidence-cli/README.md` repeats it for users. The object commands (`canon`, `verify`, `sign`, …) keep their behaviour and their error handling (unknown options ignored, errors on standard error only, nothing on standard output).
+
+### 8.1 Conventions of every store command
+
+**Arguments.**
+- The syntax of the object commands: an argument that starts with `--` names an option and takes the next argument as its value, whatever it is (`--if-heads none`; `--out --x` names a directory `--x`). Every other argument is positional. No option goes without a value, so an option that is the last argument is `E_USAGE`.
+- Each command accepts only the options shown for it below; any other is `E_USAGE`. Each option may be given once, except `--require`, which repeats. An option shown without brackets is required. Positional arguments are exactly those shown; `<x>...` means one or more.
+- **Numbers** (`--from`, `--limit`, `--seq`, `--size`, `--to`, `--max-findings`, `--segment-size`): 1 to 16 ASCII digits, leading zeros allowed, no sign, with a value from 1 to 2^53 − 1. Anything else is `E_USAGE`.
+- **Ids** (`store get <id>`, `--if-heads`): `sha256:` and 64 lowercase hex digits. Anything else is `E_USAGE`.
+- **Purposes** (`--require`): `author`, `approve` or `witness`. Anything else is `E_USAGE`.
+- Every check of the command line runs before any file is read or any store is opened, so an `E_USAGE` from the command line never creates, locks or changes anything. The library adds its own `E_USAGE` for what only it can judge: a store name, a seed file's content, a proof position above the head.
+- `evidence store help` (or `-h`, `--help`) prints the usage text on standard output and exits 0. `evidence store` with no command, or with an unknown one, is `E_USAGE`.
+
+**Standard output** holds only canonical JSON (RFC 8785): one value per line, each line ending in LF, written whole and flushed before the command goes on. Members appear in canonical order, so the shapes below list them in that order. Nothing else is printed there.
+
+**Standard error** holds human-readable detail, each line starting `evidence: `. It is not part of the contract, with one exception: for an operation error, the first line starts `evidence: <code>`, or `evidence: <file>: <code>` and `evidence: <file>:<line>: <code>` when the error concerns one input. A usage error is followed by the usage text. A rejected item gets one line, `evidence: <file>[:<line>]: <code>: <detail>`.
+
+**Exit status.**
+
+| Status | Meaning | Standard output |
+|---|---|---|
+| 0 | Success: every item accepted (duplicates included), or a report that is ok. | The result. |
+| 1 | A refusal that is a result: an item rejected at intake (`append`, `attest`), or a report that is not ok (`get`, `verify`, `import`). | The whole result, as for 0. |
+| 2 | An operation error: `E_USAGE`, `S_LOCKED`, `S_STORE_KEY`, `S_NOT_A_STORE`, `S_EXISTS`, `S_FORMAT`, `S_IO` or `S_NOT_HELD`. | Last line `{"code":"<code>","ok":false}`, with `"file"` (and `"line"`) when the error concerns one input of `append` or `attest`, for example `{"code":"S_IO","file":"b.json","ok":false}`. Lines printed before it stay true: they report work that was committed. |
+
+The error line carries no detail: detail differs between implementations and runs, so it goes to standard error. `S_STORE_KEY` is an operation error (exit 2), not a rejection. `S_NOT_HELD` is the CLI's addition to the operation codes (`spec/store-0.md`): `store get` names a well-formed id that the store does not hold.
+
+**Clock, key and lease.**
+- `init`, `append`, `attest` and `checkpoint` write through `SqliteLog` with `SystemClock`. `init` and `checkpoint` sign with `SeedSigner::from_file(--seed)`, read before the store is opened.
+- A writer holds the lease for the whole command and releases it when the process ends. A lease held by another writer is `S_LOCKED` at once: no waiting, no retry.
+- `get`, `heads`, `log`, `verify`, `export`, `prove` and `evidence verify --store` read through `SqliteReader`, take no lease, and so run while a writer appends. `import` opens no existing store.
+- There is no scripted clock, no hidden option and no environment variable. Tests that need fixed times use the library (T2); the CLI tests assert seqs, codes and hashes, never times.
+
+**Store or export.** A directory holds a store when `<dir>/log.db` exists as any kind of file (looked up with `symlink_metadata`, so a dangling symlink counts), and an export when `<dir>/manifest.json` exists the same way. A `log.db` that is not a store is then an error from opening it (`S_NOT_A_STORE`, `S_FORMAT`), never a reason to read the directory another way.
+
+### 8.2 Commands
+
+**`evidence store init <dir> --name <name> --seed <seed-file>`**
+- Reads the seed (`S_IO`; `E_USAGE` unless it holds 64 hex digits), then `SqliteLog::init` (`E_USAGE` for a name that is not a store name; `S_EXISTS`; `S_LOCKED`; `S_IO`). The writer is dropped at once.
+- Prints `{"head":{"entry_hash":"sha256:…","seq":2},"key":"ed25519:…","log":"sha256:…","name":"…"}`: the log id, the genesis name and key, and the head. Exit 0.
+
+**`evidence store append <dir> <object.json>... [--if-heads <id>[,<id>…] | --if-heads none]`**
+- `--if-heads` needs exactly one file (`E_USAGE` otherwise). `none` means the subject and lane must have no heads; otherwise the ids, separated by commas, are compared with the heads as a set (repeats allowed).
+- Opens the writer before it reads any file. Then, for each file in argument order: read it whole, commit it alone (one transaction per file), print its line, go on. A line is printed after its commit and before the next file is read.
+- Accepted, a duplicate included: `{"duplicate":false,"entry_hash":"sha256:…","file":"<argument>","kind":"object","ok":true,"received_at":"…","ref":"sha256:…","seq":7}`. `file` is the argument as given.
+- Rejected at intake: `{"code":"E_ID_MISMATCH","file":"…","ok":false}`; for `S_STALE_HEADS` also `"heads":[…]`, the current heads sorted, `[]` included. A rejection does not stop the run: the next file is tried.
+- An operation error stops the run at once: a file that cannot be read (`S_IO`, with `file`), or an error from the store (its code, with `file`). Files after it are not read; files before it stay committed.
+- Exit 0 if every file was accepted; 1 if at least one was rejected and there was no operation error; 2 after an operation error, whatever came before.
+
+**`evidence store attest <dir> <attestations.jsonl>...`**
+- As `append`, for each file in argument order, with one transaction per line. A file is read whole and split at LF. A line whose bytes are all ASCII whitespace, an empty line included, is skipped. Lines are numbered from 1, blank ones counted: the numbering of `evidence verify --attestations`. A CR before the LF stays in the line (it is JSON whitespace).
+- Lines as for `append`, plus `"line":n`: `{"duplicate":true,"entry_hash":"…","file":"…","kind":"attestation","line":1,"ok":true,"received_at":"…","ref":"…","seq":8}` and `{"code":"E_SIGNATURE_INVALID","file":"…","line":2,"ok":false}`. An operation error carries `file`, and `line` when it concerns one line. A file with no line that is not blank prints nothing.
+- The same exit status as `append`.
+
+**`evidence store checkpoint <dir> --seed <seed-file>`**
+- Reads the seed, opens the writer, writes a checkpoint. `S_STORE_KEY` (exit 2, nothing written) when the seed is not the store key.
+- Prints `{"checkpoint":"sha256:…","head":"sha256:…","root":"sha256:…","seq":11,"size":10}`. Exit 0.
+
+**`evidence store get <dir> <id> [--require <purpose>]...`**
+- Reads, in one reader snapshot, the object with this id, its line, and the line of every held attestation whose `object` is the id. An id the store holds no object for (an attestation's ref included) is `S_NOT_HELD`.
+- Prints `{"attestations":[{"attestation":A,"entry":E},…],"entry":E,"object":O,"report":R}`:
+  - `object`: the stored canonical object;
+  - `entry`: its log-entry/0;
+  - `attestations`: every held attestation of the object, in seq order, each as its log line;
+  - `report`: the evidence/0 report (`ok`, `id`, `code`, `detail`, `content_checked`, `attestations`) that `verify_lookup` gives for the stored canonical bytes, with the stored canonical attestation lines joined by LF as `attestations`, the store as the prev lookup, and the `--require` purposes. The stored bytes are checked again on every read, not trusted.
+- Exit 0 if the report is ok, 1 if not.
+- A storage error during a prev lookup is `S_IO` (exit 2), never `E_PREV_MISSING`: the lookup asks `LogRead::object` when `prev_at` gives None.
+
+**`evidence store heads <dir> <system> <type> <key> [--lane <lane>]`**
+- Prints `{"heads":["sha256:…"],"lane":"record"}`, the heads sorted. The lane is `record` unless `--lane` gives another (`assert:<schema ref up to the first @>`). Any strings are accepted; a subject or lane with no objects prints `"heads":[]`. Exit 0.
+
+**`evidence store log <dir> [--from <seq>] [--limit <n>]`**
+- Prints the lines of seqs `--from` (default 1) onwards, at most `--limit` (default 100), in seq order. Each is exactly a segment line, `{"entry":E,"object":O}` or `{"attestation":A,"entry":E}`, followed by LF, so `store log --limit <head seq>` prints the concatenation of an export's segment files. Nothing is printed past the head. Exit 0.
+- It reads at most 1,024 lines at a time, so its memory does not grow with `--limit`.
+
+**`evidence store verify <dir> [--max-findings <n>]`**
+- A store: `verify_store` (source `store`). Otherwise an export: `verify_export_dir` (source `export`). Otherwise `S_NOT_A_STORE`. A directory holding both is read as a store.
+- Prints the store-report/0. Exit 0 if it is ok, 1 if not. `--max-findings` defaults to 1000. For every export case, the output is canonical(`expect`) and LF.
+
+**`evidence store export <dir> --out <dir> [--segment-size <n>]`**
+- Reads the store without the lease. `--out` must not exist (`S_EXISTS`), and its parent must. `--segment-size` defaults to 10,000.
+- Prints the manifest: exactly the bytes of the `manifest.json` it wrote, and LF. Exit 0.
+
+**`evidence store import <export-dir> --into <dir>`**
+- An export that does not verify: prints its report (source `export`), exits 1, and leaves nothing at `--into` or beside it.
+- Otherwise prints the `verify_store` report of the new store (source `store`) and exits 0; if that report is not ok, it exits 1 and leaves nothing.
+- `S_EXISTS` when `--into` exists, `S_NOT_A_STORE` when the export has no `manifest.json`, `S_IO`: exit 2.
+
+**`evidence store prove <dir> --seq <n> [--size <m>]`** and **`evidence store prove <dir> --from <old-size> --to <new-size>`**
+- Exactly one form; any other combination of the four options, none of them included, is `E_USAGE`.
+- Inclusion: the size is `--size`, or else the `size` of the latest checkpoint; a store with no checkpoint needs `--size` (`E_USAGE`). `E_USAGE` unless 1 ≤ seq ≤ size ≤ head. Prints `{"checkpoint":"sha256:…","entry":E,"leaf_hash":"sha256:…","proof":["sha256:…"],"root":"sha256:…","seq":n,"size":m}`. `checkpoint` is the first checkpoint, in seq order, whose size is m; it is omitted when there is none.
+- Consistency: `E_USAGE` unless 1 ≤ old size < new size ≤ head. Prints `{"new_root":"sha256:…","new_size":…,"old_root":"sha256:…","old_size":…,"proof":["sha256:…"]}`.
+- Exit 0. A proof is checked with `verify_inclusion(leaf_hash, seq − 1, size, proof, root)` or `verify_consistency(old_size, new_size, old_root, new_root, proof)`, in Rust, WebAssembly or Python (section 9).
+
+### 8.3 `evidence verify <file> --store <dir>`
+
+- When `<dir>` holds a store, it is read through `SqliteReader`, in one snapshot, as the prev lookup only. Stored attestations are not used: attestations come from `--attestations`, as before. A storage error during a lookup is an error, not `E_PREV_MISSING`.
+- The output and exit status are those of the folder form: for a store that holds the objects a folder holds, the report bytes are identical (T12).
+- Errors follow the object commands: a message on standard error, exit 2, nothing on standard output. An unknown `--require` purpose gives the folder form's message (`usage: purpose "x" must be one of [...]`, then the usage text); a store that cannot be opened or read gives `evidence: <dir>: <code>: <detail>`.
+- When `<dir>` holds no `log.db`, nothing changes: every `*.json` file in it, in name order, byte for byte as before.
 
 ## 9. Bindings and the browser page
 
@@ -715,7 +793,7 @@ evidence verify <file> --store <dir>      unchanged output; uses the store read-
 |---|---|---|
 | `entry_hash` | `input` (log-entry/0 JSON) | string; E_USAGE whose detail names S_ENTRY_INVALID |
 | `merkle_root` | `leaves` (list of leaf inputs) | `"sha256:…"` |
-| `verify_inclusion` | `leaf`, `index`, `size`, `proof` (list), `root` | bool |
+| `verify_inclusion` | `leaf_hash`, `index`, `size`, `proof` (list), `root` | bool |
 | `verify_consistency` | `old_size`, `new_size`, `old_root`, `new_root`, `proof` | bool |
 | `verify_export` | `manifest`, `segments` (list, manifest order), `max_findings`? | store-report/0 |
 
@@ -723,11 +801,34 @@ evidence verify <file> --store <dir>      unchanged output; uses the store read-
 
 **Python** (`evidence_layer`): `entry_hash(bytes)`, `merkle_root(list[bytes])`, `verify_inclusion(...)`, `verify_consistency(...)`, `verify_export(manifest: bytes, segments: list[bytes], max_findings=1000) -> dict`.
 
-**Browser page** (`tools/verify-page/index.html` and `page.mjs`):
-- Static. A Content-Security-Policy meta tag sets `default-src 'self'`, and the page makes no network calls.
-- It loads `crates/evidence-wasm/pkg/evidence.mjs`.
-- The user picks an export folder or drops its files. The page shows ok, head, covered checkpoint and a findings table.
-- Its logic is the CI-tested `verifyExport`. The page itself gets a documented manual smoke check.
+**Browser page** (`tools/verify-page/`: `index.html`, `page.mjs`, `page.css`; smoke test `smoke.mjs`; `README.md`):
+
+- **Static.** Three files, no build step, no dependencies, no inline script or style. It runs `verifyExport`, the CI-tested function, and nothing of its own decides a finding.
+- **Serving.** Build the module (`sh tools/build-wasm.sh`), serve the repository root over HTTP, for example `python3 -m http.server 8000 --bind 127.0.0.1`, and open `http://127.0.0.1:8000/tools/verify-page/`. A `file://` URL does not work: browsers load neither ES modules nor the `.wasm` from files. To host it elsewhere, copy `tools/verify-page/` and `crates/evidence-wasm/pkg/` keeping their relative layout: the page loads `../../crates/evidence-wasm/pkg/evidence.mjs`, which fetches `evidence_wasm.wasm` beside itself.
+- **Content-Security-Policy**, a meta tag, exactly: `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'`. Chromium refuses `WebAssembly.compile` under `default-src 'self'` alone, so `script-src` adds `'wasm-unsafe-eval'` (and nothing else: no `'unsafe-eval'`, no `'unsafe-inline'`). `'self'` covers the module scripts, the stylesheet and the fetch of the `.wasm` (`connect-src` falls back to `default-src`). Checked in Chromium with the layout above.
+- **No network calls.** The page requests only its own files from its own origin: `index.html`, `page.css`, `page.mjs`, `evidence.mjs` and `evidence_wasm.wasm`. The export is read locally with the File API and sent nowhere. No fonts, analytics or other origins.
+- **Loading.** `page.mjs` imports the wrapper with a dynamic `import()` inside `try`, then calls `load()`. If either fails, the status says to build the module and serve the repository root over HTTP, and the inputs stay disabled.
+- **Choosing the export**, three equivalent ways:
+  - a folder input (`<input id="folder" type="file" webkitdirectory>`): only the files directly in the chosen folder are used (a `webkitRelativePath` of exactly two parts); subfolders are ignored;
+  - a files input (`<input id="files" type="file" multiple>`): the export's files;
+  - a drop zone (`#drop`): one dropped folder gives the files directly in it (`webkitGetAsEntry`, calling `readEntries` until it returns none); anything else dropped gives the dropped files, folders among them ignored.
+
+  Files are known by their names. Two files with one name, or no `manifest.json`, is an error and nothing is verified. Bytes come from `File.arrayBuffer()` as a `Uint8Array` and are never decoded.
+- **Segment order**, the host rule of `spec/store-0.md` ("Export only") and `read_export_dir`: first `verifyExport(manifest, [])`. If its findings include `S_MANIFEST_INVALID` (which depends on the manifest bytes alone), the segments are the chosen files whose names are six ASCII digits then `.jsonl`, in name order. Otherwise they are the files `JSON.parse(manifest).segments` lists, in that order, each the bytes of that file, or empty bytes when it was not chosen. Other files (`case.json`, `inputs.json`) are ignored. This rule gives every export case's `expect`.
+- **Max findings**: a number input `#max-findings`, default 1000, from 1 to 2^53 − 1. Changing it verifies the chosen files again.
+- **Display**: ok or not ok, source, log id, head (seq and entry hash), covered (size and checkpoint), `checked`, `counts`, `truncated`, a findings table (code, seq, ref, core, file), the files used in order with their sizes (a listed file not chosen is shown as missing), and the canonical report, `ev.canonicalize(JSON.stringify(report))`, in `<pre id="report">`.
+- **Untrusted text.** Everything from the export or the report reaches the page through `textContent` or `createTextNode`. `page.mjs` uses no `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` or `Function`, and makes no URL from the export's content.
+- **State for tests**: `document.body.dataset.state` is `loading`, `ready`, `verifying`, `done` or `error`, and `document.body.dataset.runs` counts finished verifications from 0. `#status` holds a one-line message.
+- **Smoke test** (`node tools/verify-page/smoke.mjs`; CI job `page`):
+  - loads Playwright through `createRequire(import.meta.url)`, so a global install on `NODE_PATH` or a local `node_modules` works; exits 1 if Playwright or the built module is missing (it never skips);
+  - serves the repository root itself: `node:http` on 127.0.0.1, port 0, GET only, paths outside the root refused, types for `.html`, `.mjs`, `.css`, `.json` and `.wasm` (`application/wasm`);
+  - opens the page in Chromium (`chromium.launch()`) and waits for `ready`;
+  - for each of the 42 export cases: sets `#max-findings` to the case's `max_findings` or 1000, gives the case directory to the folder input (`setInputFiles` with a directory), waits for `runs` to grow, and compares the text of `#report` with canonical(`expect`), computed in Node through the same module;
+  - once more through the files input, with case 004's manifest and four segments given in a shuffled order;
+  - once through the drop zone: case 102 dropped as a folder through the DevTools protocol (`Input.dispatchDragEvent` with the folder's path), which gives the page a real directory entry;
+  - fails on any console error or page error (a CSP violation included), on any request to another origin, and if `page.mjs` contains one of the sinks listed above;
+  - prints `page smoke: 44 runs ok` and exits 0, or lists every failure and exits 1.
+- **Manual check** (not automated): dragging an export folder, and its files, from a file manager onto the page, in Chromium and Firefox. `tools/verify-page/README.md` lists the steps, and `tools/verify-page/index.html` says how to serve the page.
 
 ## 10. Test vectors (generated by tools/make-vectors.mjs via tools/reference/log.mjs)
 
@@ -800,19 +901,20 @@ Each case is built so that its golden report contains the named code, and the ge
 
 - **T1. Store vectors in four implementations.** `entries.json`, `merkle.json` and every export case give the expected result in Rust (`crates/evidence-log/tests/vectors.rs`), the JS reference (`tools/check-vectors.mjs`), WASM (`js/test.mjs`) and Python (`tests/test_store_vectors.py`). For exports, canonical(report) equals canonical(case.expect) byte for byte.
 - **T2. Writer agreement** (`crates/evidence-store/tests/writer_vectors.rs`). Replaying each 0xx `inputs.json` with `ScriptClock` and the test seed, into both `SqliteLog` and `MemLog`, exports a manifest and segments byte-identical to the committed files.
-- **T3. All 20 object vectors through the CLI store** (`crates/evidence-cli/tests/store_cli.rs`), on a store created by `store init` with `store-demo.seed`:
-  1. Append 001-005. They land at seq 3-7.
-  2. `store get <003 id> --require approve` gives E_ATTESTATION_MISSING, which is case 113's code.
-  3. `store attest` 003's `attestations.jsonl`. Three lines land: author and approve for 003, and author for 001.
+- **T3. All 20 object vectors through the CLI store** (`crates/evidence-cli/tests/store_cli.rs`, `t3_object_vectors_through_a_cli_store`), on a store created by `store init` with `store-demo.seed`. Each `store append` below is one invocation per file.
+  1. Append 001-005: exit 0, `duplicate: false`, at seqs 3-7 (003 at seq 5).
+  2. `store get <003 id> --require approve` exits 1; its report has code E_ATTESTATION_MISSING, which is case 113's code, and `attestations` is `[]`.
+  3. `store attest` 003's `attestations.jsonl`: exit 0. Three lines land at seqs 8-10: author and approve for 003, and author for 001.
   4. Append each 1xx object:
-     - 101-109 and 114 are refused with exactly their case.json code;
+     - 101-109 and 114 are refused (exit 1) with exactly their case.json code;
      - 110 gives E_PREV_MISSING;
      - 111 gives E_PREV_ORDER;
-     - 112, 113 and 115 return `duplicate: true` at 003's seq.
-  5. Attest the attestation files of 112, 113 and 115. 112 gives a duplicate author line and E_SIGNATURE_INVALID for the approve line. 113 gives a duplicate. 115 gives E_ATTESTATION_SHAPE.
-  6. `store get <003 id> --require approve` is now ok, with attestations {approve: 1, author: 1}.
-  7. `store verify` is ok, with checked {entries: 10, objects: 6, attestations: 4}.
-  8. `store checkpoint` gives covered.size = 10.
+     - 112, 113 and 115 (003's object) exit 0 with `duplicate: true` at seq 5.
+  5. Attest the attestation files of 112, 113 and 115. 112 gives a duplicate author line and E_SIGNATURE_INVALID for the approve line (exit 1). 113 gives a duplicate (exit 0). 115 gives E_ATTESTATION_SHAPE (exit 1).
+  6. `store get <003 id> --require approve` exits 0, with report attestations {approve: 1, author: 1}, `entry.seq` 5, and 003's two attestation lines.
+  7. `store verify` is ok, with checked {entries: 10, objects: 6, attestations: 4, checkpoints: 0}.
+  8. `store checkpoint` prints size 10 at seq 11, and `store verify` then gives covered.size = 10.
+- **CLI contract** (`store_cli.rs`). The rules of section 8 each have a test: usage errors (exit 2, exactly `{"code":"E_USAGE","ok":false}`, nothing created or changed), operation errors (each code, last on standard output), runs mixing accepted and rejected items, `--if-heads` and `store heads`, and `store log` (its lines equal an export's segments).
 - **T4. Contract suite** (`tests/contract.rs`), run against both `MemLog` and `SqliteLog`:
   - genesis is at seq 1 and 2;
   - seq is dense and the chain is correct;
@@ -833,14 +935,19 @@ Each case is built so that its golden report contains the named code, and the ge
   - consecutive checkpoints have verifying consistency proofs;
   - `MemLog` and `SqliteLog` exports are byte-identical;
   - import(export) has the same head entry_hash.
-- **T6. Crash test** (`crates/evidence-cli/tests/store_crash.rs`, unix only).
-  - A child process runs `evidence store append` over 2,000 pre-generated objects and prints each receipt after its commit.
-  - The parent sends SIGKILL at a random moment, reopens the store, and runs `store verify`, which must be ok. Every printed receipt must be present at its seq.
-  - Run 50 times in CI (`EVIDENCE_CRASH_ITERS`) and 1,000 times nightly.
-  - A kill during `store import` leaves no `<into>` directory.
+- **T6. Crash test** (`crates/evidence-cli/tests/store_crash.rs`, `#![cfg(unix)]`; the test process runs only CLI processes and never opens a store itself).
+  - **Objects.** 2,000 synthetic objects generated by the test, the same on every run: object i is about subject `crash-test`/`item`/`item-<i mod 20>`; the first of each subject is a `create` with `prev` [], the rest `update`s whose `prev` is the subject's previous object; `at` = 2026-11-26T00:00:00Z + i seconds; inline content `{"n":i}`; sealed with `evidence_core::api`. Written once per test binary as `0000.json` to `1999.json`.
+  - **Append killed** (`append_killed_at_random_keeps_every_printed_receipt`). Each iteration: `store init` a new store; spawn `store append <store> 0000.json … 1999.json` with standard output piped; choose k from 0 to 1,999, read k receipt lines, wait a random 0 to 999 µs, and send SIGKILL (`Child::kill`). Then read what the pipe still holds (a final piece without LF is ignored) and check:
+    - each printed line is the receipt of file i at seq i + 3, in order;
+    - `store verify` is ok;
+    - every printed receipt is in `store log` at its seq, with its `ref`, entry hash and `received_at`;
+    - the head is the last printed seq or one more (a commit whose line the kill cut off); with none printed, seq 2 or 3;
+    - `store append` of the next file not held lands at head + 1, so the killed writer's lease is gone, with epoch 3 (2 or 3 if no receipt was printed: the kill may have come before the writer took its epoch); `store verify` is still ok.
+  - **Import killed** (`import_killed_at_random_leaves_no_store_or_a_complete_one`). Once: append all 2,000 objects (exit 0, head seq 2,002), export, and time one `store import` of the export: T. Each iteration: spawn `store import <export> --into <new>`, wait a random time from 0 to 1.2 T, send SIGKILL. Then either `<new>` does not exist, or the kill came after the rename and `store verify <new>` is ok with the manifest's head. `<new>.partial-*` directories may remain; when `<new>` does not exist, `store import` into it again exits 0.
+  - **Iterations.** `EVIDENCE_CRASH_ITERS` sets the append iterations: 10 when unset, 50 in CI, 1,000 nightly. The import test runs ⌈iterations / 5⌉. The random choices come from a small generator seeded by `EVIDENCE_CRASH_SEED`, or by the system time when it is unset; the seed is printed to standard error so a failure can be repeated. No new dependency: `Child::kill` is SIGKILL on Unix.
 - **T7. Lease** (`tests/sqlite_only.rs`, `tests/init_killed.rs` and `store_cli.rs`; unit tests in `src/sqlite`):
   - a second `SqliteLog::open` returns `Locked`;
-  - the CLI exits 2, printing S_LOCKED, while another process holds the lease;
+  - the CLI exits 2, printing exactly `{"code":"S_LOCKED","ok":false}`, while another process holds the lease (`store_cli.rs`, `lease_held_by_another_process_gives_s_locked`: the test process holds it through `SqliteLog::open`, and `store append` and `store checkpoint` are refused while `get`, `heads`, `log`, `verify`, `export` and `prove` succeed);
   - readers work while a writer holds the lease;
   - the epoch increments on each open and appears in the entries;
   - `Lease::acquire` starts again when `LOCK` is removed or replaced between its open and its lock, and never follows a `LOCK` that is a symlink;
@@ -860,42 +967,72 @@ Each case is built so that its golden report contains the named code, and the ge
   - a checkpoint taken after the step has `at` equal to the previous checkpoint's `at` and verifies without E_PREV_ORDER;
   - an object claiming an `at` one day after its received_at gives counts.at_after_received = 1 and ok = true.
 - **T10. Export and import:**
-  - a round trip keeps an identical head entry_hash;
-  - importing any 1xx case exits 1 and writes nothing;
-  - `store verify <export>` exits 0 for every 0xx case and 1 for every 1xx case.
-- **T11. Proofs:**
-  - `store prove --seq` output verifies through the WASM module in Node and through Python;
-  - `prove --from --to` output verifies;
-  - one changed proof byte makes verification fail.
-- **T12. `evidence verify --store`.** For object vectors 002, 110 and 111, the report bytes are identical whether `--store` points at a store directory holding 001 or at the case's existing `store/` folder.
+  - a round trip keeps an identical head entry_hash (`store_cli.rs`, `export_import_round_trip_keeps_the_head`; `contract.rs` for the library);
+  - importing any 1xx case exits 1, prints a report that is not ok, and leaves nothing: no `<into>`, no `<into>.partial-*` (`import_of_a_tampered_export_writes_nothing`);
+  - `store verify <export>` prints canonical(`expect`) and exits 0 for every 0xx case and 1 for every 1xx case, with `--max-findings` where `case.json` has `max_findings` (`verify_every_export_case`).
+- **T11. Proofs.** One procedure, in three places:
+  - **The store.** `store init` (name `proofs`, `store-demo.seed`); append object vectors 001-005; attest 003's `attestations.jsonl`; `store checkpoint` three times (sizes 10, 12 and 14; head 16).
+  - **The checks.**
+    - Inclusion: `store prove --seq n` for every seq from 1 to 14 (the latest checkpoint's size), and `--seq n --size 10` for every seq up to 10. Each verifies. Its `leaf_hash` is SHA-256(0x00 ‖ canonical `entry`). Its `root` is the merkle root of the canonical entries that `store log` prints for seqs 1 to size. For a checkpoint size, `root` and `checkpoint` are what `store checkpoint` printed.
+    - Consistency: `store prove --from a --to b` for every 1 ≤ a < b ≤ 16. Each verifies, and its roots are the merkle roots of the first a and b entries.
+    - A changed byte: the last hex digit replaced (`0` by `1`, any other by `0`) in the first proof element, the leaf hash, a root: each makes verification return false.
+  - **Rust**: `store_cli.rs`, `prove_output_verifies_and_a_changed_byte_does_not`, with `evidence_log::merkle`.
+  - **WebAssembly in Node**: `tools/check-proofs.mjs`, through `crates/evidence-wasm/pkg/evidence.mjs` (`verifyInclusion`, `verifyConsistency`, `merkleRoot`, `canonicalize`). The CLI binary is `EVIDENCE_BIN`; unset, the script exits 2 with a message (it never skips). Exit 0 when every check passes, 1 otherwise. CI job `wasm`.
+  - **Python**: `crates/evidence-py/tests/test_cli_proofs.py`, through `evidence_layer`. It reads `EVIDENCE_BIN`; unset, the tests are skipped (unittest reports them as skipped) unless `CI` is `true`, when they fail. CI job `python`, which builds the CLI and sets `EVIDENCE_BIN`. GitHub Actions sets `CI=true` in every job.
+- **T12. `evidence verify --store`** (`store_cli.rs`, `verify_with_a_store_matches_the_folder_of_objects`). For object vectors 002, 110 and 111, the report bytes and the exit status are identical whether `--store` points at a store directory holding 001 or at the case's existing `store/` folder. 003 with its attestations and `--require approve`, against a store holding 001, gives the bytes it gives without `--store`: stored attestations are not used.
 - **T13. Core unchanged:**
   - `crates/evidence-core/tests/vectors.rs` passes unmodified;
   - `verify_lookup` with a `Store` gives the same reports as `verify` on every object vector;
-  - on pull requests, `git diff --exit-code origin/main -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json` passes.
-- **T14. Purity guards** (CI step):
+  - on pull requests, the committed object vectors equal those on `main`. The `vectors` job, before it regenerates anything:
+    ```sh
+    git fetch --no-tags --depth=1 origin main
+    git diff --exit-code FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
+    ```
+    `actions/checkout` fetches one commit, so the step fetches `main` itself; no `fetch-depth: 0` is needed.
+- **T14. Purity guards** (step of the `rust` job). `cargo tree` must succeed and print something for each crate, so a typo in a crate name cannot pass:
   ```sh
   for p in evidence-core evidence-log evidence-wasm evidence-py; do
-    if cargo tree -p "$p" -e normal --prefix none | grep -qE '^(rusqlite|libsqlite3-sys|tokio|axum) '; then echo "$p is not pure"; exit 1; fi
+    out=$(cargo tree -p "$p" -e normal --prefix none --locked)
+    test -n "$out"
+    if echo "$out" | grep -qE '^(rusqlite|libsqlite3-sys|tokio|axum) '; then echo "$p is not pure"; exit 1; fi
   done
   if grep -rnE 'std::(fs|net|process|thread)|SystemTime|Instant' crates/evidence-log/src; then exit 1; fi
   ```
 
-**CI changes:**
-- The `rust` job runs the new crates through default-members and adds the T14 step.
-- The `wasm`, `python` and `vectors` jobs keep their commands; their test files now cover the store vectors.
+**CI changes** (`.github/workflows/ci.yml`; on push and pull request, `permissions: contents: read`; jobs run as a user that is not root):
+- `rust`: as now, with `EVIDENCE_CRASH_ITERS: 50` on the `cargo test --locked` step (T3, T6, T7, T10, T11, T12 run there), then the T14 step.
+- `wasm`: as now, then `cargo build -p evidence-cli --locked` and `node tools/check-proofs.mjs` with `EVIDENCE_BIN: target/debug/evidence` (T11). It still uploads `crates/evidence-wasm/pkg/` as the artefact `evidence-wasm-pkg`.
+- `python` (3.10 and 3.13): as now, plus `cargo build -p evidence-cli --locked` before the tests, which run with `EVIDENCE_BIN: ${{ github.workspace }}/target/debug/evidence` (T11).
+- `vectors`: the T13 step first (pull requests only: `if: github.event_name == 'pull_request'`), then as now.
+- `page` (new, `needs: wasm`): checkout; `actions/download-artifact@v4` of `evidence-wasm-pkg` into `crates/evidence-wasm/pkg`; Node 22; then
+  ```sh
+  npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.63.0
+  "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+  NODE_PATH="$RUNNER_TEMP/pw/node_modules" node tools/verify-page/smoke.mjs
+  ```
+  Playwright is pinned to the version the page smoke test was written against, and installed outside the repository, which keeps no `package.json`.
 - `check_schema_vectors.py` validates entries, manifests, genesis and checkpoint contents, and reports against the new schemas.
-- A new `nightly.yml` runs T5 at 4,096 cases, T6 at 1,000 iterations, and `cargo run --release -p evidence-store --example bench_append -- 1000000`. The benchmark uploads append throughput and verify time as an artefact; it is informational, not a gate.
+
+**Nightly** (`.github/workflows/nightly.yml`; `schedule: cron "23 3 * * *"` and `workflow_dispatch`; `permissions: contents: read`; three jobs on ubuntu-latest, each with `timeout-minutes`):
+- `props` (120 min): `cargo test --locked -p evidence-store --test props` with `PROPTEST_CASES: 4096` (T5). Debug profile, as in CI: overflow checks stay on.
+- `crash` (180 min): `cargo test --locked -p evidence-cli --test store_crash` with `EVIDENCE_CRASH_ITERS: 1000` (T6).
+- `bench` (120 min): `cargo build --release --locked -p evidence-store --example bench_append`, then `target/release/examples/bench_append 1000000 --batch 100 > bench-batch-100.json` and `target/release/examples/bench_append 1000000 --batch 1 > bench-batch-1.json` (one object per transaction, as `store append` commits; about 15 minutes on a 4-core machine, against about 6 for `--batch 100`), then `actions/upload-artifact@v4` of both files as `bench-append` (`if: always()`, `if-no-files-found: error`). Each file is the example's one JSON line: append throughput, checkpoint and verify times, and `ok`. The numbers are informational, not a gate, and are not committed; a run whose log does not verify fails the job.
 
 ## 12. Documentation
 
-- **`spec/store-0.md`** covers: purpose; genesis; log entry; lanes and heads; intake; checkpoint and tree; export; verification order; report and codes; two clocks; privacy; conformance (the vectors are the contract, D7). The privacy section says that no rejected bytes are stored, and that only synthetic or public data goes into a store before the M5 gate.
+- **`spec/store-0.md`** covers: purpose; genesis; log entry; lanes and heads; intake; checkpoint and tree; export; verification order; report and codes; two clocks; privacy; conformance (the vectors are the contract, D7). The privacy section says that no rejected bytes are stored, and that only synthetic or public data goes into a store before the M5 gate. Phase E adds one row to "Intake and operation codes": `S_NOT_HELD` (section 8). Nothing else in it changes.
 - **`README.md`** changes:
-  - Layout gains rows for the new crates and spec.
-  - Quick start gains a "Store" section: init, append, attest, checkpoint, verify, export, and verifying in the browser.
-  - Next steps are updated to the roadmap order.
+  - Layout: `crates/evidence-cli` also runs stores; a row for `tools/verify-page/`; "in progress" dropped from the M1 rows once section 1's definition of done holds.
+  - Quick start gains a "Store" section. Every command in it is run before it is committed, and its output shown as in the object examples (hashes shortened with `…`). It uses a temporary directory and the public test key, says that key is for tests only, and goes: `store init`, `store append` of object vectors 001-003, `store attest` of 003's attestations, `store get` of 003 with `--require approve`, `store checkpoint`, `store verify`, `store export`, `store verify` of the export, `store prove --seq 3`, and verifying the export in the browser (build the module, `python3 -m http.server 8000 --bind 127.0.0.1` from the repository root, open `http://127.0.0.1:8000/tools/verify-page/`).
+  - Checks gains `node tools/check-proofs.mjs` (with `EVIDENCE_BIN`) and the page smoke test.
+  - Status and next steps are updated to the roadmap order.
   - It names no prior systems.
+- **`crates/evidence-cli/README.md`** (new): the object and store commands, what each prints, the exit status and the operation codes, in brief, pointing to section 8 for the full contract.
+- **`tools/verify-page/README.md`** (new): serving and using the page, how it orders segments, its security rules, the smoke test and the manual check.
+- **`crates/evidence-store/README.md`** (new): what the crate is (the writer, the reader, export, import, verification and proofs), the store directory layout, the lease and epoch in one paragraph each, a short Rust example with `SqliteLog::init`, `append`, `checkpoint` and `verify_store`, and links to `spec/store-0.md` and the rustdoc of `src/api.rs`.
 - **`docs/decisions.md`** gains D11-D13 (section 2).
-- **`test-vectors/README.md`** gains the store files.
+- **`test-vectors/README.md`** gains the store files (done) and one sentence on who runs them: the CLI tests (T3 over the object vectors, T10 over every export case) and the page smoke test.
+- **`docs/m1-store-spec.md`**: the status line, and section 3 kept in step with the files that exist.
 
 ## 13. Explicitly out of scope for M1
 

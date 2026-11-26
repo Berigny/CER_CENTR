@@ -1,8 +1,9 @@
 [package]
 name = "evidence-cli"
-description = "Command-line tool for evidence/0 objects"
+description = "Command-line tool for evidence/0 objects and store/0 stores"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -13,4 +14,9 @@ path = "src/main.rs"
 
 [dependencies]
 evidence-core = { path = "../evidence-core" }
+evidence-log = { path = "../evidence-log" }
+evidence-store = { path = "../evidence-store" }
 getrandom = "0.4.3"
+
+[dev-dependencies]
+tempfile = "3"

@@ -21,7 +21,7 @@ Cases `0xx` must verify; cases `1xx` must fail with the stated code. An implemen
 
 ## Store
 
-Vectors for [store/0](../spec/store-0.md), generated through the independent JavaScript implementation `tools/reference/log.mjs`.
+Vectors for [store/0](../spec/store-0.md), generated through the independent JavaScript implementation `tools/reference/log.mjs`. Besides the checks of each implementation, the command-line tests (`crates/evidence-cli/tests/store_cli.rs`) put all 20 object vectors through a store and run `evidence store verify` on every export case, and the browser page's smoke test (`tools/verify-page/smoke.mjs`) verifies every export case in Chromium.
 
 | Path | Contents |
 |---|---|

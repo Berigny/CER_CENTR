@@ -1,0 +1,61 @@
+name: nightly
+
+# The long runs of docs/m1-store-spec.md section 11: the property test and
+# the crash test at full size, and the append benchmark. The benchmark's
+# numbers are informational and are not committed; a log that does not
+# verify fails the job.
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  props:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Property test at 4,096 cases (T5), debug build so overflow checks stay on
+        run: cargo test --locked -p evidence-store --test props
+        env:
+          PROPTEST_CASES: 4096
+
+  crash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Crash test at 1,000 iterations (T6)
+        run: cargo test --locked -p evidence-cli --test store_crash
+        env:
+          EVIDENCE_CRASH_ITERS: 1000
+
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked -p evidence-store --example bench_append
+      - name: 1,000,000 objects, 100 per transaction
+        run: |
+          target/release/examples/bench_append 1000000 --batch 100 > bench-batch-100.json
+          cat bench-batch-100.json
+      - name: 1,000,000 objects, one per transaction (as store append commits)
+        run: |
+          target/release/examples/bench_append 1000000 --batch 1 > bench-batch-1.json
+          cat bench-batch-1.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-append
+          path: |
+            bench-batch-100.json
+            bench-batch-1.json
+          if-no-files-found: error

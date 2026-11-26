@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<title>Verify a store export</title>
+<link rel="stylesheet" href="page.css">
+<script type="module" src="page.mjs"></script>
+</head>
+<body data-state="loading" data-runs="0">
+<main>
+<h1>Verify a store export</h1>
+<p>This page checks a store/0 export: <code>manifest.json</code> and its segment files. It runs the evidence WebAssembly module, the verifier that CI tests against every export case, and gives the same report as <code>evidence store verify</code>. The files are read in this browser and sent nowhere.</p>
+
+<p id="status" role="status" aria-live="polite">Loading the verifier. If this message stays, the page was opened from a file or the module is not built: see <a href="#serving">Serving this page</a>.</p>
+<noscript><p class="note">This page needs JavaScript and WebAssembly.</p></noscript>
+
+<section aria-labelledby="choose-heading">
+<h2 id="choose-heading">Choose the export</h2>
+<div class="choose">
+<div class="field">
+<label for="folder">Export folder</label>
+<input id="folder" type="file" webkitdirectory disabled aria-describedby="folder-help">
+<p id="folder-help" class="help">Only the files directly in the folder are used.</p>
+</div>
+<div class="field">
+<label for="files">Or the export's files</label>
+<input id="files" type="file" multiple disabled aria-describedby="files-help">
+<p id="files-help" class="help"><code>manifest.json</code> and the segment files.</p>
+</div>
+<div class="field">
+<label for="max-findings">Max findings</label>
+<input id="max-findings" type="number" inputmode="numeric" min="1" max="9007199254740991" step="1" value="1000" required disabled aria-describedby="max-help">
+<p id="max-help" class="help">The report keeps at most this many findings. Changing it verifies the chosen files again.</p>
+</div>
+</div>
+<div id="drop" aria-disabled="true">Or drop the export folder, or its files, here.</div>
+</section>
+
+<section id="result" aria-labelledby="result-heading" hidden>
+<h2 id="result-heading">Result</h2>
+<p id="verdict"></p>
+<dl class="summary">
+<dt>Source</dt><dd id="r-source"></dd>
+<dt>Log</dt><dd id="r-log"></dd>
+<dt>Head</dt><dd id="r-head"></dd>
+<dt>Covered</dt><dd id="r-covered"></dd>
+<dt>Checked</dt><dd id="r-checked"></dd>
+<dt>Counts</dt><dd id="r-counts"></dd>
+<dt>Truncated</dt><dd id="r-truncated"></dd>
+</dl>
+
+<h3 id="findings-heading">Findings</h3>
+<p id="findings-note"></p>
+<table id="findings" class="stack" role="table" aria-labelledby="findings-heading">
+<thead role="rowgroup">
+<tr role="row"><th scope="col" role="columnheader">Code</th><th scope="col" role="columnheader">Seq</th><th scope="col" role="columnheader">Ref</th><th scope="col" role="columnheader">Core</th><th scope="col" role="columnheader">File</th></tr>
+</thead>
+<tbody role="rowgroup"></tbody>
+</table>
+
+<h3 id="used-heading">Files used, in order</h3>
+<p id="used-note"></p>
+<table id="used" class="stack" role="table" aria-labelledby="used-heading">
+<thead role="rowgroup">
+<tr role="row"><th scope="col" role="columnheader">File</th><th scope="col" role="columnheader">Bytes</th><th scope="col" role="columnheader">Use</th></tr>
+</thead>
+<tbody role="rowgroup"></tbody>
+</table>
+<p id="ignored"></p>
+
+<h3 id="report-heading">Report</h3>
+<p class="help">The canonical store-report/0 (RFC 8785), byte for byte what the other implementations print.</p>
+<pre id="report" tabindex="0" aria-labelledby="report-heading"></pre>
+</section>
+
+<section aria-labelledby="checks-heading">
+<h2 id="checks-heading">What it checks</h2>
+<p>Everything <code>spec/store-0.md</code> lists for an export. The manifest must be exactly the canonical one for its size, and each segment file must hash to its manifest entry. Every line is checked in seq order: its form, the hash chain, the received times and epochs, each object and attestation under evidence/0, and each checkpoint against the lines before it and its witness by the store key. The report lists every finding up to the maximum. It has no free text, so the same files give the same bytes in every implementation.</p>
+<p>The page orders the segment files as the manifest lists them. A listed file that was not chosen is passed as empty bytes and gets <code>S_SEGMENT_HASH</code>. If the manifest itself is invalid, the files named with six digits and <code>.jsonl</code> are used in name order. Other files are ignored.</p>
+</section>
+
+<section aria-labelledby="serving">
+<h2 id="serving">Serving this page</h2>
+<p>Browsers load neither ES modules nor WebAssembly from a <code>file://</code> URL, so the page must be served over HTTP. From the repository root:</p>
+<pre>sh tools/build-wasm.sh
+python3 -m http.server 8000 --bind 127.0.0.1</pre>
+<p>Then open <code>http://127.0.0.1:8000/tools/verify-page/</code>. To host it elsewhere, copy <code>tools/verify-page/</code> and <code>crates/evidence-wasm/pkg/</code> keeping their relative layout. The page requests only its own files and the module from its own origin.</p>
+</section>
+</main>
+</body>
+</html>

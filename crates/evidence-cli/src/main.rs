@@ -1,4 +1,9 @@
-//! `evidence`: command-line tool for evidence/0 objects.
+//! `evidence`: command-line tool for evidence/0 objects and store/0 stores.
+//!
+//! The object commands are here; `evidence store …` is in [`store_cmd`]
+//! (`docs/m1-store-spec.md` section 8).
+
+mod store_cmd;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +13,7 @@ use evidence_core::api::{self, VerifyArgs};
 use evidence_core::{canon, object, time};
 
 const USAGE: &str = "\
-evidence: create and verify evidence/0 objects
+evidence: create and verify evidence/0 objects, and keep them in a store/0 log
 
 USAGE:
   evidence canon <file>                  print canonical JSON (RFC 8785)
@@ -17,18 +22,54 @@ USAGE:
   evidence id <file>                     print the id an object should have
   evidence seal <file>                   print the object with its id filled in
   evidence verify <file> [--attestations <file.jsonl>] [--store <dir>] [--require <purpose>]...
-                                         print a JSON report; exit 0 if valid, 1 if not
+                                         print a JSON report; exit 0 if valid, 1 if not.
+                                         --store: a folder of .json objects, or a store
+                                         (a directory holding log.db), read only
   evidence sign <file> --seed <file> --signer <id> --purpose <author|approve|witness> [--at <time>]
                                          print one attestation line for a valid object
   evidence keygen <seed-file>            write a new random seed (hex) and print its public key
 
+STORE (store/0: an append-only log in a directory holding log.db):
+  evidence store init <dir> --name <name> --seed <seed-file>
+                                         create a store whose key is the seed's
+  evidence store append <dir> <object.json>... [--if-heads <id>[,<id>...] | --if-heads none]
+                                         append each file in its own transaction
+  evidence store attest <dir> <attestations.jsonl>...
+                                         append each line that is not blank in its own transaction
+  evidence store checkpoint <dir> --seed <seed-file>
+                                         sign a checkpoint over every entry so far
+  evidence store get <dir> <id> [--require <purpose>]...
+                                         print a held object, its entry, attestations and report
+  evidence store heads <dir> <system> <type> <key> [--lane <lane>]
+                                         print a subject's heads in a lane (default: record)
+  evidence store log <dir> [--from <seq>] [--limit <n>]
+                                         print log lines (default: from seq 1, at most 100)
+  evidence store verify <dir> [--max-findings <n>]
+                                         verify a store or an export; print store-report/0
+  evidence store export <dir> --out <dir> [--segment-size <n>]
+                                         write an export to a new directory; print its manifest
+  evidence store import <export-dir> --into <dir>
+                                         build a new store from an export that verifies
+  evidence store prove <dir> --seq <n> [--size <m>]
+                                         inclusion proof (default size: the latest checkpoint's)
+  evidence store prove <dir> --from <old-size> --to <new-size>
+                                         consistency proof
+
+Store commands print canonical JSON on standard output, one value per line,
+and details on standard error. When they exit with status 2, the last line
+of standard output is {\"code\":...,\"ok\":false}.
+
 Seed files hold an Ed25519 private key in hex. They are for development and
 test vectors only; production keys belong in an HSM or a key service.
 
-Exit status: 0 success, 1 verification failed, 2 usage or I/O error.";
+Exit status: 0 success; 1 verification failed, or a store item was rejected;
+2 usage, I/O or store operation error.";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(("store", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
+        return store_cmd::run(rest);
+    }
     match run(&args) {
         Ok(code) => code,
         Err(msg) => {
@@ -63,8 +104,19 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         "verify" => {
             let bytes = read(flags.one_path()?)?;
             let attestations = flags.value("--attestations").map(read).transpose()?;
-            let store = flags.value("--store").map(load_store).transpose()?;
             let require = flags.values("--require");
+            if let Some(dir) = flags
+                .value("--store")
+                .filter(|dir| store_cmd::holds_store(Path::new(dir)))
+            {
+                return store_cmd::verify_with_store(
+                    &bytes,
+                    attestations.as_deref(),
+                    Path::new(&dir),
+                    &require,
+                );
+            }
+            let store = flags.value("--store").map(load_store).transpose()?;
             let report = api::verify(
                 &bytes,
                 &VerifyArgs {
