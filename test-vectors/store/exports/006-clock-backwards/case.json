@@ -1,0 +1,29 @@
+{
+  "description": "A clock that steps backwards after a reading finer than a millisecond: received_at repeats rather than decreasing, and the second checkpoint's at equals the first's.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": true,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 8,
+      "entry_hash": "sha256:3d3d5e8ad96fe7243b38aa49b8e0ff9a354e2654ff02f5c3f86716f84248433a"
+    },
+    "covered": {
+      "size": 6,
+      "checkpoint": "sha256:b5fdc25a7d89d5917e4723be70723466df359909255de0d2520de5749347c2f9"
+    },
+    "checked": {
+      "entries": 8,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 2
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [],
+    "truncated": false
+  }
+}

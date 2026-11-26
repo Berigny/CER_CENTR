@@ -1,0 +1,37 @@
+{
+  "description": "Edited 002: the segment file's final LF removed, so its last line, the witness, is unusable and the checkpoint is unsigned.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 6,
+      "entry_hash": "sha256:c7bdbed67bfa375785da22e731ff4ab7bc0048b1e8122715e5ded1a2a31aa18c"
+    },
+    "checked": {
+      "entries": 6,
+      "objects": 3,
+      "attestations": 2,
+      "checkpoints": 1
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_MANIFEST_MISMATCH"
+      },
+      {
+        "code": "S_LINE_INVALID"
+      },
+      {
+        "code": "S_CHECKPOINT_UNSIGNED",
+        "seq": 6,
+        "ref": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+      }
+    ],
+    "truncated": false
+  }
+}

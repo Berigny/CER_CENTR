@@ -1,0 +1,43 @@
+{
+  "description": "Built: step 6 takes prev in list order and stops at the first finding. A1 and A2 create S; M (prev X, A1, A2) names X first, held nowhere; N (prev M, Z) is dated before M; P (prev L, Y) names L, held only on a later line.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 8,
+      "entry_hash": "sha256:9983fb8839accfac818c7b6c084522f81b0b151817e639b8fd8c5db14a833bf6"
+    },
+    "checked": {
+      "entries": 8,
+      "objects": 7,
+      "attestations": 1,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_OBJECT_INVALID",
+        "seq": 5,
+        "ref": "sha256:a602401f837a401212f2dd5e7e6f0adee0769cc628388af966c85e6e10511a27",
+        "core": "E_PREV_MISSING"
+      },
+      {
+        "code": "S_OBJECT_INVALID",
+        "seq": 6,
+        "ref": "sha256:b7e3493890fc5a48a9c8accec1fd5b3f7f9b6b3dd0ea5e834293b737f00404dd",
+        "core": "E_PREV_ORDER"
+      },
+      {
+        "code": "S_PREV_POSITION",
+        "seq": 7,
+        "ref": "sha256:271ff4a1ef91ac3547b4dd9fafbf7c87e9dc8fb5f535ba49489c8cc10f7ebb3e"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "name": "cer-demo",
+  "seed": "store-demo",
+  "segment_size": 10000,
+  "clock": [
+    "2026-11-26T00:00:00.000Z",
+    "2026-11-26T00:00:01.000Z",
+    "2026-11-26T00:00:02.000Z",
+    "2026-11-26T00:00:03.000Z"
+  ],
+  "ops": [
+    {
+      "op": "init"
+    },
+    {
+      "op": "append",
+      "object": {
+        "v": "evidence/0",
+        "id": "sha256:c59a0856c9ac42e84d4e965d2c4239d7af1c73b55344961112b1f1e78a71b830",
+        "op": "create",
+        "schema": {
+          "ref": "rec-registry/installation@12",
+          "hash": "sha256:3b0598a132cc74905124168a2dcd6b67f316db84793ebeffb29c6f88bba3ddb7"
+        },
+        "subject": {
+          "system": "rec-registry",
+          "type": "installation",
+          "key": "INS-TEST-000004"
+        },
+        "content": {
+          "media_type": "application/json",
+          "hash": "sha256:7f5c61c29d3efa3bba4efe4150ce006f249e1c6b0bc5fdcfb95986115e5bd1e8",
+          "inline": {
+            "installation_id": "INS-TEST-000004",
+            "system_type": "solar-pv+battery",
+            "inverter_model": "TEST-INV-5K",
+            "battery_model": "TEST-BAT-10",
+            "installer_accreditation": "SAA-TEST-0001",
+            "commissioned_on": "2026-11-20",
+            "capacity_kw": 6.6,
+            "status": "commissioned"
+          }
+        },
+        "actor": {
+          "id": "service:rec-registry-cdc",
+          "kind": "service"
+        },
+        "at": "2026-11-26T00:05:01.000000001Z",
+        "prev": []
+      }
+    },
+    {
+      "op": "append",
+      "object": {
+        "v": "evidence/0",
+        "id": "sha256:f2497e8ac721b64ea971a15554ba1e1cea8e856edf811d21f90f8c2c789b3f3c",
+        "op": "update",
+        "schema": {
+          "ref": "rec-registry/installation@12",
+          "hash": "sha256:3b0598a132cc74905124168a2dcd6b67f316db84793ebeffb29c6f88bba3ddb7"
+        },
+        "subject": {
+          "system": "rec-registry",
+          "type": "installation",
+          "key": "INS-TEST-000004"
+        },
+        "content": {
+          "media_type": "application/json",
+          "hash": "sha256:dd56de8850ed67dcb8f233232630e2f8d3d33d1b75c3188ba48cd422c72a25e4",
+          "inline": {
+            "installation_id": "INS-TEST-000004",
+            "system_type": "solar-pv+battery",
+            "inverter_model": "TEST-INV-5K",
+            "battery_model": "TEST-BAT-10",
+            "installer_accreditation": "SAA-TEST-0001",
+            "commissioned_on": "2026-11-20",
+            "capacity_kw": 6.6,
+            "status": "audited"
+          }
+        },
+        "actor": {
+          "id": "service:rec-registry-cdc",
+          "kind": "service"
+        },
+        "at": "2026-11-26T00:05:02Z",
+        "prev": [
+          "sha256:c59a0856c9ac42e84d4e965d2c4239d7af1c73b55344961112b1f1e78a71b830"
+        ]
+      }
+    },
+    {
+      "op": "append",
+      "object": {
+        "v": "evidence/0",
+        "id": "sha256:98ba92618caf560ad99de5a734a9d4e9f29f222b25a5d77229dc2ca75ad481db",
+        "op": "update",
+        "schema": {
+          "ref": "rec-registry/installation@12",
+          "hash": "sha256:3b0598a132cc74905124168a2dcd6b67f316db84793ebeffb29c6f88bba3ddb7"
+        },
+        "subject": {
+          "system": "rec-registry",
+          "type": "installation",
+          "key": "INS-TEST-000004"
+        },
+        "content": {
+          "media_type": "application/json",
+          "hash": "sha256:e247b6fbf6c6b85419ab46aec0eb596e036d13eead6a73f7ba15ad6e11347723",
+          "inline": {
+            "installation_id": "INS-TEST-000004",
+            "system_type": "solar-pv+battery",
+            "inverter_model": "TEST-INV-5K",
+            "battery_model": "TEST-BAT-10",
+            "installer_accreditation": "SAA-TEST-0001",
+            "commissioned_on": "2026-11-20",
+            "capacity_kw": 6.6,
+            "status": "decommissioned"
+          }
+        },
+        "actor": {
+          "id": "service:rec-registry-cdc",
+          "kind": "service"
+        },
+        "at": "2026-11-27T00:00:03.000Z",
+        "prev": [
+          "sha256:f2497e8ac721b64ea971a15554ba1e1cea8e856edf811d21f90f8c2c789b3f3c"
+        ]
+      }
+    }
+  ]
+}

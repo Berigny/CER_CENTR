@@ -1,0 +1,46 @@
+{
+  "description": "Edited 004: the line of object 002 removed from the first segment file. first and last in the manifest are not compared with the lines.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 13,
+      "entry_hash": "sha256:ebcee18d29e4eaa918dea99190105b549042f40135dca00f47b51daabfeb6abc"
+    },
+    "checked": {
+      "entries": 12,
+      "objects": 4,
+      "attestations": 6,
+      "checkpoints": 2
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_SEQ_GAP",
+        "seq": 5,
+        "ref": "sha256:30dc5b1352515a2e4c7c966fe6ff6820e63b27034fe322a6bd1e146a322b7f64"
+      },
+      {
+        "code": "S_CHAIN_BREAK",
+        "seq": 5,
+        "ref": "sha256:30dc5b1352515a2e4c7c966fe6ff6820e63b27034fe322a6bd1e146a322b7f64"
+      },
+      {
+        "code": "S_CHECKPOINT_MISMATCH",
+        "seq": 6,
+        "ref": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+      },
+      {
+        "code": "S_CHECKPOINT_MISMATCH",
+        "seq": 12,
+        "ref": "sha256:1a6b1b716e6c0857858e2ea6080c1dd9c488bc30f086c409e2b51cf2c12f39f9"
+      }
+    ],
+    "truncated": false
+  }
+}

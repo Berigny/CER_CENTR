@@ -1,0 +1,37 @@
+{
+  "description": "Built 002, with the checkpoint's witness signed by the store key at nonce 0, so its R is the identity, a point of small order. Node's Ed25519 check accepts it; evidence/0 does not.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 7,
+      "entry_hash": "sha256:313dd4429aab4282bde5d653832ad59610295d4fe4b8f9e15d217711719d293e"
+    },
+    "checked": {
+      "entries": 7,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 1
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_CHECKPOINT_UNSIGNED",
+        "seq": 6,
+        "ref": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+      },
+      {
+        "code": "S_ATTESTATION_INVALID",
+        "seq": 7,
+        "ref": "sha256:b56c1b487c0486c519689f1fd763d5c3a11514f562b9f92392a816bb7d2214a7",
+        "core": "E_SIGNATURE_INVALID"
+      }
+    ],
+    "truncated": false
+  }
+}

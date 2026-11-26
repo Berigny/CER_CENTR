@@ -1,0 +1,71 @@
+{
+  "description": "Edited 002: the lines of objects 001 and 002 swapped. Checkpoint leaves follow reading order.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 7,
+      "entry_hash": "sha256:89b78e29c871dd691b6d9085d0a51cb0b1d5a55db71e9a9efaf1ebdb21a22769"
+    },
+    "checked": {
+      "entries": 7,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 1
+    },
+    "counts": {
+      "forks": 1,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_SEQ_GAP",
+        "seq": 3,
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4"
+      },
+      {
+        "code": "S_CHAIN_BREAK",
+        "seq": 3,
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4"
+      },
+      {
+        "code": "S_RECEIVED_REGRESSION",
+        "seq": 3,
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4"
+      },
+      {
+        "code": "S_SEQ_GAP",
+        "seq": 4,
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d"
+      },
+      {
+        "code": "S_CHAIN_BREAK",
+        "seq": 4,
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d"
+      },
+      {
+        "code": "S_PREV_POSITION",
+        "seq": 4,
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d"
+      },
+      {
+        "code": "S_SEQ_GAP",
+        "seq": 5,
+        "ref": "sha256:30dc5b1352515a2e4c7c966fe6ff6820e63b27034fe322a6bd1e146a322b7f64"
+      },
+      {
+        "code": "S_CHAIN_BREAK",
+        "seq": 5,
+        "ref": "sha256:30dc5b1352515a2e4c7c966fe6ff6820e63b27034fe322a6bd1e146a322b7f64"
+      },
+      {
+        "code": "S_CHECKPOINT_MISMATCH",
+        "seq": 6,
+        "ref": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+      }
+    ],
+    "truncated": false
+  }
+}

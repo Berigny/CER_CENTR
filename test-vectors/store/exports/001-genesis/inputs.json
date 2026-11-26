@@ -1,0 +1,13 @@
+{
+  "name": "cer-demo",
+  "seed": "store-demo",
+  "segment_size": 10000,
+  "clock": [
+    "2026-11-26T00:00:00.000Z"
+  ],
+  "ops": [
+    {
+      "op": "init"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "description": "Edited 002: the genesis line removed. The first line read has no previous line, so there is no chain break.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 7,
+      "entry_hash": "sha256:89b78e29c871dd691b6d9085d0a51cb0b1d5a55db71e9a9efaf1ebdb21a22769"
+    },
+    "checked": {
+      "entries": 6,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_MANIFEST_MISMATCH"
+      },
+      {
+        "code": "S_GENESIS_INVALID"
+      },
+      {
+        "code": "S_SEQ_GAP",
+        "seq": 2,
+        "ref": "sha256:d4757f4fedffe5fa6d0aa8c65808d42928159021561f6176ca1b8bcb2311cc6b"
+      },
+      {
+        "code": "S_ATTESTATION_TARGET",
+        "seq": 2,
+        "ref": "sha256:d4757f4fedffe5fa6d0aa8c65808d42928159021561f6176ca1b8bcb2311cc6b"
+      },
+      {
+        "code": "S_RESERVED_SUBJECT",
+        "seq": 6,
+        "ref": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -137,6 +137,7 @@ name = "evidence-py"
 version = "0.1.0"
 dependencies = [
  "evidence-core",
+ "evidence-log",
  "pyo3",
 ]
 
@@ -146,6 +147,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "evidence-core",
+ "evidence-log",
 ]
 
 [[package]]

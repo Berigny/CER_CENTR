@@ -1,0 +1,33 @@
+{
+  "name": "cer-demo",
+  "seed": "store-demo",
+  "segment_size": 10000,
+  "clock": [
+    "2026-11-26T00:00:00.000Z",
+    "2026-11-26T00:00:01.000Z",
+    "2026-11-26T00:00:02.000Z",
+    "2026-11-26T00:00:03.000Z",
+    "2026-11-26T00:00:04.000Z"
+  ],
+  "ops": [
+    {
+      "op": "init"
+    },
+    {
+      "op": "append",
+      "file": "objects/001-create-inline/object.json"
+    },
+    {
+      "op": "append",
+      "file": "objects/002-update-with-prev/object.json"
+    },
+    {
+      "op": "attest",
+      "file": "objects/003-agent-assertion-approved/attestations.jsonl",
+      "line": 3
+    },
+    {
+      "op": "checkpoint"
+    }
+  ]
+}

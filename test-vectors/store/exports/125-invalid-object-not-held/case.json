@@ -1,0 +1,47 @@
+{
+  "description": "Edited 002: object 001 changed as case 101 changes object 002. An object that fails evidence/0 steps 1-5 is not held, so neither object 002's prev nor 001's author line finds it.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 7,
+      "entry_hash": "sha256:89b78e29c871dd691b6d9085d0a51cb0b1d5a55db71e9a9efaf1ebdb21a22769"
+    },
+    "covered": {
+      "size": 5,
+      "checkpoint": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+    },
+    "checked": {
+      "entries": 7,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 1
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_OBJECT_INVALID",
+        "seq": 3,
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4",
+        "core": "E_ID_MISMATCH"
+      },
+      {
+        "code": "S_OBJECT_INVALID",
+        "seq": 4,
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d",
+        "core": "E_PREV_MISSING"
+      },
+      {
+        "code": "S_ATTESTATION_TARGET",
+        "seq": 5,
+        "ref": "sha256:30dc5b1352515a2e4c7c966fe6ff6820e63b27034fe322a6bd1e146a322b7f64"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "description": "Built: object vector 001 appended a second time.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 4,
+      "entry_hash": "sha256:57c89542c2d0a5cc45451461fa8978a56eae8ea663fde25a98b2964ccb81345a"
+    },
+    "checked": {
+      "entries": 4,
+      "objects": 3,
+      "attestations": 1,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_DUPLICATE_REF",
+        "seq": 4,
+        "ref": "sha256:2419fe9479da99a4bdf2762dff459f6a4f23d83b3f965d5608a81e0eb21ec5a4"
+      }
+    ],
+    "truncated": false
+  }
+}

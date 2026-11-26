@@ -1,0 +1,32 @@
+{
+  "description": "Built: object vector 001, then its author line (line 3 of object vector 003's attestations) with = padding added to the key, which is not its one canonical spelling.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 4,
+      "entry_hash": "sha256:7dfdf7f2823c1bea24638f1e3ececa14878691ef03abc840d9fad75352f7b42e"
+    },
+    "checked": {
+      "entries": 4,
+      "objects": 2,
+      "attestations": 2,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_ATTESTATION_INVALID",
+        "seq": 4,
+        "ref": "sha256:897ade72d144935a7e9830a40a6717fb39eaea9c14beb5e8f29300b40f65b15b",
+        "core": "E_ATTESTATION_SHAPE"
+      }
+    ],
+    "truncated": false
+  }
+}

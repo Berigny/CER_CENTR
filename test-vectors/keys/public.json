@@ -1,5 +1,6 @@
 {
   "rec-registry-cdc": "ed25519:_eXhfEJgQ7PORemPOhBVTdDJt2j4gbgxIlNldPZJURA",
   "photo-check-agent": "ed25519:17zn71V3OWEtk9iP1PJtrXKoydKgL7n_1KkcHShzAV4",
-  "assessor-01": "ed25519:pi3Sn3HaqGBGGn1RCXECngZAXMTn5qqAIYkMvR47nrw"
+  "assessor-01": "ed25519:pi3Sn3HaqGBGGn1RCXECngZAXMTn5qqAIYkMvR47nrw",
+  "store-demo": "ed25519:EWYM90TYNQCehYuLOjVj_6zmMZwHTihcle67Z093xEI"
 }

@@ -1,0 +1,29 @@
+{
+  "description": "The operations of case 003 exported with segment_size 4: four segment files.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": true,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 13,
+      "entry_hash": "sha256:ebcee18d29e4eaa918dea99190105b549042f40135dca00f47b51daabfeb6abc"
+    },
+    "covered": {
+      "size": 11,
+      "checkpoint": "sha256:1a6b1b716e6c0857858e2ea6080c1dd9c488bc30f086c409e2b51cf2c12f39f9"
+    },
+    "checked": {
+      "entries": 13,
+      "objects": 5,
+      "attestations": 6,
+      "checkpoints": 2
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [],
+    "truncated": false
+  }
+}

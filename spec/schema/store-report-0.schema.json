@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:evidence-layer:schema:store-report:0",
   "title": "Store report (store-report/0)",
-  "description": "The result of verifying a live store or an export. It collects every finding, up to a limit, rather than stopping at the first, and carries no free text, so every implementation emits identical bytes for the same input. Codes are listed in sort order. Verification rules are in spec/store-0.md.",
+  "description": "The result of verifying a live store or an export. It collects every finding, up to a limit, rather than stopping at the first, and carries no free text, so every implementation emits identical bytes for the same input. Codes are listed in sort order. Verification rules are in spec/store-0.md; the rules here that relate members (log and head together, which codes carry seq and ref) follow from them.",
   "type": "object",
   "additionalProperties": false,
   "required": ["v", "ok", "source", "checked", "counts", "findings", "truncated"],
@@ -10,7 +10,10 @@
     "v": { "const": "store-report/0" },
     "ok": { "type": "boolean", "description": "True exactly when findings is empty." },
     "source": { "enum": ["store", "export"] },
-    "log": { "$ref": "#/$defs/hash", "description": "The log id. Omitted when unknown." },
+    "log": {
+      "$ref": "#/$defs/hash",
+      "description": "The log id of the lines: entry.log of the first line that passes line checks a, b and b2. Omitted when no line does."
+    },
     "head": {
       "type": "object",
       "additionalProperties": false,
@@ -19,7 +22,7 @@
         "seq": { "$ref": "#/$defs/position" },
         "entry_hash": { "$ref": "#/$defs/hash" }
       },
-      "description": "The last entry checked. Omitted when unknown or empty."
+      "description": "The last usable line in reading order: its entry.seq and entry hash. Omitted when no line is usable."
     },
     "covered": {
       "type": "object",
@@ -29,18 +32,19 @@
         "size": { "$ref": "#/$defs/position" },
         "checkpoint": { "$ref": "#/$defs/hash", "description": "The checkpoint's id." }
       },
-      "description": "The highest checkpoint that verified and has a valid witness. Omitted when there is none."
+      "description": "The checkpoint with the largest size among those with no body finding and a valid witness (the first in reading order on a tie). Omitted when there is none."
     },
     "checked": {
       "type": "object",
       "additionalProperties": false,
       "required": ["entries", "objects", "attestations", "checkpoints"],
       "properties": {
-        "entries": { "$ref": "#/$defs/count" },
-        "objects": { "$ref": "#/$defs/count" },
-        "attestations": { "$ref": "#/$defs/count" },
-        "checkpoints": { "$ref": "#/$defs/count" }
-      }
+        "entries": { "$ref": "#/$defs/count", "description": "Usable lines. Equals objects + attestations + checkpoints." },
+        "objects": { "$ref": "#/$defs/count", "description": "Usable object lines that are not checkpoints, the genesis included." },
+        "attestations": { "$ref": "#/$defs/count", "description": "Usable attestation lines." },
+        "checkpoints": { "$ref": "#/$defs/count", "description": "Object lines recognised as checkpoints, whatever their content and tree checks found." }
+      },
+      "description": "Counts of usable lines, each counted once. Lines with findings are counted; unusable lines are not."
     },
     "counts": {
       "type": "object",
@@ -50,7 +54,7 @@
         "forks": { "$ref": "#/$defs/count", "description": "Record-lane subjects with more than one head." },
         "at_after_received": {
           "$ref": "#/$defs/count",
-          "description": "Objects whose at is more than 300 seconds after their entry's received_at. Informational, never a finding."
+          "description": "Held objects whose at is more than 300 seconds after their entry's received_at. Informational, never a finding."
         }
       }
     },
@@ -61,6 +65,7 @@
     },
     "truncated": { "type": "boolean", "description": "True when more findings were found than the limit allowed." }
   },
+  "dependentRequired": { "log": ["head"], "head": ["log"], "covered": ["head"] },
   "if": { "required": ["ok"], "properties": { "ok": { "const": true } } },
   "then": { "properties": { "findings": { "maxItems": 0 } } },
   "else": { "properties": { "findings": { "minItems": 1 } } },
@@ -101,8 +106,8 @@
             "S_META_MISMATCH"
           ]
         },
-        "seq": { "$ref": "#/$defs/position", "description": "The seq of the entry the finding is about." },
-        "ref": { "$ref": "#/$defs/hash", "description": "The ref of the entry the finding is about." },
+        "seq": { "$ref": "#/$defs/position", "description": "The entry.seq of the line the finding is about." },
+        "ref": { "$ref": "#/$defs/hash", "description": "The entry.ref of the line the finding is about." },
         "core": {
           "enum": [
             "E_PARSE",
@@ -126,6 +131,7 @@
           "description": "The segment file behind S_SEGMENT_HASH."
         }
       },
+      "dependentRequired": { "seq": ["ref"], "ref": ["seq"] },
       "allOf": [
         {
           "if": { "required": ["code"], "properties": { "code": { "enum": ["S_OBJECT_INVALID", "S_ATTESTATION_INVALID"] } } },
@@ -136,6 +142,60 @@
           "if": { "required": ["code"], "properties": { "code": { "const": "S_SEGMENT_HASH" } } },
           "then": { "required": ["file"] },
           "else": { "not": { "required": ["file"] } }
+        },
+        {
+          "if": {
+            "required": ["code"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "S_WRONG_LOG",
+                  "S_SEQ_GAP",
+                  "S_CHAIN_BREAK",
+                  "S_RECEIVED_REGRESSION",
+                  "S_EPOCH_REGRESSION",
+                  "S_REF_MISMATCH",
+                  "S_DUPLICATE_REF",
+                  "S_RESERVED_SUBJECT",
+                  "S_OBJECT_INVALID",
+                  "S_PREV_POSITION",
+                  "S_ATTESTATION_INVALID",
+                  "S_ATTESTATION_TARGET",
+                  "S_CHECKPOINT_INVALID",
+                  "S_CHECKPOINT_MISMATCH",
+                  "S_CHECKPOINT_UNSIGNED"
+                ]
+              }
+            }
+          },
+          "then": { "required": ["seq"] },
+          "description": "Findings about a line whose entry is valid carry its seq and ref, S_WRONG_LOG included."
+        },
+        {
+          "if": {
+            "required": ["code"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "S_MANIFEST_INVALID",
+                  "S_SEGMENT_HASH",
+                  "S_MANIFEST_MISMATCH",
+                  "S_LINE_INVALID",
+                  "S_ENTRY_INVALID",
+                  "S_PROJECTION_DRIFT",
+                  "S_TRIGGERS_MISSING",
+                  "S_META_MISMATCH"
+                ]
+              }
+            }
+          },
+          "then": { "not": { "required": ["seq"] } },
+          "description": "Findings of line checks a, b and b2, findings about the manifest and live-store findings have no seq or ref."
+        },
+        {
+          "if": { "required": ["code", "seq"], "properties": { "code": { "const": "S_GENESIS_INVALID" } } },
+          "then": { "properties": { "seq": { "enum": [1, 2] } } },
+          "description": "S_GENESIS_INVALID is at seq 1 or 2, or has no seq when the log has no usable line at seq 1 or 2."
         }
       ]
     }

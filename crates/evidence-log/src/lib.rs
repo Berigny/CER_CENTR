@@ -13,7 +13,9 @@
 //! - [`checkpoint`]: the checkpoint/0 object
 //! - [`lane`]: subject keys, lanes and the heads fold
 //! - [`clock`]: received time, service time and millisecond formatting
-//! - [`report`]: store report codes (`S_` codes)
+//! - [`manifest`]: the export manifest, segments/0
+//! - [`report`]: finding codes (`S_` codes), findings and `store-report/0`
+//! - [`verify`]: the streaming verifier, for a live store's lines and for exports
 //! - [`schemas`]: refs and hashes of the store's own schemas
 
 pub mod checkpoint;
@@ -22,9 +24,11 @@ pub mod entry;
 pub mod genesis;
 pub mod lane;
 pub mod line;
+pub mod manifest;
 pub mod merkle;
 pub mod report;
 pub mod schemas;
+pub mod verify;
 
 /// The spec version this crate implements, and `v` of the genesis content.
 pub const STORE_SPEC: &str = "store/0";
@@ -34,5 +38,7 @@ pub use entry::{Entry, Kind, ENTRY_V};
 pub use genesis::{Genesis, STORE_SYSTEM};
 pub use lane::{lane_of, subject_of, Heads, SubjectKey, RECORD};
 pub use line::{attestation_ref, parse_line, render_line, Body, Line};
+pub use manifest::{Manifest, SegmentRef};
 pub use merkle::Digest;
-pub use report::FindingCode;
+pub use report::{Finding, FindingCode, Source, StoreReport};
+pub use verify::{verify_export, Verifier, VerifyOptions};

@@ -1,0 +1,25 @@
+{
+  "description": "Two creates for one subject, neither listing the other in prev: its record lane has two heads, a fork, which is not a finding.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": true,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 4,
+      "entry_hash": "sha256:0f77dc5f187d414c096e3cd1a30e3b268832b9342a43a79afda3c41085473b4a"
+    },
+    "checked": {
+      "entries": 4,
+      "objects": 3,
+      "attestations": 1,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 1,
+      "at_after_received": 0
+    },
+    "findings": [],
+    "truncated": false
+  }
+}

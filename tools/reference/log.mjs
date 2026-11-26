@@ -3,18 +3,31 @@
 // the Rust crates are checked against a second implementation written from the
 // spec, not against themselves.
 //
-// Scope so far: log-entry/0 (build, canonical form, entry hash, strict
-// validation), segment lines, the RFC 9162 Merkle tree (tree hash, inclusion and
-// consistency proofs), the genesis and checkpoint objects, lanes and the heads
-// fold, and the two-clock rules. The streaming verifier, the report and the
-// export manifest come later.
+// Scope: log-entry/0 (build, canonical form, entry hash, strict validation),
+// segment lines, the RFC 9162 Merkle tree (tree hash, inclusion and consistency
+// proofs), the genesis and checkpoint objects, lanes and the heads fold, the
+// two-clock rules, the evidence/0 checks a log needs (object steps 1-5 and the
+// attestation/0 shape), the segments/0 manifest, the streaming verifier and its
+// store-report/0, verifyExport, and a writer that replays an inputs.json
+// operation script into an export.
 //
-// Errors are EvidenceError (from evidence.mjs) with an S_ code. Merkle proof
-// verification never throws: it answers true or false.
+// Errors are EvidenceError (from evidence.mjs) with an S_ or E_ code. Merkle
+// proof verification never throws: it answers true or false. Verification never
+// throws on untrusted input either: whatever it is given, it returns a report.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { canonicalize, digest, EvidenceError, parseStrict, sha256 } from "./evidence.mjs";
+import {
+  canonicalize,
+  digest,
+  EvidenceError,
+  objectId,
+  parseStrict,
+  publicKey,
+  sha256,
+  signAttestation,
+  verifyAttestation,
+} from "./evidence.mjs";
 
 export const STORE_SPEC = "store/0";
 const MAX_SAFE = Number.MAX_SAFE_INTEGER; // 2^53 - 1
@@ -381,6 +394,47 @@ export function merkleRoot(leafHashes) {
   return nodeHash(merkleRoot(leafHashes.slice(0, k)), merkleRoot(leafHashes.slice(k)));
 }
 
+// The tree over leaf hashes pushed one at a time, kept so that the tree hash
+// of any prefix takes O(log n): row k holds the hash of every complete subtree
+// of 2^k leaves, in order. The verifier checks each checkpoint against it, so
+// a log of n lines with many checkpoints takes O(n log n), not O(n^2 log n).
+export class MerkleTree {
+  #levels = []; // #levels[k][i]: the subtree over leaves i * 2^k to (i + 1) * 2^k - 1
+
+  get size() {
+    return this.#levels.length ? this.#levels[0].length : 0;
+  }
+
+  push(leaf) {
+    let node = leaf;
+    for (let level = 0; ; level++) {
+      if (this.#levels.length === level) this.#levels.push([]);
+      const row = this.#levels[level];
+      row.push(node);
+      if (row.length % 2 === 1) return;
+      node = nodeHash(row[row.length - 2], row[row.length - 1]);
+    }
+  }
+
+  // MTH of the first `size` leaves, or null if size is not 1 to this.size. The
+  // tree of `size` leaves splits at the largest power of two below `size`, so it
+  // is the complete subtrees given by the binary digits of `size`, largest
+  // first, hashed together from the right.
+  root(size) {
+    if (!Number.isSafeInteger(size) || size < 1 || size > this.size) return null;
+    const subtrees = [];
+    let offset = 0;
+    for (let level = this.#levels.length - 1; level >= 0; level--) {
+      const width = 2 ** level;
+      if (offset + width <= size) {
+        subtrees.push(this.#levels[level][offset / width]);
+        offset += width;
+      }
+    }
+    return subtrees.reduceRight((right, left) => nodeHash(left, right));
+  }
+}
+
 // PATH(m, D[n]) (2.1.3.1), ordered from the leaf upwards. Throws on an index
 // outside the tree: producing a proof is a writer operation on trusted input.
 export function inclusionProof(leafHashes, index) {
@@ -662,4 +716,868 @@ export class Heads {
     }
     return rows.sort((a, b) => compareSubjects(a[0], b[0]) || compareUtf8(a[1], b[1]) || compareUtf8(a[2], b[2]));
   }
+}
+
+// --- evidence/0 checks for log items ----------------------------------------------
+// evidence.mjs covers parsing, ids, content hashes and signatures. A log verifier
+// also needs evidence/0 steps 2 and 3 (the object shape and a calendar-valid
+// `at`) and the attestation/0 shape, so they are written here from
+// spec/evidence-0.md and its JSON Schemas.
+
+const OPS = ["create", "update", "delete", "assert"];
+const ACTOR_KINDS = ["human", "service", "agent"];
+export const PURPOSES = ["author", "approve", "witness"];
+const MEDIA_TYPE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+const EXT_KEY_RE = /^[a-z0-9][a-z0-9.-]*\/[0-9]+$/;
+const isText = (v) => typeof v === "string" && v.length > 0;
+
+// A plain object whose members are all of `required` and some of `optional`.
+function hasMembers(obj, required, optional = []) {
+  if (!isPlainObject(obj)) return false;
+  for (const k of Object.keys(obj)) if (!required.includes(k) && !optional.includes(k)) return false;
+  return required.every((k) => Object.hasOwn(obj, k));
+}
+
+// evidence/0 step 2: the rules of schema/evidence-object-0.schema.json.
+function objectShapeOk(o) {
+  const required = ["v", "id", "op", "schema", "subject", "content", "actor", "at", "prev"];
+  if (!hasMembers(o, required, ["ext"])) return false;
+  if (o.v !== "evidence/0" || !isHash(o.id) || !OPS.includes(o.op)) return false;
+  const { schema, subject, content, actor, prev } = o;
+  if (!hasMembers(schema, ["ref", "hash"]) || !isText(schema.ref) || !isHash(schema.hash)) return false;
+  if (!hasMembers(subject, ["system", "type", "key"])) return false;
+  if (![subject.system, subject.type, subject.key].every(isText)) return false;
+  if (!hasMembers(content, ["media_type", "hash"], ["uri", "inline"])) return false;
+  if (typeof content.media_type !== "string" || !MEDIA_TYPE_RE.test(content.media_type)) return false;
+  if (!isHash(content.hash)) return false;
+  if (Object.hasOwn(content, "uri") && !isText(content.uri)) return false;
+  if (Object.hasOwn(content, "inline") && content.media_type !== "application/json") return false;
+  if (!hasMembers(actor, ["id", "kind"], ["on_behalf_of"])) return false;
+  if (!isText(actor.id) || !ACTOR_KINDS.includes(actor.kind)) return false;
+  if (Object.hasOwn(actor, "on_behalf_of") ? !isText(actor.on_behalf_of) : actor.kind === "agent") return false;
+  if (typeof o.at !== "string" || !TS_RE.test(o.at)) return false;
+  if (!Array.isArray(prev) || !prev.every(isHash) || new Set(prev).size !== prev.length) return false;
+  if (Object.hasOwn(o, "ext")) {
+    if (!isPlainObject(o.ext) || !Object.keys(o.ext).every((k) => EXT_KEY_RE.test(k))) return false;
+  }
+  return true;
+}
+
+// evidence/0 steps 2 to 5 on a parsed object (step 1 is the strict parse that
+// produced it): the E_ code of the first step that fails, or null.
+export function objectCode(obj) {
+  if (!objectShapeOk(obj)) return "E_SHAPE";
+  if (!parseTimestamp(obj.at)) return "E_TIMESTAMP";
+  if (obj.id !== objectId(obj)) return "E_ID_MISMATCH";
+  if (Object.hasOwn(obj.content, "inline") && digest(obj.content.inline) !== obj.content.hash) {
+    return "E_CONTENT_HASH_MISMATCH";
+  }
+  return null;
+}
+
+// evidence/0 steps 1 to 5 on object JSON text or UTF-8 bytes. Returns the
+// parsed object; throws EvidenceError with the E_ code of the first failure.
+export function checkObject(input) {
+  const text = toText(input, (why) => fail("E_PARSE", why));
+  const value = parseStrictJson(text);
+  const code = objectCode(value);
+  if (code) fail(code, "the object fails evidence/0 steps 2-5");
+  return value;
+}
+
+// Unpadded base64url of exactly `length` bytes, in its one canonical spelling.
+function isBase64url(text, length) {
+  if (typeof text !== "string") return false;
+  const raw = Buffer.from(text, "base64url");
+  return raw.length === length && raw.toString("base64url") === text;
+}
+
+// The attestation/0 shape (E_ATTESTATION_SHAPE otherwise): exactly its seven
+// members, each of its type and pattern, and an `at` that is a real instant.
+export function attestationShapeOk(a) {
+  if (!hasMembers(a, ["v", "object", "purpose", "signer", "key", "at", "sig"])) return false;
+  return (
+    a.v === "attestation/0" &&
+    isHash(a.object) &&
+    PURPOSES.includes(a.purpose) &&
+    isText(a.signer) &&
+    isStoreKey(a.key) &&
+    parseTimestamp(a.at) !== null &&
+    isBase64url(a.sig, 64)
+  );
+}
+
+// The Ed25519 signature check of evidence/0, for an attestation whose shape is
+// valid. False rather than an exception for a key Node cannot load.
+export function attestationSignatureOk(a) {
+  try {
+    return verifyAttestation(a);
+  } catch {
+    return false;
+  }
+}
+
+// --- Report (store-report/0) --------------------------------------------------------
+
+export const REPORT_V = "store-report/0";
+export const DEFAULT_MAX_FINDINGS = 1000;
+// Report codes in sort order (spec/store-0.md, Report codes).
+export const FINDING_CODES = [
+  "S_MANIFEST_INVALID",
+  "S_SEGMENT_HASH",
+  "S_MANIFEST_MISMATCH",
+  "S_LINE_INVALID",
+  "S_ENTRY_INVALID",
+  "S_WRONG_LOG",
+  "S_SEQ_GAP",
+  "S_CHAIN_BREAK",
+  "S_RECEIVED_REGRESSION",
+  "S_EPOCH_REGRESSION",
+  "S_REF_MISMATCH",
+  "S_DUPLICATE_REF",
+  "S_GENESIS_INVALID",
+  "S_RESERVED_SUBJECT",
+  "S_OBJECT_INVALID",
+  "S_PREV_POSITION",
+  "S_ATTESTATION_INVALID",
+  "S_ATTESTATION_TARGET",
+  "S_CHECKPOINT_INVALID",
+  "S_CHECKPOINT_MISMATCH",
+  "S_CHECKPOINT_UNSIGNED",
+  "S_PROJECTION_DRIFT",
+  "S_TRIGGERS_MISSING",
+  "S_META_MISMATCH",
+];
+const CODE_RANK = new Map(FINDING_CODES.map((code, i) => [code, i]));
+
+// --- Manifest (segments/0) ------------------------------------------------------------
+
+export const SEGMENTS_V = "segments/0";
+
+// Segment i, counting from 1: i in decimal, zero-padded to six digits, + ".jsonl".
+export const segmentFileName = (i) => `${String(i).padStart(6, "0")}.jsonl`;
+
+// Manifest check 1 of spec/store-0.md: the bytes are exactly the canonical form
+// of strict JSON that matches segments/0, and the segment list is the one that
+// size and segment_size give. Returns the manifest; throws S_MANIFEST_INVALID.
+// Integer arithmetic is in bigints, so sizes up to 2^53 - 1 are exact.
+export function parseManifest(input) {
+  const bad = (why) => fail("S_MANIFEST_INVALID", why);
+  const text = toText(input, bad);
+  let m;
+  try {
+    m = parseStrictJson(text);
+  } catch (e) {
+    if (e instanceof EvidenceError) bad(`not strict JSON (${e.code})`);
+    throw e;
+  }
+  if (canonicalize(m) !== text) bad("not in canonical form");
+  if (!hasMembers(m, ["v", "log", "size", "head", "segment_size", "segments"], ["checkpoint"])) {
+    bad("members are not those of segments/0");
+  }
+  if (m.v !== SEGMENTS_V) bad(`v is not ${SEGMENTS_V}`);
+  if (!isHash(m.log) || !isHash(m.head)) bad("log and head are hashes");
+  if (!isPosition(m.size) || !isPosition(m.segment_size)) bad("size and segment_size are positions");
+  if (Object.hasOwn(m, "checkpoint")) {
+    const cp = m.checkpoint;
+    if (!hasMembers(cp, ["id", "size"]) || !isHash(cp.id) || !isPosition(cp.size)) bad("checkpoint is not {id, size}");
+  }
+  const size = BigInt(m.size);
+  const per = BigInt(m.segment_size);
+  const count = (size + per - 1n) / per;
+  if (!Array.isArray(m.segments) || BigInt(m.segments.length) !== count) {
+    bad("the segment list is not the one size and segment_size give");
+  }
+  m.segments.forEach((s, i) => {
+    const first = BigInt(i) * per + 1n;
+    const last = BigInt(i + 1) * per < size ? BigInt(i + 1) * per : size;
+    const ok =
+      hasMembers(s, ["file", "first", "last", "hash"]) &&
+      s.file === segmentFileName(i + 1) &&
+      Number.isSafeInteger(s.first) &&
+      BigInt(s.first) === first &&
+      Number.isSafeInteger(s.last) &&
+      BigInt(s.last) === last &&
+      isHash(s.hash);
+    if (!ok) bad(`segment ${i + 1} is not the one size and segment_size give`);
+  });
+  return m;
+}
+
+// Splits a segment file into lines at every LF byte, before any decoding.
+// Returns { lines, tail }: `lines` are the bytes before each LF, without it;
+// `tail` is the bytes after the last LF when the file does not end in LF (one
+// more line, always S_LINE_INVALID), else null. An empty file has no lines.
+export function splitSegment(input) {
+  const bytes = typeof input === "string" ? Buffer.from(input, "utf8") : Buffer.from(input);
+  const lines = [];
+  let start = 0;
+  for (let lf = bytes.indexOf(0x0a, start); lf !== -1; lf = bytes.indexOf(0x0a, start)) {
+    lines.push(bytes.subarray(start, lf));
+    start = lf + 1;
+  }
+  return { lines, tail: start < bytes.length ? bytes.subarray(start) : null };
+}
+
+// --- Verifier -----------------------------------------------------------------------
+// The algorithm of spec/store-0.md, Verification: line checks a, b, b2 and c;
+// sequence and clock checks d to g; body checks h to k; end of log; and the
+// sort and truncation of findings.
+//
+// Only the maxFindings smallest findings in sort order can be reported, and a
+// finding found later never makes one already kept any larger. So, as in the
+// Rust verifier, whenever 2 x maxFindings (at least 64) are held they are
+// sorted and cut to maxFindings, and memory stays small whatever the input.
+// finish() sorts what is left and keeps the first maxFindings; `truncated`
+// counts every finding found.
+
+const LATE_CLAIM_SECS = 300;
+
+export class Verifier {
+  #source;
+  #maxFindings;
+  #findings = []; // { code, seq?, ref?, core?, file?, pos }, pruned as they come
+  #found = 0; // findings recorded so far, kept or not
+  #lineCount = 0; // lines read so far; a line's position in reading order
+  #logId = null;
+  #expectedSeq = 1;
+  #previous = null; // the previous line: null before the first, else { usable, hash }
+  #lastUsable = null; // { receivedAt, epoch } of the previous usable line
+  #head = null; // { seq, entry_hash } of the last usable line
+  #tree = new MerkleTree(); // over the leaf hashes of the usable lines, in reading order
+  #entryHashes = []; // entry hashes of the usable lines, in reading order
+  #refs = new Set(); // entry.ref of every usable line read
+  #seqs = new Set(); // which of seq 1 and 2 a usable line had
+  #held = new Map(); // id -> at, for objects held (step i)
+  #heads = new Heads();
+  #genesis = null; // { name, signer, key, at } once found
+  #checkpoints = []; // recognised checkpoints, in reading order
+  #witnessedIds = new Set(); // objects named by a valid witness (no body finding, the genesis key)
+  #deferred = []; // step 6 findings decided at the end of the log
+  #checked = { entries: 0, objects: 0, attestations: 0, checkpoints: 0 };
+  #atAfterReceived = 0;
+
+  constructor({ source = "export", maxFindings = DEFAULT_MAX_FINDINGS } = {}) {
+    if (source !== "export" && source !== "store") throw new RangeError(`source ${source}`);
+    if (!isPosition(maxFindings)) throw new RangeError(`max_findings ${maxFindings} is not 1 to 2^53 - 1`);
+    this.#source = source;
+    this.#maxFindings = maxFindings;
+  }
+
+  // A finding that is not about a line: a manifest or live-store finding. `pos`
+  // orders findings of one code (manifest file order for S_SEGMENT_HASH).
+  addFinding({ code, file, pos = 0 }) {
+    if (!CODE_RANK.has(code)) throw new RangeError(`unknown code ${code}`);
+    this.#record(file === undefined ? { code, pos } : { code, file, pos });
+  }
+
+  // The sort order of findings: seq (none first), then code, then pos.
+  static #compare(a, b) {
+    return (a.seq ?? 0) - (b.seq ?? 0) || CODE_RANK.get(a.code) - CODE_RANK.get(b.code) || a.pos - b.pos;
+  }
+
+  #record(finding) {
+    this.#found += 1;
+    this.#findings.push(finding);
+    if (this.#findings.length >= Math.max(2 * this.#maxFindings, 64)) {
+      this.#findings.sort(Verifier.#compare);
+      this.#findings.length = this.#maxFindings;
+    }
+  }
+
+  // One line, without its LF, as bytes (or a string, taken as its UTF-8 bytes).
+  pushLine(bytes) {
+    const pos = this.#lineCount++;
+    // A line is the canonical form of a JSON object, so it starts with "{";
+    // any other line fails step a. This spares an exception for each one.
+    if ((typeof bytes === "string" ? bytes.charCodeAt(0) : bytes[0]) !== 0x7b) {
+      this.#unusable({ code: "S_LINE_INVALID", pos });
+      return;
+    }
+    let line;
+    try {
+      line = parseLine(bytes);
+    } catch (e) {
+      if (!(e instanceof EvidenceError)) throw e;
+      this.#unusable({ code: e.code, pos }); // steps a, b, b2
+      return;
+    }
+    const { entry, kind, body } = line;
+    if (this.#logId === null) this.#logId = entry.log;
+    // A finding on this line: seq and ref always, core for the two codes that carry one.
+    const flag = (code, core) => {
+      const finding = { code, seq: entry.seq, ref: entry.ref, pos };
+      this.#record(core ? { ...finding, core } : finding);
+    };
+    if (entry.log !== this.#logId) {
+      this.#unusable({ code: "S_WRONG_LOG", seq: entry.seq, ref: entry.ref, pos }); // step c
+      return;
+    }
+
+    // Sequence and clock checks: each can add a finding; the line goes on.
+    const entryCanonicalBytes = Buffer.from(line.entryCanonical, "utf8");
+    const hash = sha256(entryCanonicalBytes);
+    const receivedAt = parseTimestamp(entry.received_at);
+    if (entry.seq !== this.#expectedSeq) flag("S_SEQ_GAP"); // d
+    this.#expectedSeq = entry.seq + 1;
+    if (entry.seq === 1) {
+      if (entry.prev !== this.#logId) flag("S_CHAIN_BREAK"); // e
+    } else if (this.#previous?.usable && entry.prev !== this.#previous.hash) {
+      flag("S_CHAIN_BREAK");
+    }
+    if (this.#lastUsable) {
+      if (compareTimestamps(receivedAt, this.#lastUsable.receivedAt) < 0) flag("S_RECEIVED_REGRESSION"); // f
+      if (entry.epoch < this.#lastUsable.epoch) flag("S_EPOCH_REGRESSION"); // g
+    }
+
+    // Body checks: at most one finding.
+    if (kind === "object") {
+      const isCheckpoint = this.#objectBody(entry, body, receivedAt, pos, flag);
+      this.#checked[isCheckpoint ? "checkpoints" : "objects"] += 1;
+    } else {
+      this.#attestationBody(entry, body, flag);
+      this.#checked.attestations += 1;
+    }
+
+    this.#checked.entries += 1;
+    this.#refs.add(entry.ref);
+    if (entry.seq === 1 || entry.seq === 2) this.#seqs.add(entry.seq);
+    this.#tree.push(leafHash(entryCanonicalBytes));
+    this.#entryHashes.push(hash);
+    this.#head = { seq: entry.seq, entry_hash: hash };
+    this.#previous = { usable: true, hash };
+    this.#lastUsable = { receivedAt, epoch: entry.epoch };
+  }
+
+  // The bytes after the last LF of a segment file that does not end in LF.
+  pushUnterminatedLine() {
+    this.#unusable({ code: "S_LINE_INVALID", pos: this.#lineCount++ });
+  }
+
+  // The lines of one segment file, as splitSegment splits them, one at a time.
+  pushSegment(input) {
+    let bytes = input;
+    if (typeof input === "string") bytes = Buffer.from(input, "utf8");
+    else if (!Buffer.isBuffer(input)) bytes = Buffer.from(input);
+    let start = 0;
+    for (let lf = bytes.indexOf(0x0a, start); lf !== -1; lf = bytes.indexOf(0x0a, start)) {
+      this.pushLine(bytes.subarray(start, lf));
+      start = lf + 1;
+    }
+    if (start < bytes.length) this.pushUnterminatedLine();
+  }
+
+  #unusable(finding) {
+    this.#record(finding);
+    this.#previous = { usable: false };
+  }
+
+  // Steps h, i and j for an object line. `flag(code, core)` records a finding on
+  // this line. Returns true when the object is recognised as a checkpoint
+  // (step j item 2), whatever items 3 and 4 find.
+  #objectBody(entry, obj, receivedAt, pos, flag) {
+    // h. Reference.
+    if (typeof obj?.id !== "string" || obj.id !== entry.ref) {
+      flag("S_REF_MISMATCH");
+      return false;
+    }
+    if (this.#refs.has(entry.ref)) {
+      flag("S_DUPLICATE_REF");
+      return false;
+    }
+
+    // i. evidence/0 steps 1-5 (the line's strict parse was step 1).
+    const core = objectCode(obj);
+    if (core) {
+      flag("S_OBJECT_INVALID", core);
+      return false;
+    }
+    const objAt = parseTimestamp(obj.at);
+    // Step 6, in list order, stopping at the first prev that is not held on an
+    // earlier line (decided at the end of the log) or is dated after this object.
+    let prevFinding = false;
+    for (const p of obj.prev) {
+      const prevAt = this.#held.get(p);
+      if (prevAt === undefined) {
+        this.#deferred.push({ seq: entry.seq, ref: entry.ref, prev: p, pos });
+        prevFinding = true;
+        break;
+      }
+      if (compareTimestamps(prevAt, objAt) > 0) {
+        flag("S_OBJECT_INVALID", "E_PREV_ORDER");
+        prevFinding = true;
+        break;
+      }
+    }
+    // Held from this line on, whatever step 6 or step j finds.
+    if (!this.#held.has(obj.id)) this.#held.set(obj.id, objAt);
+    this.#heads.apply(obj.id, subjectOf(obj), laneOf(obj), obj.prev);
+    const lateBound = { secs: receivedAt.secs + LATE_CLAIM_SECS, nanos: receivedAt.nanos };
+    if (compareTimestamps(objAt, lateBound) > 0) this.#atAfterReceived += 1;
+    if (prevFinding) return false;
+
+    // j. Store subjects.
+    if (entry.seq === 1) {
+      let genesis = null;
+      try {
+        genesis = genesisFromObject(obj);
+      } catch (e) {
+        if (!(e instanceof EvidenceError)) throw e;
+      }
+      if (genesis === null || obj.id !== this.#logId) flag("S_GENESIS_INVALID");
+      else if (this.#genesis === null) this.#genesis = { ...genesis, at: objAt };
+      return false;
+    }
+    if (entry.seq === 2) {
+      flag("S_GENESIS_INVALID");
+      return false;
+    }
+    if (obj.subject.system !== STORE_SYSTEM) return false;
+    const genesis = this.#genesis;
+    if (genesis === null || obj.subject.type !== "checkpoint" || obj.actor.id !== genesis.signer) {
+      flag("S_RESERVED_SUBJECT");
+      return false;
+    }
+    const cp = { seq: entry.seq, ref: entry.ref, id: obj.id, pos, size: null, invalid: false, bodyFinding: false };
+    this.#checkpoints.push(cp);
+    let content;
+    try {
+      content = checkpointFromObject(obj, genesis, this.#logId);
+    } catch (e) {
+      if (!(e instanceof EvidenceError)) throw e;
+      cp.invalid = true;
+      cp.bodyFinding = true;
+      flag("S_CHECKPOINT_INVALID");
+      return true;
+    }
+    cp.size = content.size;
+    const n = content.size;
+    const root = this.#tree.root(n); // null when fewer than n usable lines come before
+    const matches =
+      n < entry.seq &&
+      root !== null &&
+      this.#entryHashes[n - 1] === content.head &&
+      digestToText(root) === content.root;
+    if (!matches) {
+      cp.bodyFinding = true;
+      flag("S_CHECKPOINT_MISMATCH");
+    }
+    return true;
+  }
+
+  // Steps h and k for an attestation line: the reference, then the shape, the
+  // signature, the target and the genesis rule, stopping at the first finding.
+  #attestationBody(entry, att, flag) {
+    if (attestationRef(att) !== entry.ref) {
+      flag("S_REF_MISMATCH");
+    } else if (this.#refs.has(entry.ref)) {
+      flag("S_DUPLICATE_REF");
+    } else if (!attestationShapeOk(att)) {
+      flag("S_ATTESTATION_INVALID", "E_ATTESTATION_SHAPE");
+    } else if (!attestationSignatureOk(att)) {
+      flag("S_ATTESTATION_INVALID", "E_SIGNATURE_INVALID");
+    } else if (!this.#held.has(att.object)) {
+      flag("S_ATTESTATION_TARGET");
+    } else if (entry.seq === 1 || (entry.seq === 2 && !this.#isAuthorAttestation(att))) {
+      flag("S_GENESIS_INVALID");
+    } else if (att.purpose === "witness" && this.#genesis !== null && att.key === this.#genesis.key) {
+      this.#witnessedIds.add(att.object);
+    }
+  }
+
+  // The genesis author attestation: the genesis was found on an earlier line,
+  // and the line attests the log id, as author, by the genesis signer and key,
+  // at the genesis `at` (compared as instants).
+  #isAuthorAttestation(att) {
+    const g = this.#genesis;
+    return (
+      g !== null &&
+      att.object === this.#logId &&
+      att.purpose === "author" &&
+      att.signer === g.signer &&
+      att.key === g.key &&
+      compareTimestamps(parseTimestamp(att.at), g.at) === 0
+    );
+  }
+
+  #witnessed(cp) {
+    return this.#witnessedIds.has(cp.id);
+  }
+
+  // What the manifest is compared with after the lines: the log id of the
+  // lines, the head, and the latest checkpoint (the last recognised checkpoint
+  // without S_CHECKPOINT_INVALID) as { id, size }. Each is null when absent.
+  summary() {
+    const latest = this.#checkpoints.filter((cp) => !cp.invalid).at(-1);
+    return {
+      log: this.#logId,
+      head: this.#head,
+      checkpoint: latest ? { id: latest.id, size: latest.size } : null,
+    };
+  }
+
+  // Ends the log and returns the store-report/0 object. It changes nothing, so
+  // it gives the same report if called again.
+  finish() {
+    const findings = [...this.#findings]; // those found at the end of the log join these
+    for (const d of this.#deferred) {
+      findings.push(
+        this.#held.has(d.prev)
+          ? { code: "S_PREV_POSITION", seq: d.seq, ref: d.ref, pos: d.pos }
+          : { code: "S_OBJECT_INVALID", seq: d.seq, ref: d.ref, core: "E_PREV_MISSING", pos: d.pos },
+      );
+    }
+    for (const cp of this.#checkpoints) {
+      if (!this.#witnessed(cp)) findings.push({ code: "S_CHECKPOINT_UNSIGNED", seq: cp.seq, ref: cp.ref, pos: cp.pos });
+    }
+    if (!this.#seqs.has(1) || !this.#seqs.has(2)) findings.push({ code: "S_GENESIS_INVALID", pos: 0 });
+
+    let covered = null;
+    for (const cp of this.#checkpoints) {
+      if (cp.bodyFinding || !this.#witnessed(cp)) continue;
+      if (covered === null || cp.size > covered.size) covered = cp;
+    }
+
+    // pos restores reading order for findings decided at the end of the log.
+    const found = this.#found + findings.length - this.#findings.length;
+    findings.sort(Verifier.#compare);
+    const kept = findings.slice(0, this.#maxFindings).map(({ pos: _pos, ...f }) => f);
+    const report = { v: REPORT_V, ok: kept.length === 0, source: this.#source };
+    if (this.#logId !== null) {
+      report.log = this.#logId;
+      report.head = { ...this.#head };
+    }
+    if (covered) report.covered = { size: covered.size, checkpoint: covered.id };
+    report.checked = { ...this.#checked };
+    report.counts = { forks: this.#heads.recordForks(), at_after_received: this.#atAfterReceived };
+    report.findings = kept;
+    report.truncated = found > kept.length;
+    return report;
+  }
+}
+
+// Verifies an export: the bytes of manifest.json and of the segment files in
+// manifest order (Buffers, Uint8Arrays or strings). Returns store-report/0.
+export function verifyExport(manifest, segments, { maxFindings = DEFAULT_MAX_FINDINGS } = {}) {
+  const verifier = new Verifier({ source: "export", maxFindings });
+  let m = null;
+  try {
+    m = parseManifest(manifest);
+  } catch (e) {
+    if (!(e instanceof EvidenceError)) throw e;
+    verifier.addFinding({ code: "S_MANIFEST_INVALID" });
+  }
+  const files = segments.map((s) => (typeof s === "string" ? Buffer.from(s, "utf8") : Buffer.from(s)));
+  if (m) {
+    m.segments.forEach((s, i) => {
+      if (i < files.length && sha256(files[i]) !== s.hash) {
+        verifier.addFinding({ code: "S_SEGMENT_HASH", file: s.file, pos: i });
+      }
+    });
+  }
+  for (const file of files) verifier.pushSegment(file);
+  if (m) {
+    const { log, head, checkpoint } = verifier.summary();
+    const mismatch =
+      files.length !== m.segments.length ||
+      log === null ||
+      m.log !== log ||
+      head === null ||
+      m.size !== head.seq ||
+      m.head !== head.entry_hash ||
+      (checkpoint === null) !== !Object.hasOwn(m, "checkpoint") ||
+      (checkpoint !== null && (m.checkpoint.id !== checkpoint.id || m.checkpoint.size !== checkpoint.size));
+    if (mismatch) verifier.addFinding({ code: "S_MANIFEST_MISMATCH" });
+  }
+  return verifier.finish();
+}
+
+// --- Writer -----------------------------------------------------------------------------
+// A store in memory that follows the intake rules and the two-clock rules of
+// spec/store-0.md, and exports itself as segments/0. It exists to generate the
+// export vectors: replay() runs an inputs.json operation script through it.
+//
+// For tampered vectors that are built rather than edited, append and attest
+// take { unchecked: true } to skip every intake check but the strict parse, and
+// { entry: {...} } to override members of the item's entry. checkpoint takes
+// { root } to write a wrong root and { witness: false } to leave the witness
+// out. init takes { author } and { edit } to change the author attestation or
+// the genesis object. Everything else stays consistent: each entry's prev is
+// the hash of the entry actually written before it.
+
+const isBytes = (v) => v instanceof Uint8Array;
+
+export class Writer {
+  #name;
+  #seed;
+  #clock;
+  #epoch = 1;
+  #lines = []; // canonical segment lines, without LF
+  #leaves = []; // leaf hashes, by seq - 1
+  #hashes = []; // entry hashes, by seq - 1
+  #lastReceived = null; // timestamp of the last entry's received_at
+  #held = new Map(); // object id -> at (timestamp)
+  #receipts = new Map(); // item ref -> receipt
+  #genesis = null;
+  #logId = null;
+  #checkpoint = null; // { id, size, at } of the latest checkpoint written by checkpoint()
+
+  // `seed` is the store key's seed in hex. `clock` is a list of timestamps,
+  // one per transaction, consumed in order, or a function returning the next.
+  constructor({ name, seed, clock }) {
+    this.#name = name;
+    this.#seed = seed;
+    this.#clock = typeof clock === "function" ? clock : [...clock];
+  }
+
+  get logId() {
+    return this.#logId;
+  }
+  get genesis() {
+    return this.#genesis;
+  }
+  get size() {
+    return this.#lines.length;
+  }
+  // The clock readings not yet used (an array clock only).
+  get clockLeft() {
+    return typeof this.#clock === "function" ? 0 : this.#clock.length;
+  }
+  get latestCheckpoint() {
+    return this.#checkpoint ? { ...this.#checkpoint } : null;
+  }
+  lines() {
+    return [...this.#lines];
+  }
+  entryHash(seq) {
+    return this.#hashes[seq - 1];
+  }
+  root(size = this.size) {
+    return digestToText(merkleRoot(this.#leaves.slice(0, size)));
+  }
+
+  // One clock reading: one transaction.
+  #now() {
+    let text;
+    if (typeof this.#clock === "function") text = this.#clock();
+    else if (this.#clock.length) text = this.#clock.shift();
+    else throw new Error("the scripted clock has no reading left");
+    const t = parseTimestamp(text);
+    if (!t) throw new Error(`clock reading ${JSON.stringify(text)} is not a timestamp`);
+    return t;
+  }
+
+  #received(now) {
+    return formatMillis(nextReceived(now, this.#lastReceived));
+  }
+
+  #append(kind, itemRef, bodyCanonical, receivedAt, overrides = {}) {
+    const seq = this.#lines.length + 1;
+    const prev = seq === 1 ? this.#logId : this.#hashes[seq - 2];
+    const entry = makeEntry({
+      log: this.#logId,
+      seq,
+      kind,
+      ref: itemRef,
+      received_at: receivedAt,
+      epoch: this.#epoch,
+      prev,
+      ...overrides,
+    });
+    const text = entryCanonical(entry);
+    const canonical = Buffer.from(text, "utf8");
+    this.#lines.push(renderLine(text, kind, bodyCanonical));
+    this.#leaves.push(leafHash(canonical));
+    this.#hashes.push(sha256(canonical));
+    this.#lastReceived = parseTimestamp(entry.received_at);
+    const receipt = { kind, ref: entry.ref, seq, entry_hash: this.#hashes[seq - 1], received_at: entry.received_at };
+    if (!this.#receipts.has(itemRef)) this.#receipts.set(itemRef, receipt);
+    return { ...receipt, duplicate: false };
+  }
+
+  #hold(obj) {
+    const at = parseTimestamp(obj?.at);
+    if (typeof obj?.id === "string" && at && !this.#held.has(obj.id)) this.#held.set(obj.id, at);
+  }
+
+  #signAs(object, purpose, at) {
+    return signAttestation({ object, purpose, signer: this.#genesis.signer, at }, this.#seed);
+  }
+
+  // Creates the store at epoch 1: the genesis and its author attestation, in
+  // one transaction. `author`, if given, builds the author attestation instead:
+  // ({ logId, genesis, at, seed }) => attestation. `edit`, if given, changes the
+  // genesis object before it is written: (object) => object, whose id is then
+  // the log id.
+  init({ author, edit } = {}) {
+    if (this.#lines.length) throw new Error("init is the first operation, and only there");
+    const now = this.#now();
+    const genesis = makeGenesis(this.#name, publicKey(this.#seed));
+    const at = formatMillis(serviceAt(now));
+    const obj = edit ? edit(genesisObject(genesis, at)) : genesisObject(genesis, at);
+    this.#genesis = genesis;
+    this.#logId = obj.id;
+    const received = this.#received(now);
+    this.#append("object", obj.id, canonicalize(obj), received);
+    this.#hold(obj);
+    const att = author ? author({ logId: obj.id, genesis, at, seed: this.#seed }) : this.#signAs(obj.id, "author", at);
+    this.#append("attestation", attestationRef(att), canonicalize(att), received);
+    return obj;
+  }
+
+  // Appends one object, given as JSON text or bytes (stored in canonical form)
+  // or as a value. Returns its receipt.
+  append(input, { unchecked = false, entry = {} } = {}) {
+    const now = this.#now();
+    const given = typeof input === "string" || isBytes(input);
+    const obj = given ? parseStrictJson(toText(input, (why) => fail("E_PARSE", why))) : input;
+    if (!unchecked) {
+      const code = objectCode(obj);
+      if (code) fail(code, "the object fails evidence/0 steps 2-5");
+      if (obj.subject.system === STORE_SYSTEM) fail("S_RESERVED_SUBJECT", "store subjects are the store's own");
+      const held = this.#receipts.get(obj.id);
+      if (held) return { ...held, duplicate: true };
+      const at = parseTimestamp(obj.at);
+      for (const p of obj.prev) {
+        const prevAt = this.#held.get(p);
+        if (prevAt === undefined) fail("E_PREV_MISSING", `prev ${p} is not held`);
+        if (compareTimestamps(prevAt, at) > 0) fail("E_PREV_ORDER", `prev ${p} is dated after the object`);
+      }
+    }
+    const receipt = this.#append("object", obj.id, canonicalize(obj), this.#received(now), entry);
+    this.#hold(obj);
+    return receipt;
+  }
+
+  // Appends one attestation line (text or bytes, stored in canonical form).
+  attest(input, { unchecked = false, entry = {} } = {}) {
+    const now = this.#now();
+    let att;
+    try {
+      att = parseStrictJson(toText(input, (why) => fail("E_ATTESTATION_SHAPE", why)));
+    } catch (e) {
+      if (e instanceof EvidenceError) fail("E_ATTESTATION_SHAPE", `not strict JSON (${e.code})`);
+      throw e;
+    }
+    const itemRef = attestationRef(att);
+    if (!unchecked) {
+      if (!attestationShapeOk(att)) fail("E_ATTESTATION_SHAPE", "not attestation/0");
+      if (!this.#held.has(att.object)) fail("S_ATTESTATION_TARGET", "the target object is not held");
+      if (!attestationSignatureOk(att)) fail("E_SIGNATURE_INVALID", "the signature does not verify");
+      const held = this.#receipts.get(itemRef);
+      if (held) return { ...held, duplicate: true };
+    }
+    return this.#append("attestation", itemRef, canonicalize(att), this.#received(now), entry);
+  }
+
+  // Closes the writer and opens the store again: the epoch increases by one.
+  reopen() {
+    this.#epoch += 1;
+  }
+
+  // Writes a checkpoint over every entry so far and its witness, in one
+  // transaction. Returns { id, seq, size, root, head }.
+  checkpoint({ root, witness = true } = {}) {
+    const now = this.#now();
+    const prev = this.#checkpoint;
+    const at = formatMillis(serviceAt(now, prev ? [parseTimestamp(prev.at)] : []));
+    const size = this.#lines.length;
+    const content = { log: this.#logId, size, head: this.#hashes[size - 1], root: root ?? this.root(size) };
+    const obj = checkpointObject(content, this.#genesis, at, prev ? prev.id : null);
+    const received = this.#received(now);
+    const { seq } = this.#append("object", obj.id, canonicalize(obj), received);
+    this.#hold(obj);
+    this.#checkpoint = { id: obj.id, size, at };
+    if (witness) {
+      const att = this.#signAs(obj.id, "witness", at);
+      this.#append("attestation", attestationRef(att), canonicalize(att), received);
+    }
+    return { id: obj.id, seq, size, root: content.root, head: content.head };
+  }
+
+  // The export with `segmentSize` lines per segment file: a Map from file name
+  // to bytes, the segment files in order and then manifest.json.
+  exportFiles(segmentSize) {
+    if (!isPosition(segmentSize)) throw new RangeError(`segment_size ${segmentSize}`);
+    const size = this.#lines.length;
+    const files = new Map();
+    const segments = [];
+    for (let first = 1, i = 1; first <= size; first += segmentSize, i += 1) {
+      const last = Math.min(first + segmentSize - 1, size);
+      const bytes = Buffer.from(this.#lines.slice(first - 1, last).map((l) => `${l}\n`).join(""), "utf8");
+      const file = segmentFileName(i);
+      files.set(file, bytes);
+      segments.push({ file, first, last, hash: sha256(bytes) });
+    }
+    const manifest = {
+      v: SEGMENTS_V,
+      log: this.#logId,
+      size,
+      head: this.#hashes[size - 1],
+      segment_size: segmentSize,
+      segments,
+    };
+    if (this.#checkpoint) manifest.checkpoint = { id: this.#checkpoint.id, size: this.#checkpoint.size };
+    files.set("manifest.json", Buffer.from(canonicalize(manifest), "utf8"));
+    return files;
+  }
+}
+
+// --- Replaying inputs.json ----------------------------------------------------------
+
+const INPUT_MEMBERS = ["name", "seed", "segment_size", "clock", "ops"];
+
+// Line n (counting from 1, without its LF) of a JSON Lines file's bytes.
+function nthLine(bytes, n) {
+  const { lines } = splitSegment(bytes);
+  if (!Number.isSafeInteger(n) || n < 1 || n > lines.length) throw new RangeError(`no line ${n}`);
+  return lines[n - 1];
+}
+
+// Runs an inputs.json operation script (spec/store-0.md, Export case files)
+// through a Writer. `readFile(path)` returns the bytes of a path under
+// test-vectors/: the seed file and the files the operations name. Every
+// operation must succeed and none may be a duplicate; the clock must hold
+// exactly one reading per operation that reads it. Returns the Writer.
+export function replay(inputs, readFile) {
+  if (!hasMembers(inputs, INPUT_MEMBERS)) throw new Error(`inputs members are ${INPUT_MEMBERS.join(", ")}`);
+  const { name, seed, segment_size, clock, ops } = inputs;
+  if (!isPosition(segment_size)) throw new Error("segment_size is a position");
+  if (!Array.isArray(clock) || !clock.every((t) => parseTimestamp(t))) throw new Error("clock is a list of timestamps");
+  if (!Array.isArray(ops) || ops[0]?.op !== "init") throw new Error("ops start with init");
+  const seedHex = Buffer.from(readFile(`keys/${seed}.seed`)).toString("utf8").trim();
+  const writer = new Writer({ name, seed: seedHex, clock });
+  ops.forEach((op, i) => {
+    const where = `ops[${i}]`;
+    const fresh = (receipt) => {
+      if (receipt.duplicate) throw new Error(`${where} is a duplicate`);
+    };
+    switch (op?.op) {
+      case "init":
+        if (i !== 0 || !hasMembers(op, ["op"])) throw new Error(`${where}: init is first and only first`);
+        writer.init();
+        break;
+      case "append":
+        if (hasMembers(op, ["op", "file"])) fresh(writer.append(readFile(op.file)));
+        else if (hasMembers(op, ["op", "object"])) fresh(writer.append(op.object));
+        else throw new Error(`${where}: append takes file or object`);
+        break;
+      case "attest":
+        if (!hasMembers(op, ["op", "file", "line"])) throw new Error(`${where}: attest takes file and line`);
+        fresh(writer.attest(nthLine(readFile(op.file), op.line)));
+        break;
+      case "reopen":
+        if (!hasMembers(op, ["op"])) throw new Error(`${where}: reopen takes nothing`);
+        writer.reopen();
+        break;
+      case "checkpoint":
+        if (!hasMembers(op, ["op"])) throw new Error(`${where}: checkpoint takes nothing`);
+        writer.checkpoint();
+        break;
+      default:
+        throw new Error(`${where}: unknown op ${JSON.stringify(op?.op)}`);
+    }
+  });
+  if (writer.clockLeft !== 0) throw new Error(`${writer.clockLeft} clock reading(s) left unused`);
+  return writer;
 }

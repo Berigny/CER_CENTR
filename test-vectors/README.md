@@ -15,7 +15,7 @@ All data here is synthetic. The keys in `keys/` are public test keys derived fro
 | `objects/<case>/store/*.json` | Optional objects that `prev` may point at. When present, `case.json` has `"store": true`. |
 | `objects/<case>/case.json` | `description`, optional `require` (purposes), and `expect`: `ok`, and `id`, `code`, `content_checked` and `attestations` where relevant. |
 | `fixtures/` | Synthetic schema and content files whose hashes the objects cite. |
-| `keys/` | Test seeds (hex) and `public.json`. |
+| `keys/` | Test seeds (hex) and `public.json`. `store-demo` is the store key of the export vectors. |
 
 Cases `0xx` must verify; cases `1xx` must fail with the stated code. An implementation conforms if it matches every case.
 
@@ -27,6 +27,9 @@ Vectors for [store/0](../spec/store-0.md), generated through the independent Jav
 |---|---|
 | `store/entries.json` | `{valid, invalid}`. Each `valid` case is `{name, entry, canonical, hash}`: a `log-entry/0` object, its RFC 8785 canonical text, and its entry hash (`sha256:` + hex SHA-256 of `canonical`). Each `invalid` case is `{name, input, error}`: JSON text that is not a valid entry, and the code `S_ENTRY_INVALID`. |
 | `store/merkle.json` | A list of `{name, leaves, root, inclusion, consistency}`. `leaves` are strings whose UTF-8 bytes are the leaves; `root` is the RFC 9162 tree hash. `inclusion` is a list of `{index, proof, valid}` (0-based leaf index); `consistency` is a list of `{old_size, old_root, proof, valid}`, from `old_size` to the full tree. Hashes are written `sha256:` + hex. |
+| `store/exports/<case>/manifest.json`, `000001.jsonl`, … | An export: the `segments/0` manifest and the segment files, exactly as a writer emits them (or, for tampered cases, as they were changed afterwards). Read every file as raw bytes. |
+| `store/exports/<case>/case.json` | `description`, `expect` (the golden `store-report/0`), and only where the case needs them `max_findings` (verify with this limit; absent means 1000) and `proofs` (case 003). |
+| `store/exports/<case>/inputs.json` | Valid cases only: the operation script that built the export, `{name, seed, segment_size, clock, ops}`. |
 
 `entries.json`:
 
@@ -39,3 +42,12 @@ Vectors for [store/0](../spec/store-0.md), generated through the independent Jav
 - Proofs marked `valid: true` are the ones RFC 9162 sections 2.1.3.1 and 2.1.4.1 produce: inclusion for the first, middle (n / 2, rounded down) and last index; consistency from old sizes 1, 2, 3 and n − 1, where 0 < old size < n.
 - Proofs marked `valid: false` must fail verification (RFC 9162 sections 2.1.3.2 and 2.1.4.2). For n ≥ 2: the middle index's proof with the first byte of its last element inverted, and index n (outside the tree) with an empty proof. For n ≥ 3: the consistency proof from n − 1 with the first byte of its last element inverted.
 - For an index outside the tree there is no leaf; verification must answer false whatever leaf hash is supplied. The JavaScript checker uses the leaf `"leaf-<index>"`.
+
+`exports/`:
+
+- A conforming verifier passes the bytes of `manifest.json` and of the case's `NNNNNN.jsonl` files in file-name order, with `max_findings` when `case.json` has it, and gets a report whose canonical form equals the canonical form of `expect`, byte for byte.
+- Valid cases (`0xx`) verify with `ok: true`: `001-genesis`, `002-records-and-checkpoint`, `003-attestations-two-checkpoints`, `004-multi-segment` (the operations of 003 with `segment_size` 4), `005-fork` (`counts.forks` 1), `006-clock-backwards` (a clock that steps back after a reading finer than a millisecond) and `007-late-claim` (`counts.at_after_received` 2: objects dated 300 s and 1 ns and one day after their `received_at` count, exactly 300 s does not).
+- A writer conforms if replaying a valid case's `inputs.json`, with its scripted clock and the seed `keys/<seed>.seed`, exports `manifest.json` and segment files byte-identical to the committed ones. Each `init`, `append`, `attest` and `checkpoint` reads one clock timestamp, in order; `reopen` reads none and increases the writer epoch. `append` names a file under `test-vectors/` (appended in canonical form) or holds the object inline; `attest` names a JSON Lines file and a line, counting from 1.
+- Tampered cases (`1xx`) have no `inputs.json`. Each is either edited from a valid case, with the manifest's segment hashes recomputed unless the case says otherwise, or built by the reference writer with one rule broken on purpose. `description` says which, and [store/0](../spec/store-0.md#export-cases) lists every case and the findings its report holds. `129-findings-truncated` holds the same files as `125-invalid-object-not-held` and has `max_findings` 2.
+- `130-witness-nonce-zero` and `131-attestation-small-order-key` hold signatures that an Ed25519 check without the small-order rule accepts (Node's `crypto.verify` does), with R or the key a point of small order. evidence/0 rejects them: an implementation that checks with such a library must also reject small-order R and keys itself, in every encoding (see [store/0](../spec/store-0.md), step k).
+- `003-attestations-two-checkpoints` has `proofs`: `inclusion`, one `{seq, size, leaf_hash, proof, root}` for each seq from 1 to the size of the latest checkpoint, against that checkpoint; and `consistency`, one `{old_size, new_size, old_root, new_root, proof}` from the first checkpoint to the second. Every proof is valid: verify each to true, with leaf index `seq` − 1. An implementation that produces proofs also reproduces each one from the export's lines.

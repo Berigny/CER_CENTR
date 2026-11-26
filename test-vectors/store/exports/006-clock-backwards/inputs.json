@@ -1,0 +1,31 @@
+{
+  "name": "cer-demo",
+  "seed": "store-demo",
+  "segment_size": 10000,
+  "clock": [
+    "2026-11-26T00:00:00.000Z",
+    "2026-11-26T00:00:02.000Z",
+    "2026-11-26T00:00:03.123456789Z",
+    "2026-11-26T00:00:01.000Z",
+    "2026-11-26T00:00:01.000Z"
+  ],
+  "ops": [
+    {
+      "op": "init"
+    },
+    {
+      "op": "append",
+      "file": "objects/001-create-inline/object.json"
+    },
+    {
+      "op": "checkpoint"
+    },
+    {
+      "op": "append",
+      "file": "objects/004-external-content/object.json"
+    },
+    {
+      "op": "checkpoint"
+    }
+  ]
+}

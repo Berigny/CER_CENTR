@@ -1,6 +1,6 @@
 # M1 build specification: a verifiable append-only evidence store
 
-**Status:** ready to build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)).
+**Status:** in build; decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors) and B (export verifier and bindings) are done; C to E (the SQLite store, export and import, the CLI) are next.
 **Size:** about 5 engineer-weeks for one experienced Rust engineer. That includes the JavaScript reference work D7 requires, roughly a quarter of the effort.
 **Dependencies:** nothing outside this repository.
 **System of record:** not touched; no SoR is read or written.
@@ -663,6 +663,8 @@ test-vectors/store/
 - Each init, append, attest line and checkpoint consumes one clock reading.
 - `reopen` increments the epoch.
 - The store key is `test-vectors/keys/store-demo.seed`, derived like the other test keys from `sha256("evidence/0 test-vector key: store-demo")`.
+
+The table below is the starting list. The normative and complete table is in [spec/store-0.md](../spec/store-0.md) ("Export cases"). Phase B added 007-late-claim and the tampered cases 119-135. They pin the line splitting, genesis, held-object, checkpoint-recognition and truncation rules, plus the strict Ed25519 checks (small-order keys and a nonce-0 witness).
 
 **Export cases, valid (0xx)**
 - 001-genesis

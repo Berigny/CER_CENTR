@@ -104,11 +104,39 @@ function decodeB64(s, length) {
   return bytes.length === length && bytes.toString("base64url") === s ? bytes : null;
 }
 
+// The y coordinates (little-endian, sign bit cleared) of the points of small
+// order, 1, 2, 4 or 8: y = 1 (the identity), p - 1 (order 2), 0 (order 4), the
+// two values of the order-8 points, and p and p + 1, which are 0 and 1 written
+// non-canonically (y >= p). A point is decoded with y reduced mod p, so these
+// are every 32-byte encoding of a small-order point, with either sign bit.
+const nearP = (low) => `${low}${"ff".repeat(30)}7f`; // p - 1, p and p + 1 by their lowest byte
+const SMALL_ORDER_Y = new Set([
+  "00".repeat(32),
+  `01${"00".repeat(31)}`,
+  "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+  "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+  nearP("ec"),
+  nearP("ed"),
+  nearP("ee"),
+]);
+
+function isSmallOrder(encoding) {
+  const y = Buffer.from(encoding);
+  y[31] &= 0x7f;
+  return SMALL_ORDER_Y.has(y.toString("hex"));
+}
+
+// Ed25519 verification as evidence/0 requires it (strict, like ed25519-dalek's
+// verify_strict): Node's check (S below the group order, and R equal to the
+// encoding of [S]B - [k]A), and also neither the key A nor the signature's R
+// may be a point of small order. Node alone accepts those, and with them a
+// signature that verifies for any message.
 export function verifyAttestation(att) {
   const { sig, ...unsigned } = att;
   const raw = decodeB64(String(att.key).replace(/^ed25519:/, ""), 32);
   const sigBytes = decodeB64(String(sig), 64);
   if (!raw || !sigBytes) return false;
+  if (isSmallOrder(raw) || isSmallOrder(sigBytes.subarray(0, 32))) return false;
   const key = createPublicKey({ key: Buffer.concat([SPKI_PREFIX, raw]), format: "der", type: "spki" });
   return edVerify(null, Buffer.from(canonicalize(unsigned), "utf8"), key, sigBytes);
 }

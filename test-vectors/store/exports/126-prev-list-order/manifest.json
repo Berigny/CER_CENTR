@@ -1,0 +1,1 @@
+{"head":"sha256:9983fb8839accfac818c7b6c084522f81b0b151817e639b8fd8c5db14a833bf6","log":"sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3","segment_size":10000,"segments":[{"file":"000001.jsonl","first":1,"hash":"sha256:2e037e9e440505d952f40460dcc0c06ae4d8852bbd6d3636f69866d0990574d6","last":8}],"size":8,"v":"segments/0"}

@@ -11,6 +11,15 @@ JSON Schema accepts and rejects the same vectors, so the two cannot drift:
 - store/entries.json: every valid entry must pass the log-entry schema, and
   every invalid input must fail it. So must each valid entry with a newline
   appended to one of its strings, which the code rejects.
+- store/exports: every manifest.json must pass the segments schema (case 127's
+  manifest is invalid only in its bytes, which no schema sees), and every
+  golden report (case.json `expect`) the store-report schema. In the segment
+  lines, every entry, object and attestation must pass its schema, and every
+  genesis and checkpoint object's content.inline the store-genesis or
+  checkpoint schema, unless the golden report has the finding that rejects it
+  at that line's seq.
+
+Missing store vectors are a failure, not a skip.
 
 JSON Schema patterns are ECMA-262 regular expressions. The jsonschema package
 runs them with Python's `re.search`, whose `$` also matches just before a final
@@ -106,23 +115,25 @@ def main() -> int:
             failures.append(f"{case_dir.name}: attestation schema rejects a line")
 
     entries_checked = check_entries(failures)
+    exports_checked = check_exports(failures)
 
     if failures:
         print(f"{len(failures)} disagreement(s):\n  " + "\n  ".join(failures))
         return 1
     print(f"JSON Schemas agree with all {checked} schema-level object vectors.")
-    if entries_checked:
-        print(f"The log-entry schema agrees with all {entries_checked} store entry vectors.")
+    print(f"The log-entry schema agrees with all {entries_checked} store entry vectors.")
+    summary = ", ".join(f"{n} {what}" for what, n in exports_checked.items())
+    print(f"The store schemas agree with the export vectors: {summary}.")
     return 0
 
 
 def check_entries(failures: list[str]) -> int:
     """Runs the log-entry schema over store/entries.json; returns the cases checked."""
-    schema_file = ROOT / "spec" / "schema" / "log-entry-0.schema.json"
     vectors = ROOT / "test-vectors" / "store" / "entries.json"
-    if not (schema_file.exists() and vectors.exists()):
+    if not vectors.exists():
+        failures.append("store/entries.json: missing")
         return 0
-    entry_schema = validator(schema_file.name)
+    entry_schema = validator("log-entry-0.schema.json")
     cases = json.loads(vectors.read_text(encoding="utf-8"))
     for case in cases["valid"]:
         errors = [e.message for e in entry_schema.iter_errors(case["entry"])]
@@ -140,6 +151,92 @@ def check_entries(failures: list[str]) -> int:
                 if not list(entry_schema.iter_errors({**case["entry"], key: value + "\n"})):
                     failures.append(f"store/entries/{case['name']}: schema accepts {key} with a trailing newline")
     return len(cases["valid"]) + len(cases["invalid"]) + derived
+
+
+def segment_lines(data: bytes) -> list[bytes]:
+    """The lines of a segment file: split at every LF, with the bytes after the
+    last LF as one more line when the file does not end in LF."""
+    lines = data.split(b"\n")
+    if lines and lines[-1] == b"":
+        lines.pop()
+    return lines
+
+
+def check_exports(failures: list[str]) -> dict[str, int]:
+    """Runs the store schemas over store/exports; returns what was checked."""
+    counts = dict.fromkeys(
+        ["manifests", "reports", "entries", "objects", "attestations", "genesis contents", "checkpoint contents"], 0
+    )
+    exports = ROOT / "test-vectors" / "store" / "exports"
+    if not exports.is_dir() or not any(exports.iterdir()):
+        failures.append("store/exports: missing")
+        return counts
+    if not (ROOT / "test-vectors" / "store" / "merkle.json").exists():
+        failures.append("store/merkle.json: missing")
+    names = ["segments", "store-report", "log-entry", "evidence-object", "attestation", "store-genesis", "checkpoint"]
+    schemas = {name: validator(f"{name}-0.schema.json") for name in names}
+    contents = {"evidence-store/genesis@0": "store-genesis", "evidence-store/checkpoint@0": "checkpoint"}
+
+    def errors(name: str, value: object) -> list[str]:
+        return [e.message for e in schemas[name].iter_errors(value)]
+
+    for case_dir in sorted(exports.iterdir()):
+        where = f"store/exports/{case_dir.name}"
+        case_file, manifest_file = case_dir / "case.json", case_dir / "manifest.json"
+        if not (case_file.exists() and manifest_file.exists()):
+            failures.append(f"{where}: case.json or manifest.json missing")
+            continue
+        expect = json.loads(case_file.read_text(encoding="utf-8"))["expect"]
+        if errs := errors("store-report", expect):
+            failures.append(f"{where}: store-report schema rejects the golden report: {errs[0]}")
+        counts["reports"] += 1
+        if errs := errors("segments", json.loads(manifest_file.read_bytes())):
+            failures.append(f"{where}: segments schema rejects manifest.json: {errs[0]}")
+        counts["manifests"] += 1
+
+        # (seq, code, core) of every finding at a seq: a line may fail a schema
+        # only where the report has the finding that rejects it.
+        found = {(f.get("seq"), f["code"], f.get("core")) for f in expect["findings"]}
+        entry_rejected = any(f["code"] == "S_ENTRY_INVALID" for f in expect["findings"])
+        for segment in sorted(case_dir.glob("*.jsonl")):
+            for raw in segment_lines(segment.read_bytes()):
+                try:
+                    line = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError):
+                    continue  # not JSON: S_LINE_INVALID, which no schema sees
+                if not isinstance(line, dict) or not isinstance(line.get("entry"), dict):
+                    continue
+                entry = line["entry"]
+                seq = entry.get("seq")
+                if (errs := errors("log-entry", entry)) and not entry_rejected:
+                    failures.append(f"{where}: log-entry schema rejects the entry at seq {seq}: {errs[0]}")
+                counts["entries"] += 1
+                if isinstance(line.get("object"), dict):
+                    obj = line["object"]
+                    shape_finding = (seq, "S_OBJECT_INVALID", "E_SHAPE") in found
+                    errs = errors("evidence-object", obj)
+                    if errs and not shape_finding:
+                        failures.append(f"{where}: object schema rejects the object at seq {seq}: {errs[0]}")
+                    if shape_finding and not errs:
+                        failures.append(f"{where}: object schema accepts the object at seq {seq}, which has E_SHAPE")
+                    counts["objects"] += 1
+                    kind = contents.get(obj.get("schema", {}).get("ref"))
+                    if kind and obj.get("subject", {}).get("system") == "evidence-store":
+                        rejecting = ["S_GENESIS_INVALID", "S_CHECKPOINT_INVALID", "S_RESERVED_SUBJECT"]
+                        rejected = any((seq, code, None) in found for code in rejecting)
+                        if (errs := errors(kind, obj.get("content", {}).get("inline"))) and not rejected:
+                            failures.append(f"{where}: {kind} schema rejects the content at seq {seq}: {errs[0]}")
+                        counts["genesis contents" if kind == "store-genesis" else "checkpoint contents"] += 1
+                if isinstance(line.get("attestation"), dict):
+                    # Only one direction: E_ATTESTATION_SHAPE also covers an `at`
+                    # that is not a real instant, which the schema cannot see.
+                    shape_finding = (seq, "S_ATTESTATION_INVALID", "E_ATTESTATION_SHAPE") in found
+                    if (errs := errors("attestation", line["attestation"])) and not shape_finding:
+                        failures.append(f"{where}: attestation schema rejects the attestation at seq {seq}: {errs[0]}")
+                    counts["attestations"] += 1
+    if not (counts["genesis contents"] and counts["checkpoint contents"]):
+        failures.append("store/exports: no genesis or no checkpoint content checked")
+    return counts
 
 
 if __name__ == "__main__":

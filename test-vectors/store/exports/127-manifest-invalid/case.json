@@ -1,0 +1,39 @@
+{
+  "description": "Edited 002: an LF appended to manifest.json, and object 002 changed as in case 101 with the segment hash left as it was. The manifest is not used further, and the lines are still verified.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 7,
+      "entry_hash": "sha256:89b78e29c871dd691b6d9085d0a51cb0b1d5a55db71e9a9efaf1ebdb21a22769"
+    },
+    "covered": {
+      "size": 5,
+      "checkpoint": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+    },
+    "checked": {
+      "entries": 7,
+      "objects": 3,
+      "attestations": 3,
+      "checkpoints": 1
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_MANIFEST_INVALID"
+      },
+      {
+        "code": "S_OBJECT_INVALID",
+        "seq": 4,
+        "ref": "sha256:ca5f5c215c738d402af54b8e2f4d63636035efd86d017be7087d4807c47e302d",
+        "core": "E_ID_MISMATCH"
+      }
+    ],
+    "truncated": false
+  }
+}

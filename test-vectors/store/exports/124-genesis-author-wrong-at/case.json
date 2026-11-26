@@ -1,0 +1,31 @@
+{
+  "description": "Built 001: the author attestation is validly signed by the store key but dated one millisecond after the genesis.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 2,
+      "entry_hash": "sha256:fe59ec1023e4f32c6a16e09a203e8b75fd6f2060897e51369dad2f3c0bd27928"
+    },
+    "checked": {
+      "entries": 2,
+      "objects": 1,
+      "attestations": 1,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_GENESIS_INVALID",
+        "seq": 2,
+        "ref": "sha256:9c58500e53dd3cb8a132f1d57878425daeb16204de8fe47de4c208a722405d27"
+      }
+    ],
+    "truncated": false
+  }
+}

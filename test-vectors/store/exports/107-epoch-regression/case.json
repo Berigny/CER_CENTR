@@ -1,0 +1,31 @@
+{
+  "description": "Built: after a reopen (epoch 2), the entry of object vector 005 has epoch 1.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 5,
+      "entry_hash": "sha256:430c54251dedc13e979cf858b98ab61d130b7cc6df83ab91f7d2e962c2e3ab8e"
+    },
+    "checked": {
+      "entries": 5,
+      "objects": 4,
+      "attestations": 1,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_EPOCH_REGRESSION",
+        "seq": 5,
+        "ref": "sha256:d7479bd0ab3086edc9c4a3d870900b9778a7823abe0a4a6218b062eda7d793b7"
+      }
+    ],
+    "truncated": false
+  }
+}

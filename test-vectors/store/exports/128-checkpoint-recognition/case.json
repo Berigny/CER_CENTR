@@ -1,0 +1,40 @@
+{
+  "description": "Built 002, then a checkpoint-shaped object whose actor is not the genesis signer, then a checkpoint by the genesis signer whose content log is another log's id, each witnessed by the store key. The manifest's checkpoint is still the checkpoint of 002.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "log": "sha256:7d69e3112259c45a165118501a0552b09c9118c0a78d79482ef538d4d1f5a9f3",
+    "head": {
+      "seq": 11,
+      "entry_hash": "sha256:a773d32bba6e52348787f0a13666740ba57c926dc10e3905ae644711517e41db"
+    },
+    "covered": {
+      "size": 5,
+      "checkpoint": "sha256:099fb98c213a009c6080b3f1d9c9b15c25519caf58f56567bad7d685bac51c6f"
+    },
+    "checked": {
+      "entries": 11,
+      "objects": 4,
+      "attestations": 5,
+      "checkpoints": 2
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_RESERVED_SUBJECT",
+        "seq": 8,
+        "ref": "sha256:79b3b58545d53ab0376c31dc4d507aba01340d43957b1875ac2287212626187c"
+      },
+      {
+        "code": "S_CHECKPOINT_INVALID",
+        "seq": 10,
+        "ref": "sha256:1d730cb7053837fa3dc890ed84755dc265d465577d08d94196fff0fa84eae39a"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "description": "Edited 001: every line ends in CR LF, so no line is usable and the lines have no log id.",
+  "expect": {
+    "v": "store-report/0",
+    "ok": false,
+    "source": "export",
+    "checked": {
+      "entries": 0,
+      "objects": 0,
+      "attestations": 0,
+      "checkpoints": 0
+    },
+    "counts": {
+      "forks": 0,
+      "at_after_received": 0
+    },
+    "findings": [
+      {
+        "code": "S_MANIFEST_MISMATCH"
+      },
+      {
+        "code": "S_LINE_INVALID"
+      },
+      {
+        "code": "S_LINE_INVALID"
+      },
+      {
+        "code": "S_GENESIS_INVALID"
+      }
+    ],
+    "truncated": false
+  }
+}

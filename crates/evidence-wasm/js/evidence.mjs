@@ -4,6 +4,7 @@
 //   import { load } from "./evidence.mjs";
 //   const ev = await load();                      // evidence_wasm.wasm next to this file
 //   const report = ev.verify(objectBytes, { attestations, require: ["approve"] });
+//   const storeReport = ev.verifyExport(manifestBytes, [segment1Bytes, segment2Bytes]);
 //
 // Pass file contents as Uint8Array (exact bytes) or string. Results are
 // byte-for-byte the same as the Rust command-line tool and the Python package.
@@ -93,10 +94,7 @@ export class Evidence {
   verify(input, { attestations, store, require = [] } = {}) {
     const args = bytesArg({}, "input", input);
     bytesArg(args, "attestations", attestations);
-    if (store != null) {
-      if (store.every((s) => typeof s === "string")) args.store = [...store];
-      else args.store_base64 = store.map((s) => toBase64(toBytes(s)));
-    }
+    bytesListArg(args, "store", store);
     args.require = [...require];
     return this.#call("verify", args);
   }
@@ -111,6 +109,52 @@ export class Evidence {
   /** The `ed25519:` public key for a hex seed. */
   publicKey(seedHex) {
     return this.#call("public_key", { seed_hex: seedHex });
+  }
+
+  /**
+   * The entry hash of a log-entry/0 entry: sha256 of its canonical form.
+   * Throws EvidenceError E_USAGE, detail beginning `S_ENTRY_INVALID`, for an
+   * invalid entry.
+   */
+  entryHash(input) {
+    return this.#call("entry_hash", bytesArg({}, "input", input));
+  }
+
+  /** The RFC 9162 tree hash of these leaves (each hashed as a leaf first). */
+  merkleRoot(leaves) {
+    return this.#call("merkle_root", bytesListArg({}, "leaves", leaves));
+  }
+
+  /**
+   * Check an inclusion proof: that the leaf with this leaf hash
+   * (sha256 of 0x00 and the canonical entry) is at 0-based `index`
+   * (seq - 1) in the tree of `size` leaves with this root. True or false.
+   */
+  verifyInclusion(leafHash, index, size, proof, root) {
+    return this.#call("verify_inclusion", { leaf_hash: leafHash, index, size, proof, root });
+  }
+
+  /** Check a consistency proof from the tree of `oldSize` leaves to the tree of `newSize`. True or false. */
+  verifyConsistency(oldSize, newSize, oldRoot, newRoot, proof) {
+    return this.#call("verify_consistency", {
+      old_size: oldSize,
+      new_size: newSize,
+      old_root: oldRoot,
+      new_root: newRoot,
+      proof,
+    });
+  }
+
+  /**
+   * Verify an export: the bytes of `manifest.json` and of the segment files
+   * in manifest order. Returns the store-report/0 object, however damaged the
+   * export is; throws EvidenceError (E_USAGE) only for invalid arguments.
+   */
+  verifyExport(manifest, segments, { maxFindings } = {}) {
+    const args = bytesArg({}, "manifest", manifest);
+    bytesListArg(args, "segments", segments);
+    if (maxFindings != null) args.max_findings = maxFindings;
+    return this.#call("verify_export", args);
   }
 
   /** A new random 32-byte seed as hex. Development use; keep production keys in an HSM. */
@@ -140,6 +184,35 @@ function bytesArg(args, name, value) {
   if (value == null) return args;
   if (typeof value === "string") args[name] = value;
   else args[`${name}_base64`] = toBase64(toBytes(value));
+  return args;
+}
+
+// A code point in the surrogate range: with the u flag a well-formed pair is
+// one code point outside it, so this matches only a lone surrogate.
+const LONE_SURROGATE = /\p{Cs}/u;
+
+// A list of byte inputs, which must be an array: a string or a single byte
+// array is E_USAGE, not a list of its characters or bytes. Strings go as they
+// are when all items are strings, otherwise every item goes as base64, so exact
+// bytes survive; a string with a lone surrogate, which has no UTF-8 form, is
+// then E_USAGE, as it is when sent as it is.
+function bytesListArg(args, name, values) {
+  if (values == null) return args;
+  if (!Array.isArray(values)) throw new EvidenceError("E_USAGE", `"${name}" must be an array`);
+  if (values.every((s) => typeof s === "string")) {
+    args[name] = [...values];
+    return args;
+  }
+  args[`${name}_base64`] = values.map((s, i) => {
+    if (typeof s === "string" && LONE_SURROGATE.test(s)) {
+      throw new EvidenceError("E_USAGE", `"${name}"[${i}] has a lone surrogate, which is not text`);
+    }
+    try {
+      return toBase64(toBytes(s));
+    } catch {
+      throw new EvidenceError("E_USAGE", `"${name}"[${i}] must be a string, Uint8Array or ArrayBuffer`);
+    }
+  });
   return args;
 }
 

@@ -27,9 +27,9 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`crates/evidence-cli/`](crates/evidence-cli/) | `evidence` command-line tool |
 | [`crates/evidence-wasm/`](crates/evidence-wasm/) | The core as one WebAssembly module, with a JavaScript wrapper for browsers and Node, and a small ABI for other hosts |
 | [`crates/evidence-py/`](crates/evidence-py/) | Python package `evidence_layer`, built from the same core |
-| [`tools/reference/evidence.mjs`](tools/reference/evidence.mjs) | Independent JavaScript reference, used to generate and cross-check the vectors |
+| [`tools/reference/`](tools/reference/) | Independent JavaScript reference for objects and stores, used to generate and cross-check the vectors |
 | [`spec/store-0.md`](spec/store-0.md) | Store spec: log entries, checkpoints, exports and their verification (milestone M1, in progress) |
-| [`crates/evidence-log/`](crates/evidence-log/) | Pure store formats: log entries, RFC 9162 tree and proofs, genesis and checkpoints (M1, in progress) |
+| [`crates/evidence-log/`](crates/evidence-log/) | Pure store formats and the export verifier: log entries, RFC 9162 tree and proofs, genesis, checkpoints, store reports (M1, in progress) |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 
 ## Quick start
@@ -95,7 +95,7 @@ CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Status
 
-Scaffold. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the spec and the vectors work and are tested.
+Scaffold, with milestone M1 in build. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the spec and the vectors work and are tested. The store formats and the export verifier are done: Rust, the WebAssembly module, Python and the independent JavaScript reference give the same report, byte for byte, on all 42 export cases. The store itself (SQLite, export and import, command-line commands) comes next.
 
 ## Next steps
 

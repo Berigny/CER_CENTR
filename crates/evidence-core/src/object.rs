@@ -1,6 +1,7 @@
 //! The evidence/0 object: shape rules (mirroring `spec/schema/evidence-object-0.schema.json`),
 //! id computation, and the integrity checks that need nothing outside the object.
 
+use std::collections::BTreeSet;
 use std::fmt::Display;
 
 use crate::canon;
@@ -185,9 +186,12 @@ pub fn check_shape(v: &Value) -> Result<()> {
         .unwrap()
         .as_array()
         .ok_or_else(|| shape("/prev", "expected array"))?;
+    // The first id that repeats an earlier one, found in O(n log n): a prev
+    // list comes from untrusted input and may be long.
+    let mut seen = BTreeSet::new();
     for (i, h) in prev.iter().enumerate() {
         let h = hash(h, &format!("/prev/{i}"))?;
-        if prev[..i].iter().any(|p| p.as_str() == Some(h)) {
+        if !seen.insert(h) {
             return Err(shape(&format!("/prev/{i}"), "duplicate hash"));
         }
     }
@@ -293,5 +297,83 @@ fn is_ext_key(s: &str) -> bool {
                 && ver.bytes().all(|c| c.is_ascii_digit())
         }
         None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn h(i: usize) -> Value {
+        Value::String(format!("sha256:{i:064x}"))
+    }
+
+    /// A shape-valid object with this prev list.
+    fn with_prev(prev: Vec<Value>) -> Value {
+        let s = |t: &str| Value::String(t.to_string());
+        let obj = |members: &[(&str, Value)]| {
+            Value::Object(
+                members
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect(),
+            )
+        };
+        obj(&[
+            ("v", s(VERSION)),
+            ("id", h(0)),
+            ("op", s("update")),
+            ("schema", obj(&[("ref", s("test/thing@1")), ("hash", h(0))])),
+            (
+                "subject",
+                obj(&[("system", s("test")), ("type", s("thing")), ("key", s("1"))]),
+            ),
+            (
+                "content",
+                obj(&[("media_type", s("text/plain")), ("hash", h(0))]),
+            ),
+            (
+                "actor",
+                obj(&[("id", s("service:test")), ("kind", s("service"))]),
+            ),
+            ("at", s("2026-11-26T00:00:00Z")),
+            ("prev", Value::Array(prev)),
+        ])
+    }
+
+    fn shape_error(prev: Vec<Value>) -> Option<String> {
+        check_shape(&with_prev(prev)).err().map(|e| {
+            assert_eq!(e.code, Code::Shape);
+            e.detail
+        })
+    }
+
+    #[test]
+    fn the_first_repeated_prev_is_reported() {
+        assert_eq!(shape_error(vec![h(1), h(2), h(3)]), None);
+        let detail = shape_error(vec![h(1), h(2), h(1), h(2)]).unwrap();
+        assert!(detail.starts_with("/prev/2:"), "{detail}");
+        let detail = shape_error(vec![h(1), h(2), h(2), Value::Null]).unwrap();
+        assert!(detail.starts_with("/prev/2:"), "{detail}");
+        // A malformed id before the first repeat is reported first.
+        let detail = shape_error(vec![h(1), Value::Null, h(1)]).unwrap();
+        assert!(detail.starts_with("/prev/1:"), "{detail}");
+    }
+
+    /// The duplicate check is not quadratic: a list of 100,000 ids, which
+    /// one line of an export can carry, takes well under a second even in a
+    /// debug build, where comparing every pair takes minutes.
+    #[test]
+    fn a_long_prev_list_is_checked_quickly() {
+        let n = 100_000;
+        let mut prev: Vec<Value> = (1..=n).map(h).collect();
+        let start = Instant::now();
+        assert_eq!(shape_error(prev.clone()), None);
+        prev.push(h(n));
+        let detail = shape_error(prev).unwrap();
+        assert!(detail.starts_with(&format!("/prev/{n}:")), "{detail}");
+        let elapsed = start.elapsed();
+        assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
     }
 }
