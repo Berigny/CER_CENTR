@@ -13,6 +13,9 @@ evidence-core = { path = "../evidence-core" }
 evidence-log = { path = "../evidence-log" }
 rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 proptest = "1"
 tempfile = "3"

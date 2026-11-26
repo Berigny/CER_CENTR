@@ -70,11 +70,12 @@ pub enum FindingCode {
     CheckpointMismatch,
     /// A checkpoint has no valid witness by the genesis key.
     CheckpointUnsigned,
-    /// The stored heads or checkpoints differ from a recompute.
+    /// The stored heads or checkpoints, or anything else the store derives
+    /// from the lines, differ from a recompute.
     ProjectionDrift,
-    /// The append-only triggers are missing.
+    /// The append-only triggers are missing, or not exactly the store's.
     TriggersMissing,
-    /// The stored log id differs from the log id of the lines.
+    /// The stored log id, genesis or writer epoch disagrees with the lines.
     MetaMismatch,
 }
 

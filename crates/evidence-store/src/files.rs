@@ -71,24 +71,69 @@ fn create_partial_within(target: &Path, tries: u32) -> Result<PathBuf, StoreErro
     Err(StoreError::Exists(partial_path(target, tries)?))
 }
 
-/// The bytes of the regular file at `path`, a symlink followed. Anything
-/// else there (a directory, a FIFO, a device, a socket) is an
-/// `io::ErrorKind::InvalidInput` error and is not opened: opening a FIFO
-/// blocks until a writer comes, and a device such as `/dev/zero` never
-/// ends. The type is checked again on the opened file, in case the path
-/// changed in between.
+/// The bytes of the regular file at `path`, a symlink followed: see
+/// [`read_bounded`]. The caller holds all of them in memory, as many as the
+/// file's size says (a sparse file may claim any size).
 pub(crate) fn read_regular(path: &Path) -> io::Result<Vec<u8>> {
+    read_bounded(path, u64::MAX, true)
+}
+
+/// The bytes of the regular file at `path`, read so that nothing at the
+/// path can block the read or make it endless:
+///
+/// - Anything but a regular file (a directory, a FIFO, a device, a socket)
+///   is an `io::ErrorKind::InvalidInput` error and is not opened: opening a
+///   FIFO blocks until a writer comes, and a device such as `/dev/zero`
+///   never ends. On Unix the file is opened with `O_NONBLOCK` and
+///   `O_NOCTTY` and its type checked again on the open file, so a path
+///   swapped for a FIFO in between is refused instead of blocking the
+///   open.
+/// - At most as many bytes as the open file's size are read. A file that
+///   holds more than its size says (a `/proc` file reports size 0 and may
+///   never end) is an `io::ErrorKind::InvalidData` error, and so is one
+///   whose size is above `limit`.
+/// - With `follow` false, a symlink at `path` is not followed: it is not a
+///   regular file (and on Unix `O_NOFOLLOW` refuses one swapped in before
+///   the open).
+pub(crate) fn read_bounded(path: &Path, limit: u64, follow: bool) -> io::Result<Vec<u8>> {
     let not_regular = || io::Error::new(io::ErrorKind::InvalidInput, "not a regular file");
-    if !fs::metadata(path)?.is_file() {
+    let first = if follow {
+        fs::metadata(path)?
+    } else {
+        fs::symlink_metadata(path)?
+    };
+    if !first.is_file() {
         return Err(not_regular());
     }
-    let mut file = File::open(path)?;
-    if !file.metadata()?.is_file() {
+    crate::hook::at("read:open", path).map_err(|e| io::Error::other(e.to_string()))?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let nofollow = if follow { 0 } else { libc::O_NOFOLLOW };
+        options.custom_flags(libc::O_NONBLOCK | libc::O_NOCTTY | nofollow);
+    }
+    let file = options.open(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_file() {
         return Err(not_regular());
     }
-    // Not sized from the metadata: a sparse file may claim any length.
+    let size = opened.len();
+    if size > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{size} bytes, more than the {limit} expected"),
+        ));
+    }
     let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)?;
+    (&file).take(size).read_to_end(&mut bytes)?;
+    if (&file).read(&mut [0u8])? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the file holds more than its size says",
+        ));
+    }
     Ok(bytes)
 }
 
@@ -152,6 +197,7 @@ pub(crate) fn parent_of(path: &Path) -> &Path {
 /// systems cannot open a directory as a file.
 #[cfg(unix)]
 pub(crate) fn sync_dir(dir: &Path) -> Result<(), StoreError> {
+    crate::hook::at("sync", dir)?;
     File::open(dir)
         .and_then(|d| d.sync_all())
         .map_err(io_at(dir))
@@ -290,6 +336,67 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A file that holds more than its size says is not read on: a `/proc`
+    /// file reports size 0 and may never end (`/proc/self/pagemap` reads
+    /// for gigabytes). Nor is a file larger than the limit asked.
+    #[cfg(unix)]
+    #[test]
+    fn files_are_read_up_to_their_size() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proc_file = Path::new("/proc/self/status");
+        if proc_file.exists() {
+            let link = tmp.path().join("status");
+            std::os::unix::fs::symlink(proc_file, &link).unwrap();
+            for path in [proc_file, link.as_path()] {
+                let e = read_regular(path).unwrap_err();
+                assert_eq!(e.kind(), io::ErrorKind::InvalidData, "{}", path.display());
+            }
+        }
+        let file = tmp.path().join("file");
+        fs::write(&file, b"0123456789").unwrap();
+        assert_eq!(read_bounded(&file, 10, true).unwrap(), b"0123456789");
+        let e = read_bounded(&file, 9, true).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::InvalidData);
+        // Not following: a symlink is refused, its target is read.
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        assert!(read_bounded(&link, 10, false).is_err());
+        assert_eq!(read_bounded(&link, 10, true).unwrap(), b"0123456789");
+    }
+
+    /// A regular file swapped for a FIFO between the type check and the
+    /// open is refused, not waited on: the open does not block, and the
+    /// type is checked again on the open file.
+    #[cfg(unix)]
+    #[test]
+    fn a_file_swapped_for_a_fifo_does_not_block() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("manifest.json");
+        fs::write(&file, b"{}").unwrap();
+        let fifo = tmp.path().join("fifo");
+        let c_path = std::ffi::CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: a valid C string; mkfifo only creates a file.
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let path = file.clone();
+        std::thread::spawn(move || {
+            let _hook = crate::hook::set(move |point, at| {
+                if point == "read:open" {
+                    fs::rename(&fifo, at).unwrap();
+                }
+                Ok(())
+            });
+            let _ = tx.send(read_regular(&path).map_err(|e| e.kind()));
+        });
+        let got = rx.recv_timeout(std::time::Duration::from_secs(30));
+        if got.is_err() {
+            // Let the blocked open return, so the test can end.
+            let _ = OpenOptions::new().write(true).open(&file);
+        }
+        let got = got.expect("read_regular blocked on a FIFO");
+        assert_eq!(got, Err(io::ErrorKind::InvalidInput));
     }
 
     #[test]

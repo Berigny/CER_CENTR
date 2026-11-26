@@ -14,8 +14,8 @@
 //! - [`SqliteReader`] reads without the lease, through a read-only connection
 //!   (`SQLITE_OPEN_READ_ONLY` and `PRAGMA query_only = ON`), while a writer
 //!   appends. A store it cannot write (a read-only file system, a
-//!   directory of another user) it reads as an immutable file when it can;
-//!   see [`SqliteReader::open`].
+//!   directory or a `log.db` of another user) it reads as an immutable
+//!   file when it can; see [`SqliteReader::open`].
 //! - Both implement [`LogRead`] and `PrevLookup` with the same queries.
 //!
 //! # Opening a store
@@ -29,16 +29,30 @@
 //!    `application_id` is [`APPLICATION_ID`]; otherwise `S_NOT_A_STORE`
 //!    (SQLite's "file is not a database" included).
 //! 3. Its `user_version` is [`USER_VERSION`]; otherwise `S_FORMAT`.
-//! 4. `meta` has a `format` row, which is [`FORMAT`] (`S_FORMAT` if it is
+//! 4. Its tables, indexes and views are exactly those [`SCHEMA_SQL`]
+//!    creates: each with the same type, name, table and `sql` as in a fresh
+//!    in-memory database built from `SCHEMA_SQL`, and no others (no view,
+//!    no virtual table); otherwise `S_NOT_A_STORE`. Nothing reads a table
+//!    before this, so a `log.db` whose `entries` is a view that never ends
+//!    is refused instead of read. Triggers are not part of this check:
+//!    `verify_store` reports them (`S_TRIGGERS_MISSING`), and the writer
+//!    refuses triggers of its own (see [`SqliteLog::open`]).
+//! 5. `meta` has a `format` row, which is [`FORMAT`] (`S_FORMAT` if it is
 //!    something else), and rows `log_id`, `name`, `store_key`,
 //!    `store_signer` and `writer_epoch`, with `Genesis::new(name, store_key)`
 //!    valid, `store_signer` its signer, and `writer_epoch` a decimal integer
-//!    from 1 to 2^53 − 1. Any missing table or row, or any other value, is
+//!    from 1 to 2^53 − 1. Any missing row, or any other value, is
 //!    `S_NOT_A_STORE`. `log_id` is taken as it is: `verify_store` checks it
 //!    against the lines (`S_META_MISMATCH`).
 //!
 //! The log id and genesis these give are cached for [`LogRead::log_id`] and
-//! [`LogRead::genesis`]. Opening never reads the lines.
+//! [`LogRead::genesis`]. A reader never reads the lines to open; the writer
+//! reads two (see [`SqliteLog::open`]).
+//!
+//! Every path handed to SQLite is a plain file name: a relative one is
+//! given as `./<path>`, because the bundled SQLite takes any name that
+//! starts with `file:` as a URI (it is built with `SQLITE_USE_URI`), so a
+//! store directory named `file:x` would otherwise open another file.
 
 pub(crate) mod db;
 pub mod lease;
@@ -56,21 +70,21 @@ use rusqlite::types::ValueRef;
 use rusqlite::{Connection, ErrorCode, OpenFlags, OptionalExtension, TransactionBehavior};
 
 use crate::api::{
-    CheckpointInfo, Head, Item, LogRead, LogWrite, Receipt, StoreError, StoredAttestation,
+    damaged, CheckpointInfo, Head, Item, LogRead, LogWrite, Receipt, StoreError, StoredAttestation,
     StoredObject,
 };
 use crate::clock::Clock;
-use crate::files::{io_error, parent_of, read_regular, refuse_existing, sync_dir, sync_file};
+use crate::files::{io_error, parent_of, read_bounded, refuse_existing, sync_dir, sync_file};
+use crate::hook;
 use crate::intake;
 use crate::signer::Signer;
 use db::Writer;
-use lease::{Lease, LOCK_FILE};
+use evidence_core::json::Value;
+use evidence_log::{parse_line, Body};
+use lease::{Lease, LOCK_FILE, LOCK_TEXT_LIMIT};
 
 /// The log file in a store directory.
 pub const DB_FILE: &str = "log.db";
-
-/// `log.db`'s write-ahead log, beside it while a connection has it open.
-const WAL_FILE: &str = "log.db-wal";
 
 /// The name [`SqliteLog::init`] builds the new log under, in the store
 /// directory, before it renames it to [`DB_FILE`], so that `log.db` only
@@ -176,7 +190,10 @@ impl SqliteLog {
     ///    but what an init that was killed leaves: `LOCK`, [`INIT_FILE`],
     ///    and `log.db.init-journal`, `-wal` and `-shm`. An empty directory
     ///    is the usual case; a file at `dir` is `S_EXISTS`. If `dir` does
-    ///    not exist it is created, with its parents.
+    ///    not exist it is created, with its parents, and the parent of
+    ///    every directory created is synced, so that their names are
+    ///    durable. A parent that cannot be synced (one this user can write
+    ///    but not read, say) is `S_IO` here, before anything is built.
     /// 3. Take the lease (creating `LOCK`): `S_LOCKED` if another `init` or
     ///    writer holds it. Under the lease, check step 2 again (`S_EXISTS`
     ///    if `log.db`, or anything else, appeared meanwhile) and remove what
@@ -191,21 +208,32 @@ impl SqliteLog {
     ///    with content is left), and sync it.
     /// 6. Rename it to `log.db` (`S_EXISTS` if `log.db` appeared meanwhile;
     ///    as for exports, the standard library has no rename that refuses
-    ///    to replace), then sync `dir` and the parent of every directory
-    ///    step 2 created, so that the store's names are durable before
-    ///    anything is returned.
+    ///    to replace), then sync `dir`, so that the store's name is durable
+    ///    before anything is returned.
     /// 7. Open `log.db` as the writer, run [`WRITER_PRAGMAS`], and write the
     ///    lease text with epoch 1.
     ///
     /// `log.db` only ever names a complete store, so an init killed at any
     /// point leaves either a store or a directory that the next `init`
-    /// takes. If anything fails after the lease is taken, what this call
-    /// created is removed while it still holds the lease: [`INIT_FILE`] and
-    /// its files, `log.db` and its WAL files if step 6 renamed it, and
-    /// `LOCK` if this call created it; then the lease is released, and
-    /// `dir` is removed if this call created it and it is empty. Nothing is
-    /// removed after `S_LOCKED` or the `S_EXISTS` of step 3: those files
-    /// are another writer's.
+    /// takes.
+    ///
+    /// If anything fails after the lease is taken and before step 6 renames
+    /// the store, what this call created is removed while it still holds
+    /// the lease: [`INIT_FILE`] and its files, and `LOCK` if this call
+    /// created it; then the lease is released. Once `log.db` is in place it
+    /// is a complete store, which another process may already have opened,
+    /// so a failure after the rename (a sync, or opening the writer)
+    /// removes nothing: the error is returned and the store stays, as a
+    /// killed init would leave it, for [`SqliteLog::open`]. After any
+    /// failure, the directories step 2 created are removed if they are
+    /// empty, nearest first. Nothing is removed after `S_LOCKED`, after a
+    /// lease that could not be taken for another reason, or after the
+    /// `S_EXISTS` of step 3: the `LOCK` there may be another init's.
+    ///
+    /// Another `init` racing this one on the same path gets `S_LOCKED` or
+    /// `S_EXISTS`, or, if this one created the directory and removes it as
+    /// it fails, `S_IO` (the directory is gone); a retry then creates the
+    /// store.
     pub fn init(
         dir: &Path,
         name: &str,
@@ -214,24 +242,66 @@ impl SqliteLog {
     ) -> Result<SqliteLog, StoreError> {
         let genesis = intake::new_genesis(name, signer)?;
         let created = claim_dir(dir)?;
-        let result = create(dir, &created, genesis, signer, clock);
-        if result.is_err() && !created.is_empty() {
+        let result = created
+            .iter()
+            .try_for_each(|made| sync_dir(parent_of(made)))
+            .and_then(|()| create(dir, genesis, signer, clock));
+        if result.is_err() {
             // Only if empty: an init that started meanwhile keeps its files.
-            let _ = fs::remove_dir(dir);
+            for made in &created {
+                if fs::remove_dir(made).is_err() {
+                    break;
+                }
+            }
         }
         result
     }
 
-    /// Open the store in `dir` for writing: the checks under [Opening a
-    /// store](self#opening-a-store), then take the lease (`S_LOCKED` if
-    /// another writer has it), then, in one transaction, add one to
-    /// `meta.writer_epoch`, then rewrite the lease text. The new value is
-    /// this writer's epoch. Reads no clock.
+    /// Open the store in `dir` for writing:
+    ///
+    /// 1. The checks under [Opening a store](self#opening-a-store).
+    /// 2. Every trigger in `log.db` is one of [`TRIGGERS`] with the
+    ///    `tbl_name` and `sql` that [`SCHEMA_SQL`] gives it (one that is
+    ///    missing is allowed, and `verify_store` reports it); otherwise
+    ///    `S_IO`. A trigger of another definition could drop or change the
+    ///    rows this writer inserts while it reports success.
+    /// 3. Line 1 holds a genesis whose name, signer and key are those in
+    ///    `meta`; otherwise `S_IO`. The writer signs checkpoints with the
+    ///    key in `meta`, so it must be the log's.
+    /// 4. Take the lease (`S_LOCKED` if another writer has it).
+    /// 5. Check that `<dir>/log.db` is still the file this connection
+    ///    opened (on Unix, the same device and inode): `S_NOT_A_STORE` if
+    ///    it is gone, `S_IO` if it is another file. Nothing that follows
+    ///    the rules removes or replaces a `log.db`, but a writer must never
+    ///    write to a file that no longer has the store's name.
+    /// 6. In one transaction, add one to `meta.writer_epoch` (`S_IO` if it
+    ///    is below the epoch of the last entry, which only damage gives),
+    ///    then rewrite the lease text. The new value is this writer's
+    ///    epoch.
+    ///
+    /// Reads no clock. Steps 1 to 3 take no lease and create no `LOCK`.
     pub fn open(dir: &Path, clock: Box<dyn Clock>) -> Result<SqliteLog, StoreError> {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-        let mut conn = connect(dir, flags)?;
+        let (mut conn, opened) = connect(dir, flags)?;
         let meta = check_store(&conn, dir)?;
+        check_writer_triggers(&conn)?;
+        check_genesis_line(&conn, &meta.genesis)?;
+        hook::at("open:checked", dir)?;
         let mut lease = Lease::acquire(dir)?;
+        let path = dir.join(DB_FILE);
+        match fs::metadata(&path) {
+            Ok(now) if same_file(&opened, &now) => {}
+            Ok(_) => {
+                return Err(StoreError::Io(format!(
+                    "{} was replaced while it was opened; open the store again",
+                    path.display()
+                )))
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                return Err(StoreError::NotAStore(dir.to_path_buf()))
+            }
+            Err(e) => return Err(io_error(&path, e)),
+        }
         conn.execute_batch(WRITER_PRAGMAS)?;
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         // Read again under the lease: a writer may have opened and closed
@@ -240,6 +310,13 @@ impl SqliteLog {
             .as_deref()
             .and_then(parse_epoch)
             .ok_or_else(|| StoreError::NotAStore(dir.to_path_buf()))?;
+        if let Some(last) = db::last_epoch(&tx)? {
+            if current < last {
+                return Err(damaged(format!(
+                    "meta.writer_epoch is {current}, below the epoch of the last entry, {last}"
+                )));
+            }
+        }
         let epoch = current
             .checked_add(1)
             .filter(|epoch| *epoch <= MAX_SIZE)
@@ -387,35 +464,54 @@ pub struct SqliteReader {
 impl SqliteReader {
     /// Open the store in `dir` for reading: a `SQLITE_OPEN_READ_ONLY`
     /// connection with [`READER_PRAGMAS`], and the checks under [Opening a
-    /// store](self#opening-a-store). Takes no lease and changes nothing in
-    /// the store.
+    /// store](self#opening-a-store). Takes no lease, changes nothing in the
+    /// store, and leaves no file in it that a writer could not remove.
     ///
     /// SQLite reads a database in WAL mode through `log.db-wal` and
-    /// `log.db-shm` beside it, and creates them when they are absent, which
-    /// needs write access to `dir`. When the first read fails for want of
-    /// it (`SQLITE_CANTOPEN` or `SQLITE_READONLY`: a read-only file system,
-    /// or a directory this user cannot write) and the store has no WAL
-    /// content (`log.db-wal` absent or empty, as SQLite judges it), then
-    /// `log.db` alone holds the whole log and no writer has it open, so the
-    /// reader opens `log.db` as an immutable file instead (URI parameters
-    /// `mode=ro&immutable=1`) and creates nothing.
+    /// `log.db-shm` beside it (beside the file a symlinked `log.db` leads
+    /// to), and creates them when they are absent. A reader must not create
+    /// them unless it could write `log.db`: they would belong to this user,
+    /// and a writer of another user could not open the store until someone
+    /// removed them. So the reader first asks SQLite whether this process
+    /// can write `log.db`, then:
+    ///
+    /// - It can: an ordinary read-only connection. When its first read
+    ///   fails for want of write access to `dir` (`SQLITE_CANTOPEN` or
+    ///   `SQLITE_READONLY`: a read-only file system, or a directory this
+    ///   user cannot write) and the store has no WAL content, it reads
+    ///   `log.db` as an immutable file instead (below); with WAL content,
+    ///   `S_IO`, as SQLite reports it.
+    /// - It cannot, and the store has no WAL content: `log.db` as an
+    ///   immutable file.
+    /// - It cannot, the store has WAL content and `log.db-shm` exists (a
+    ///   writer is open, or one did not close): an ordinary read-only
+    ///   connection, which reads the WAL, its latest frames included,
+    ///   through the files the writer made (SQLite's read-only WAL
+    ///   support), and creates nothing. Now and then such a read is `S_IO`
+    ///   (`SQLITE_READONLY_CANTINIT`), and a retry reads. Without
+    ///   `log.db-shm`: `S_IO`.
+    ///
+    /// "No WAL content" is `log.db-wal` absent or an empty regular file,
+    /// SQLite's own rule: then `log.db` alone holds the whole log and no
+    /// writer has it open. Read as an immutable file (URI parameters
+    /// `mode=ro&immutable=1`), it creates nothing.
     ///
     /// SQLite does not watch an immutable file, so such a reader watches
-    /// for a writer itself. It keeps the text of `LOCK` (or its absence)
-    /// from before it opened, and after every read transaction it checks
-    /// that `log.db-wal` still holds nothing and `LOCK` is unchanged;
-    /// otherwise that read is `S_IO` (open a new reader), since what it
-    /// read may be torn. A writer that opens the store creates or rewrites
-    /// `LOCK` before it changes `log.db`, and has `log.db-wal` while open.
-    ///
-    /// A store with WAL content (its last writer is open, or did not close)
-    /// is not read without write access to `dir`: `S_IO`, as SQLite reports
-    /// it.
+    /// for a writer itself. When it opens it notes, by absolute path, the
+    /// text and file status of `LOCK` (or its absence) and the file status
+    /// of `log.db` (device, inode, size, modification and change times);
+    /// after every read transaction it checks that the WAL still holds
+    /// nothing and both are unchanged; otherwise that read is `S_IO` (open
+    /// a new reader), since what it read may be torn. A writer that opens
+    /// the store creates or rewrites `LOCK` before it changes `log.db`, has
+    /// `log.db-wal` while open, and changes `log.db` when it closes, so a
+    /// writer is noticed even if `LOCK` is then removed, and the paths stay
+    /// those of this store if the process changes its working directory.
     pub fn open(dir: &Path) -> Result<SqliteReader, StoreError> {
         let (conn, frozen) = connect_reader(dir)?;
         let checked = check_store(&conn, dir);
         if let Some(frozen) = &frozen {
-            frozen.check(dir)?;
+            frozen.check()?;
         }
         let meta = checked?;
         Ok(SqliteReader {
@@ -452,21 +548,42 @@ impl SqliteReader {
         self.read(|_| f(self))
     }
 
-    /// True when every trigger in [`TRIGGERS`] is present with the
-    /// `tbl_name` and `sql` that [`SCHEMA_SQL`] gives it (compared with a
-    /// fresh in-memory database built from `SCHEMA_SQL`). Other triggers do
-    /// not matter.
+    /// True when the triggers in `log.db` are exactly [`TRIGGERS`], each
+    /// with the `tbl_name` and `sql` that [`SCHEMA_SQL`] gives it (compared
+    /// with a fresh in-memory database built from `SCHEMA_SQL`): none
+    /// missing, none changed, and no other trigger, since another trigger
+    /// could drop or change what a writer inserts.
     pub fn has_append_only_triggers(&self) -> Result<bool, StoreError> {
-        let fresh = Connection::open_in_memory()?;
-        fresh.execute_batch(SCHEMA_SQL)?;
+        self.read(|conn| Ok(db::schema_rows(conn, true)? == expected_schema()?.triggers))
+    }
+
+    /// What `verify_store` checks in the tables beside the lines, in this
+    /// reader's snapshot: see [`db::derived`].
+    pub(crate) fn derived(&self) -> Result<db::Derived, StoreError> {
+        self.read(db::derived)
+    }
+
+    /// The genesis as `meta` stores it now (inside a snapshot, as of that
+    /// snapshot), or None if a row is missing or does not make a genesis
+    /// whose signer is `meta.store_signer`, and `meta.writer_epoch` as
+    /// stored, or None.
+    pub(crate) fn stored_genesis_and_epoch(
+        &self,
+    ) -> Result<(Option<Genesis>, Option<u64>), StoreError> {
         self.read(|conn| {
-            for name in TRIGGERS {
-                let expected = db::trigger(&fresh, name)?;
-                if expected.is_none() || db::trigger(conn, name)? != expected {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
+            let name = db::meta(conn, "name")?;
+            let key = db::meta(conn, "store_key")?;
+            let signer = db::meta(conn, "store_signer")?;
+            let genesis = match (name, key, signer) {
+                (Some(name), Some(key), Some(signer)) => Genesis::new(&name, &key)
+                    .ok()
+                    .filter(|genesis| genesis.signer == signer),
+                _ => None,
+            };
+            let epoch = db::meta(conn, "writer_epoch")?
+                .as_deref()
+                .and_then(parse_epoch);
+            Ok((genesis, epoch))
         })
     }
 
@@ -497,7 +614,7 @@ impl SqliteReader {
         // An immutable file is only what it seems while no writer has
         // opened the store; an answer read after one did may be torn.
         if let Some(frozen) = &self.frozen {
-            frozen.check(&self.dir)?;
+            frozen.check()?;
         }
         out
     }
@@ -561,12 +678,24 @@ struct Meta {
     genesis: Genesis,
 }
 
+/// `path` as a plain file name for SQLite: `./<path>` if it is relative,
+/// so that a name starting with `file:` is not read as a URI (see [Opening a
+/// store](self#opening-a-store)).
+pub(crate) fn plain(path: &Path) -> PathBuf {
+    if path.is_relative() {
+        Path::new(".").join(path)
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// Open `<dir>/log.db` with `flags`, which never include
 /// `SQLITE_OPEN_CREATE`: `S_NOT_A_STORE` if it is not there or not a file.
-fn connect(dir: &Path, flags: OpenFlags) -> Result<Connection, StoreError> {
+/// Also returns the file status `log.db` had just before the open.
+fn connect(dir: &Path, flags: OpenFlags) -> Result<(Connection, fs::Metadata), StoreError> {
     let path = dir.join(DB_FILE);
-    match fs::metadata(&path) {
-        Ok(m) if m.is_file() => {}
+    let seen = match fs::metadata(&path) {
+        Ok(m) if m.is_file() => m,
         Ok(_) => return Err(StoreError::NotAStore(dir.to_path_buf())),
         Err(e)
             if matches!(
@@ -577,20 +706,61 @@ fn connect(dir: &Path, flags: OpenFlags) -> Result<Connection, StoreError> {
             return Err(StoreError::NotAStore(dir.to_path_buf()));
         }
         Err(e) => return Err(io_error(&path, e)),
-    }
-    let conn = Connection::open_with_flags(&path, flags).map_err(|e| engine(e, dir))?;
+    };
+    let conn = Connection::open_with_flags(plain(&path), flags).map_err(|e| engine(e, dir))?;
     // Set before the checks read anything; it writes nothing.
     conn.busy_timeout(BUSY_TIMEOUT)?;
-    Ok(conn)
+    Ok((conn, seen))
+}
+
+/// Whether two file statuses are of one file: the same device and inode on
+/// Unix. Elsewhere a file that is open cannot be removed, so it is taken
+/// to be.
+fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        a.dev() == b.dev() && a.ino() == b.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (a, b);
+        true
+    }
 }
 
 /// A reader's connection to `<dir>/log.db`, with [`READER_PRAGMAS`] run:
-/// read-only, or immutable when a read-only connection cannot read for
-/// want of write access to `dir` and the store has no WAL content (see
-/// [`SqliteReader::open`]).
+/// read-only, or immutable when this process cannot write `log.db` or
+/// `dir` and the store has no WAL content (see [`SqliteReader::open`]).
 fn connect_reader(dir: &Path) -> Result<(Connection, Option<Frozen>), StoreError> {
+    // Asked for read-write, SQLite opens a file this process cannot write
+    // read-only, and says so. Opening reads nothing, and creates nothing.
+    let probe = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let (conn, _) = connect(dir, probe)?;
+    let writable = !conn.is_readonly(rusqlite::MAIN_DB)?;
+    drop(conn);
+    let db = dir.join(DB_FILE);
+    if !writable {
+        let wal = beside(&db, "-wal").map_err(|e| io_error(&db, e))?;
+        if !wal_has_content(&wal) {
+            return frozen(dir).ok_or_else(|| {
+                StoreError::Io(format!(
+                    "{}: cannot be read without write access",
+                    db.display()
+                ))
+            });
+        }
+        let shm = beside(&db, "-shm").map_err(|e| io_error(&db, e))?;
+        if fs::symlink_metadata(&shm).is_err() {
+            return Err(StoreError::Io(format!(
+                "{}: the store has WAL content and no {}, which this user may not create",
+                db.display(),
+                shm.display()
+            )));
+        }
+    }
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = connect(dir, flags)?;
+    let (conn, _) = connect(dir, flags)?;
     // The first read opens the WAL, creating log.db-wal and log.db-shm when
     // they are absent.
     let first_read = conn
@@ -608,41 +778,76 @@ fn connect_reader(dir: &Path) -> Result<(Connection, Option<Frozen>), StoreError
     if !wants_write_access {
         return Err(engine(e, dir));
     }
-    // LOCK before the WAL: a writer that opens after LOCK is read changes
-    // it, or has log.db-wal, before it changes log.db.
-    let (Ok(lock), false, Some(uri)) = (
-        lock_text(dir),
-        wal_has_content(&dir.join(WAL_FILE)),
-        immutable_uri(&dir.join(DB_FILE)),
-    ) else {
-        return Err(engine(e, dir));
-    };
+    frozen(dir).ok_or_else(|| engine(e, dir))
+}
+
+/// `log.db` in `dir` as an immutable file, with what [`Frozen`] watches;
+/// None if the store has WAL content, or what is to be watched cannot be
+/// read.
+fn frozen(dir: &Path) -> Option<(Connection, Option<Frozen>)> {
+    let frozen = Frozen::new(dir).ok().flatten()?;
+    let uri = immutable_uri(&frozen.db)?;
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
         | OpenFlags::SQLITE_OPEN_URI
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(uri, flags).map_err(|e| engine(e, dir))?;
-    conn.busy_timeout(BUSY_TIMEOUT)?;
-    conn.execute_batch(READER_PRAGMAS)
-        .map_err(|e| engine(e, dir))?;
-    Ok((conn, Some(Frozen { lock })))
+    let conn = Connection::open_with_flags(uri, flags).ok()?;
+    conn.busy_timeout(BUSY_TIMEOUT).ok()?;
+    conn.execute_batch(READER_PRAGMAS).ok()?;
+    Some((conn, Some(frozen)))
 }
 
 /// What a reader of `log.db` as an immutable file checks after each read
-/// (see [`SqliteReader::open`]): the text of `LOCK` from before it opened,
-/// None if there was no `LOCK`.
+/// (see [`SqliteReader::open`]), every path absolute, resolved when the
+/// reader opened.
 struct Frozen {
-    lock: Option<Vec<u8>>,
+    /// `<dir>/LOCK`.
+    lock_path: PathBuf,
+    /// Its file status and text from before the reader opened; None if
+    /// there was no `LOCK`.
+    lock: Option<(Stamp, Vec<u8>)>,
+    /// The WAL SQLite would use: beside the file `log.db` leads to.
+    wal: PathBuf,
+    /// `<dir>/log.db`, and its file status from before the reader opened.
+    db: PathBuf,
+    db_stamp: Stamp,
 }
 
 impl Frozen {
-    /// `S_IO` unless `log.db-wal` holds nothing and `LOCK` is as it was: no
-    /// writer has opened the store since the reader did.
-    fn check(&self, dir: &Path) -> Result<(), StoreError> {
-        let unchanged = !wal_has_content(&dir.join(WAL_FILE))
-            && lock_text(dir).is_ok_and(|lock| lock == self.lock);
+    /// What to watch in `dir`, read now, in this order: `LOCK`, then
+    /// whether the WAL holds anything (None if it does), then `log.db`. A
+    /// writer that opens after `LOCK` is read changes it, or has WAL content,
+    /// before it changes `log.db`, and its WAL stays until `log.db` holds
+    /// all of it. An error if `LOCK` or `log.db` cannot be read, or the
+    /// paths cannot be resolved.
+    fn new(dir: &Path) -> io::Result<Option<Frozen>> {
+        let dir = std::path::absolute(dir)?;
+        let lock_path = dir.join(LOCK_FILE);
+        let db = dir.join(DB_FILE);
+        let lock = lock_state(&lock_path)?;
+        let wal = beside(&db, "-wal")?;
+        if wal_has_content(&wal) {
+            return Ok(None);
+        }
+        let db_stamp = Stamp::of(&fs::metadata(&db)?);
+        Ok(Some(Frozen {
+            lock_path,
+            lock,
+            wal,
+            db,
+            db_stamp,
+        }))
+    }
+
+    /// `S_IO` unless the WAL holds nothing and `LOCK` and `log.db` are as
+    /// they were: no writer has opened the store since the reader did.
+    fn check(&self) -> Result<(), StoreError> {
+        let unchanged = !wal_has_content(&self.wal)
+            && lock_state(&self.lock_path).is_ok_and(|lock| lock == self.lock)
+            && fs::metadata(&self.db).is_ok_and(|m| Stamp::of(&m) == self.db_stamp);
         if unchanged {
             Ok(())
         } else {
+            let dir = parent_of(&self.db);
             Err(StoreError::Io(format!(
                 "{}: a writer opened the store while it was read without write access; \
                  open a new reader",
@@ -652,14 +857,50 @@ impl Frozen {
     }
 }
 
-/// The bytes of `<dir>/LOCK`, or None if there is none. An error if it
-/// cannot be read or is not a regular file.
-fn lock_text(dir: &Path) -> io::Result<Option<Vec<u8>>> {
-    match read_regular(&dir.join(LOCK_FILE)) {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e),
+/// What tells one version of a file from another without reading it:
+/// size and modification time, and on Unix the device, inode and change
+/// time too.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Stamp {
+    len: u64,
+    modified: Option<std::time::SystemTime>,
+    #[cfg(unix)]
+    unix: (u64, u64, i64, i64),
+}
+
+impl Stamp {
+    fn of(m: &fs::Metadata) -> Stamp {
+        Stamp {
+            len: m.len(),
+            modified: m.modified().ok(),
+            #[cfg(unix)]
+            unix: {
+                use std::os::unix::fs::MetadataExt;
+                (m.dev(), m.ino(), m.ctime(), m.ctime_nsec())
+            },
+        }
     }
+}
+
+/// The file status and text of the `LOCK` at `path`, or None if there is
+/// none. An error if it cannot be read, is not a regular file (a symlink is
+/// not followed) or is longer than any lease text.
+fn lock_state(path: &Path) -> io::Result<Option<(Stamp, Vec<u8>)>> {
+    let stamp = match fs::symlink_metadata(path) {
+        Ok(m) => Stamp::of(&m),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    Ok(Some((stamp, read_bounded(path, LOCK_TEXT_LIMIT, false)?)))
+}
+
+/// The file SQLite keeps beside `db` with this suffix (`-wal`, `-shm`):
+/// beside the file `db` leads to, symlinks resolved, as SQLite resolves
+/// them.
+fn beside(db: &Path, suffix: &str) -> io::Result<PathBuf> {
+    let mut name = fs::canonicalize(db)?.into_os_string();
+    name.push(suffix);
+    Ok(PathBuf::from(name))
 }
 
 /// Whether the WAL file at `path` may hold frames, judged as SQLite judges
@@ -717,12 +958,8 @@ fn check_store(conn: &Connection, dir: &Path) -> Result<Meta, StoreError> {
             dir.join(DB_FILE).display()
         )));
     }
-    let has_meta: bool = conn.query_row(
-        "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
-        [],
-        |r| r.get(0),
-    )?;
-    if !has_meta {
+    // Before anything reads a table: a table may be a view that never ends.
+    if db::schema_rows(conn, false).map_err(|e| engine(e, dir))? != expected_schema()?.tables {
         return Err(not_a_store());
     }
     let meta = |key: &str| meta_text(conn, dir, key);
@@ -744,9 +981,77 @@ fn check_store(conn: &Connection, dir: &Path) -> Result<Meta, StoreError> {
     Ok(Meta { log_id, genesis })
 }
 
+/// The `sqlite_master` rows a store has, as [`SCHEMA_SQL`] creates them in
+/// a fresh in-memory database: its tables, indexes and views (step 4 of
+/// [Opening a store](self#opening-a-store)), and its triggers. Built once.
+pub(crate) struct Schema {
+    pub(crate) tables: Vec<db::SchemaRow>,
+    pub(crate) triggers: Vec<db::SchemaRow>,
+}
+
+/// The [`Schema`] of [`SCHEMA_SQL`].
+fn expected_schema() -> Result<&'static Schema, StoreError> {
+    static SCHEMA: std::sync::OnceLock<Schema> = std::sync::OnceLock::new();
+    if let Some(schema) = SCHEMA.get() {
+        return Ok(schema);
+    }
+    let fresh = Connection::open_in_memory()?;
+    fresh.execute_batch(SCHEMA_SQL)?;
+    let schema = Schema {
+        tables: db::schema_rows(&fresh, false)?,
+        triggers: db::schema_rows(&fresh, true)?,
+    };
+    Ok(SCHEMA.get_or_init(|| schema))
+}
+
+/// Step 2 of [`SqliteLog::open`]: `S_IO` unless every trigger in `log.db`
+/// is one that [`SCHEMA_SQL`] creates, as it creates it.
+fn check_writer_triggers(conn: &Connection) -> Result<(), StoreError> {
+    let expected = &expected_schema()?.triggers;
+    for row in db::schema_rows(conn, true)? {
+        if !expected.contains(&row) {
+            return Err(damaged(format!(
+                "log.db has a trigger that schema.sql does not create, {}",
+                row.name
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Step 3 of [`SqliteLog::open`]: `S_IO` unless line 1 holds a genesis
+/// object whose content names this name, signer and key.
+fn check_genesis_line(conn: &Connection, genesis: &Genesis) -> Result<(), StoreError> {
+    let lines = db::lines(conn, 1, 1)?;
+    let found = match lines.as_slice() {
+        [(1, line)] => parse_line(line.as_bytes()).ok().and_then(|line| {
+            let Body::Object(object) = line.body else {
+                return None;
+            };
+            let inline = object.get("content")?.get("inline")?;
+            let field = |key: &str| inline.get(key).and_then(Value::as_str).map(String::from);
+            Some((field("name")?, field("signer")?, field("key")?))
+        }),
+        _ => None,
+    };
+    let stored = (
+        genesis.name.clone(),
+        genesis.signer.clone(),
+        genesis.key.clone(),
+    );
+    if found.as_ref() != Some(&stored) {
+        return Err(damaged(
+            "meta's name, store_signer and store_key are not those of the genesis at seq 1",
+        ));
+    }
+    Ok(())
+}
+
 /// One `meta` value for the open checks, or None when the row is missing or
-/// does not hold text (a `meta` table of another application need not be
-/// `STRICT`). `S_NOT_A_STORE` when `meta` has no `k` or `v` column.
+/// does not hold text. `S_NOT_A_STORE` when `meta` has no `k` or `v`
+/// column. (The schema check before it has already required `meta` as
+/// `schema.sql` creates it; these cases stay refused if it is ever
+/// loosened.)
 fn meta_text(conn: &Connection, dir: &Path, key: &str) -> Result<Option<String>, StoreError> {
     let mut stmt = conn
         .prepare("SELECT v FROM meta WHERE k = ?1")
@@ -849,29 +1154,21 @@ fn remove_if_present(path: &Path) -> Result<(), StoreError> {
 }
 
 /// Steps 3 to 7 of [`SqliteLog::init`]. Once it holds the lease, a failure
-/// removes what this call created before the lease is released (dropped
-/// when this returns): `LOCK` last, so that no other init takes the lease
-/// while these files are still being removed.
+/// before `log.db` is in place removes what this call created before the
+/// lease is released (dropped when this returns): `LOCK` last, so that no
+/// other init takes the lease while these files are still being removed.
+/// A failure after that removes nothing.
 fn create(
     dir: &Path,
-    created: &[PathBuf],
     genesis: Genesis,
     signer: &dyn Signer,
     clock: Box<dyn Clock>,
 ) -> Result<SqliteLog, StoreError> {
     let lock = dir.join(LOCK_FILE);
     let made_lock = fs::symlink_metadata(&lock).is_err_and(|e| e.kind() == io::ErrorKind::NotFound);
-    let mut lease = match Lease::acquire(dir) {
-        Ok(lease) => lease,
-        // Another init or writer holds it: nothing here is ours.
-        Err(e @ StoreError::Locked { .. }) => return Err(e),
-        Err(e) => {
-            if made_lock {
-                let _ = fs::remove_file(&lock);
-            }
-            return Err(e);
-        }
-    };
+    // Without the lease nothing here is ours: another init may have created
+    // LOCK since it was looked at, and may hold it.
+    let mut lease = Lease::acquire(dir)?;
     match holds_only_leftovers(dir) {
         Ok(true) => {}
         // A store, or something else, appeared since step 2: not ours.
@@ -886,7 +1183,6 @@ fn create(
     let mut placed = false;
     let built = build(
         dir,
-        created,
         &mut lease,
         &genesis,
         signer,
@@ -903,15 +1199,12 @@ fn create(
             epoch: 1,
             clock,
         }),
+        // log.db is a complete store, and may be open elsewhere already.
+        Err(e) if placed => Err(e),
         Err(e) => {
             // Still under the lease: no other init builds here meanwhile.
             for name in &INIT_LEFTOVERS[1..] {
                 let _ = fs::remove_file(dir.join(name));
-            }
-            if placed {
-                for suffix in ["", "-wal", "-shm"] {
-                    let _ = fs::remove_file(dir.join(format!("{DB_FILE}{suffix}")));
-                }
             }
             if made_lock {
                 let _ = fs::remove_file(&lock);
@@ -927,7 +1220,6 @@ fn create(
 /// opens is closed when it fails.
 fn build(
     dir: &Path,
-    created: &[PathBuf],
     lease: &mut Lease,
     genesis: &Genesis,
     signer: &dyn Signer,
@@ -944,7 +1236,7 @@ fn build(
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_CREATE
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let mut conn = Connection::open_with_flags(&init, flags)?;
+    let mut conn = Connection::open_with_flags(plain(&init), flags)?;
     conn.execute_batch(WRITER_PRAGMAS)?;
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     tx.execute_batch(SCHEMA_SQL)?;
@@ -983,13 +1275,11 @@ fn build(
     })?;
     fs::rename(&init, &path).map_err(|e| io_error(&path, e))?;
     *placed = true;
+    hook::at("init:placed", dir)?;
     sync_dir(dir)?;
-    for made in created {
-        sync_dir(parent_of(made))?;
-    }
 
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(&path, flags)?;
+    let conn = Connection::open_with_flags(plain(&path), flags)?;
     conn.busy_timeout(BUSY_TIMEOUT)?;
     conn.execute_batch(WRITER_PRAGMAS)?;
     lease.record(1)?;
@@ -998,7 +1288,184 @@ fn build(
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
     use super::*;
+    use crate::clock::ScriptClock;
+    use crate::signer::SeedSigner;
+
+    fn store_key() -> SeedSigner {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-vectors/keys/store-demo.seed");
+        SeedSigner::from_file(&path).unwrap()
+    }
+
+    /// A clock with one reading, as `init` uses.
+    fn one_reading() -> Box<dyn Clock> {
+        Box::new(ScriptClock::new(&["2026-11-26T00:00:00Z"]))
+    }
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// `init` syncs the parent of every directory it created before it
+    /// takes the lease or builds anything, and the store directory once
+    /// `log.db` is in place.
+    #[test]
+    fn init_syncs_before_it_builds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("a/b/store");
+        let synced = Rc::new(RefCell::new(Vec::new()));
+        let _hook = hook::set({
+            let (synced, lock, db) = (synced.clone(), dir.join(LOCK_FILE), dir.join(DB_FILE));
+            move |point, path| {
+                if point == "sync" {
+                    let seen = (path.to_path_buf(), lock.exists(), db.exists());
+                    synced.borrow_mut().push(seen);
+                }
+                Ok(())
+            }
+        });
+        drop(SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading()).unwrap());
+        let parent = |p: &str| (tmp.path().join(p), false, false);
+        assert_eq!(
+            *synced.borrow(),
+            [
+                parent("a/b"),
+                parent("a"),
+                parent(""),
+                (dir.clone(), true, true)
+            ]
+        );
+    }
+
+    /// A parent that cannot be synced (in a directory this user can write
+    /// but not read, say) fails `init` before the lease is taken or
+    /// anything built, and every directory it created is removed again: a
+    /// retry fails the same way, instead of succeeding once a directory is
+    /// left from the first try.
+    #[test]
+    fn init_fails_before_building_when_a_parent_cannot_be_synced() {
+        let tmp = tempfile::tempdir().unwrap();
+        let top = tmp.path().to_path_buf();
+        let dir = top.join("x/store");
+        let _hook = hook::set({
+            let top = top.clone();
+            move |point, path| {
+                if point == "sync" && path == top {
+                    return Err(StoreError::Io("injected: permission denied".into()));
+                }
+                Ok(())
+            }
+        });
+        for _ in 0..2 {
+            let e = SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading());
+            assert_eq!(e.err().unwrap().code_str(), "S_IO");
+            assert!(names(&top).is_empty());
+        }
+    }
+
+    /// Once `log.db` is in place it is a complete store, which another
+    /// process may already have open: a failure after that removes nothing,
+    /// so what that process reads and writes stays the store's.
+    #[test]
+    fn a_failure_after_the_store_is_placed_leaves_the_store() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("store");
+        let opened = Rc::new(RefCell::new(None));
+        let _hook = hook::set({
+            let opened = opened.clone();
+            move |point, path| {
+                if point == "init:placed" {
+                    *opened.borrow_mut() = Some(SqliteReader::open(path)?);
+                    return Err(StoreError::Io("injected: the sync failed".into()));
+                }
+                Ok(())
+            }
+        });
+        let e = SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading());
+        assert_eq!(e.err().unwrap().code_str(), "S_IO");
+        assert!(names(&dir).contains(&DB_FILE.to_string()));
+        let reader = opened.borrow_mut().take().unwrap();
+        assert_eq!(reader.head().unwrap().seq, 2);
+        assert!(crate::verify_store(&dir, Default::default()).unwrap().ok());
+        let log = SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap();
+        assert_eq!(log.epoch(), 2);
+        assert_eq!(log.head().unwrap(), reader.head().unwrap());
+    }
+
+    /// A lease that cannot be taken for a reason other than another holder
+    /// (too many open files, say) removes nothing: the `LOCK` there may be
+    /// one that a racing init created after this one looked, and holds.
+    #[test]
+    fn an_init_that_cannot_take_the_lease_removes_no_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("store");
+        fs::create_dir(&dir).unwrap();
+        let racing = Rc::new(RefCell::new(None));
+        let hook = hook::set({
+            let (racing, dir) = (racing.clone(), dir.clone());
+            move |point, _| {
+                if point == "lease:open" && racing.borrow().is_none() {
+                    *racing.borrow_mut() = Some(Lease::acquire(&dir)?);
+                    return Err(StoreError::Io("injected: too many open files".into()));
+                }
+                Ok(())
+            }
+        });
+        let e = SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading());
+        assert_eq!(e.err().unwrap().code_str(), "S_IO");
+        drop(hook);
+        assert_eq!(names(&dir), [LOCK_FILE]);
+        let e = Lease::acquire(&dir).unwrap_err();
+        assert_eq!(e.code_str(), "S_LOCKED", "the racing init still holds LOCK");
+        drop(racing.borrow_mut().take());
+        drop(SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading()).unwrap());
+    }
+
+    /// The writer writes only to the file the store's name leads to once it
+    /// holds the lease: a `log.db` replaced, or removed, after the open
+    /// checks is refused.
+    #[cfg(unix)]
+    #[test]
+    fn open_refuses_a_log_db_replaced_before_the_lease() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("store");
+        drop(SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading()).unwrap());
+        let db = dir.join(DB_FILE);
+        let old = dir.join("log.db.old");
+        for (epoch, replace, code) in [(2, true, "S_IO"), (3, false, "S_NOT_A_STORE")] {
+            let hook = hook::set({
+                let (db, old) = (db.clone(), old.clone());
+                move |point, _| {
+                    if point == "open:checked" {
+                        fs::rename(&db, &old).unwrap();
+                        if replace {
+                            fs::copy(&old, &db).unwrap();
+                        }
+                    }
+                    Ok(())
+                }
+            });
+            let e = SqliteLog::open(&dir, Box::new(ScriptClock::default()));
+            assert_eq!(e.err().unwrap().code_str(), code);
+            drop(hook);
+            if replace {
+                fs::remove_file(&old).unwrap();
+            } else {
+                fs::rename(&old, &db).unwrap();
+            }
+            let log = SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap();
+            assert_eq!(log.epoch(), epoch, "the refused open wrote no epoch");
+        }
+    }
 
     #[test]
     fn writer_epochs_are_plain_decimal_from_1_to_2_53_minus_1() {
@@ -1058,7 +1525,7 @@ mod tests {
     #[test]
     fn a_wal_has_content_unless_absent_or_empty() {
         let tmp = tempfile::tempdir().unwrap();
-        let wal = tmp.path().join(WAL_FILE);
+        let wal = tmp.path().join("log.db-wal");
         assert!(!wal_has_content(&wal));
         fs::write(&wal, b"").unwrap();
         assert!(!wal_has_content(&wal));
@@ -1075,8 +1542,8 @@ mod tests {
         }
     }
 
-    /// `init` syncs the parent of every directory it created (`claim_dir`'s
-    /// list), so that the store's own name is durable.
+    /// `claim_dir` lists the directories it creates, whose parents `init`
+    /// syncs (see `init_syncs_before_it_builds`).
     #[test]
     fn init_lists_the_directories_it_creates() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1107,19 +1574,29 @@ mod tests {
     fn the_schema_holds_every_trigger_once() {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(SCHEMA_SQL).unwrap();
-        for name in TRIGGERS {
-            let (table, sql) = db::trigger(&conn, name).unwrap().unwrap();
-            assert!(name.starts_with(&format!("{table}_no_")), "{name}");
-            assert!(sql.unwrap().contains("RAISE(ABORT, 'S_APPEND_ONLY')"));
+        let triggers = db::schema_rows(&conn, true).unwrap();
+        assert_eq!(triggers, expected_schema().unwrap().triggers);
+        let mut names: Vec<&str> = triggers.iter().map(|t| t.name.as_str()).collect();
+        names.sort_unstable();
+        let mut want = TRIGGERS.to_vec();
+        want.sort_unstable();
+        assert_eq!(names, want);
+        for t in &triggers {
+            assert_eq!(t.kind, "trigger");
+            assert!(
+                t.name.starts_with(&format!("{}_no_", t.table)),
+                "{}",
+                t.name
+            );
+            let sql = t.sql.as_deref().unwrap();
+            assert!(sql.contains("RAISE(ABORT, 'S_APPEND_ONLY')"));
         }
-        let count: i64 = conn
-            .query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type = 'trigger'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(count, TRIGGERS.len() as i64);
+        // Tables and indexes, with the autoindexes of their keys; no views.
+        let tables = &expected_schema().unwrap().tables;
+        assert_eq!(tables, &db::schema_rows(&conn, false).unwrap());
+        assert!(tables
+            .iter()
+            .all(|t| t.kind == "table" || t.kind == "index"));
         let id: i64 = conn
             .pragma_query_value(None, "application_id", |r| r.get(0))
             .unwrap();

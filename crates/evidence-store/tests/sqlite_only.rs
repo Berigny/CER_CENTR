@@ -3,7 +3,9 @@
 //! live-store findings (T8), opening checks (`S_NOT_A_STORE`, `S_FORMAT`),
 //! reading a store the reader cannot write, `init` into an occupied path
 //! (`S_EXISTS`) and after an init that was killed, and the export vectors
-//! read as directories and imported (T10, library part).
+//! read as directories and imported (T10, library part). An init killed by
+//! another process is in `tests/init_killed.rs`: a test that starts
+//! processes runs in a binary of its own (see there).
 //!
 //! The rules every writer shares, and the export, verify and import round
 //! trip of a live log, run against `SqliteLog` and `MemLog` in the contract
@@ -12,7 +14,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use evidence_core::canon;
@@ -336,17 +337,36 @@ fn t8_an_edit_without_triggers_is_found() {
     assert_eq!(report.source, Source::Store);
 }
 
-/// A trigger recreated with other SQL, or on another table, is missing too;
-/// an extra trigger does not matter.
+/// A trigger recreated with other SQL, or on another table, is missing too,
+/// and so is a trigger the schema does not create: the writer refuses to
+/// open a store with either, since such a trigger could drop or change the
+/// rows it writes while it reports success. A missing trigger it allows.
 #[test]
 fn t8_triggers_must_be_exactly_the_schemas() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("store");
     drop(sample(&dir));
     let conn = raw(&dir);
-    conn.execute_batch("CREATE TRIGGER heads_extra BEFORE DELETE ON meta BEGIN SELECT 1; END;")
+    let writer = |dir: &Path| SqliteLog::open(dir, Box::new(ScriptClock::default()));
+    let extras = [
+        "CREATE TRIGGER heads_extra BEFORE DELETE ON meta BEGIN SELECT 1; END",
+        "CREATE TRIGGER drop_objects BEFORE INSERT ON objects WHEN NEW.seq > 7 \
+         BEGIN SELECT RAISE(IGNORE); END",
+    ];
+    for sql in extras {
+        conn.execute_batch(sql).unwrap();
+        assert_eq!(
+            codes(&verify(&dir)),
+            [("S_TRIGGERS_MISSING", None)],
+            "{sql}"
+        );
+        assert_eq!(error_code(writer(&dir)), "S_IO", "{sql}");
+        conn.execute_batch(
+            "DROP TRIGGER IF EXISTS heads_extra; DROP TRIGGER IF EXISTS drop_objects",
+        )
         .unwrap();
-    assert!(verify(&dir).ok(), "an extra trigger");
+    }
+    assert!(verify(&dir).ok());
     let cases = [
         "CREATE TRIGGER entries_no_delete BEFORE DELETE ON entries BEGIN SELECT RAISE(ABORT, 'no'); END",
         "CREATE TRIGGER entries_no_delete BEFORE DELETE ON heads BEGIN SELECT RAISE(ABORT, 'S_APPEND_ONLY'); END",
@@ -360,6 +380,7 @@ fn t8_triggers_must_be_exactly_the_schemas() {
             [("S_TRIGGERS_MISSING", None)],
             "{sql}"
         );
+        assert_eq!(error_code(writer(&dir)), "S_IO", "{sql}");
     }
     // Every one of the six counts.
     let schema = "CREATE TRIGGER entries_no_delete BEFORE DELETE ON entries BEGIN SELECT RAISE(ABORT, 'S_APPEND_ONLY'); END";
@@ -381,6 +402,7 @@ fn t8_triggers_must_be_exactly_the_schemas() {
             [("S_TRIGGERS_MISSING", None)],
             "{name}"
         );
+        drop(writer(&dir).unwrap());
         conn.execute_batch(&sql).unwrap();
     }
     assert!(verify(&dir).ok());
@@ -488,6 +510,249 @@ fn t8_missing_rows_are_findings() {
     assert_eq!(reader.leaf_hashes(4).unwrap().len(), 4);
 }
 
+/// Run `edit` on a raw connection to `log.db` with foreign keys off and the
+/// six triggers dropped, then create the triggers again exactly as they
+/// were: an edit that neither the triggers nor `has_append_only_triggers`
+/// shows.
+fn edit_behind_triggers(dir: &Path, edit: impl FnOnce(&Connection)) {
+    let conn = raw(dir);
+    let triggers: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger'")
+            .unwrap();
+        let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+        rows.map(Result::unwrap).collect()
+    };
+    assert_eq!(triggers.len(), TRIGGERS.len());
+    conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+    for name in TRIGGERS {
+        conn.execute_batch(&format!("DROP TRIGGER {name}")).unwrap();
+    }
+    edit(&conn);
+    for sql in triggers {
+        conn.execute_batch(&sql).unwrap();
+    }
+}
+
+/// Every column the store reads beside the canonical texts (to chain, date,
+/// look up or plan) must be what the lines give, and every item row must
+/// belong to a line of its kind. An edit to one, made behind the triggers,
+/// leaves every line as it was, and is `S_PROJECTION_DRIFT`. Edits to the
+/// last entry's hash or time, which the next entry would carry for good,
+/// also stop the writer before it appends.
+#[test]
+fn t8_derived_columns_must_match_the_lines() {
+    let tmp = tempfile::tempdir().unwrap();
+    let hash = |n: u32| format!("'sha256:' || printf('%064d', {n})");
+    let copy_of_001 = |id: String, seq: u32| {
+        format!(
+            "INSERT INTO objects SELECT {id}, {seq}, at, op, system, type, key, lane, bytes \
+             FROM objects WHERE seq = 3"
+        )
+    };
+    // (the edit, whether the writer refuses to append after it)
+    let cases: Vec<(String, bool)> = vec![
+        (
+            format!("UPDATE entries SET entry_hash = {} WHERE seq = 7", hash(0)),
+            true,
+        ),
+        (
+            "UPDATE entries SET received_at = '2099-01-01T00:00:00.000Z' WHERE seq = 7".into(),
+            true,
+        ),
+        ("UPDATE entries SET epoch = 9 WHERE seq = 3".into(), false),
+        (
+            format!("UPDATE entries SET ref = {} WHERE seq = 3", hash(1)),
+            false,
+        ),
+        (
+            "UPDATE objects SET at = '2020-01-01T00:00:00Z' WHERE seq = 3".into(),
+            false,
+        ),
+        (
+            "UPDATE objects SET lane = 'record:other' WHERE seq = 4".into(),
+            false,
+        ),
+        (
+            "UPDATE objects SET key = 'other' WHERE seq = 4".into(),
+            false,
+        ),
+        (
+            "UPDATE attestations SET object = (SELECT id FROM objects WHERE seq = 1) \
+             WHERE seq = 5"
+                .into(),
+            false,
+        ),
+        (
+            "UPDATE attestations SET purpose = 'witness' WHERE seq = 5".into(),
+            false,
+        ),
+        // Rows that no line shows: at the seq of an attestation, and at
+        // no seq at all.
+        (copy_of_001(hash(7), 2), false),
+        (copy_of_001(hash(8), 999), false),
+    ];
+    for (i, (sql, stops_writer)) in cases.iter().enumerate() {
+        let dir = tmp.path().join(format!("store-{i}"));
+        drop(sample(&dir));
+        edit_behind_triggers(&dir, |conn| conn.execute_batch(sql).unwrap());
+        let report = verify(&dir);
+        assert_eq!(codes(&report), [("S_PROJECTION_DRIFT", None)], "{sql}");
+        assert_eq!(report.checked.entries, 7, "the lines verify: {sql}");
+        let c = clock(&["2026-11-26T00:00:05Z"]);
+        let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+        let appended = log.append(&object("004-external-content"));
+        if *stops_writer {
+            assert_eq!(error_code(appended), "S_IO", "{sql}");
+            assert_eq!(log.head().unwrap().seq, 7, "nothing written: {sql}");
+        }
+    }
+}
+
+/// The stored entry must be the line's canonical entry, not merely render
+/// to the same line. Here part of an object (all of it before
+/// `,"object":`) is moved into its entry's column: the line is as it was
+/// and verifies, but the leaf hashes, which are of the stored entries, are
+/// not the ones a checkpoint would sign.
+#[test]
+fn t8_a_line_split_differently_between_its_columns_is_found() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    let inline = Value::Object(vec![
+        ("a".into(), Value::Number(0.0)),
+        ("object".into(), Value::Number(1.0)),
+    ]);
+    let o = common::sealed(
+        "create",
+        "sqlite-test/thing@1",
+        ["sqlite-test", "thing", "k1"],
+        inline,
+        "sqlite-test",
+        "2026-11-25T00:00:00Z",
+        &[],
+    );
+    let c = clock(&["2026-11-26T00:00:05Z"]);
+    let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+    assert_eq!(log.append(&o.bytes).unwrap().seq, 8);
+    let line = log.lines(8, 1).unwrap().remove(0).1;
+    drop(log);
+    assert!(verify(&dir).ok());
+
+    let text = String::from_utf8(o.bytes).unwrap();
+    let separator = ",\"object\":";
+    let at = text.find(separator).unwrap();
+    let (head, tail) = (&text[..at], &text[at + separator.len()..]);
+    edit_behind_triggers(&dir, |conn| {
+        conn.execute(
+            "UPDATE entries SET entry = entry || ?1 WHERE seq = 8",
+            [format!("{separator}{head}")],
+        )
+        .unwrap();
+        conn.execute("UPDATE objects SET bytes = ?1 WHERE seq = 8", [tail])
+            .unwrap();
+    });
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert_eq!(reader.lines(8, 1).unwrap()[0].1, line, "the same line");
+    assert_eq!(codes(&verify(&dir)), [("S_PROJECTION_DRIFT", None)]);
+    assert_eq!(error_code(evidence_store::inclusion(&reader, 8, 8)), "S_IO");
+}
+
+/// An index that differs from its table (here one byte of a page of the
+/// `entry_hash` index changed on disk) makes a lookup miss a row a scan
+/// finds: SQLite's integrity check fails, and that is `S_PROJECTION_DRIFT`.
+#[test]
+fn t8_a_damaged_index_is_found() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    let (root, page_size): (i64, i64) = {
+        let conn = raw(&dir);
+        let column: String = conn
+            .query_row(
+                "SELECT name FROM pragma_index_info('sqlite_autoindex_entries_2')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(column, "entry_hash");
+        let root = conn
+            .query_row(
+                "SELECT rootpage FROM sqlite_master WHERE name = 'sqlite_autoindex_entries_2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let page_size = conn
+            .pragma_query_value(None, "page_size", |r| r.get(0))
+            .unwrap();
+        (root, page_size)
+    };
+    assert_eq!(names(&dir), [LOCK_FILE, DB_FILE], "all of it in log.db");
+    let mut bytes = fs::read(dir.join(DB_FILE)).unwrap();
+    let start = usize::try_from((root - 1) * page_size).unwrap();
+    let page = &mut bytes[start..start + usize::try_from(page_size).unwrap()];
+    let at = page.windows(7).position(|w| w == b"sha256:").unwrap() + 7 + 10;
+    page[at] = if page[at] == b'0' { b'1' } else { b'0' };
+    fs::write(dir.join(DB_FILE), &bytes).unwrap();
+    let report = verify(&dir);
+    assert_eq!(codes(&report), [("S_PROJECTION_DRIFT", None)]);
+    assert_eq!(report.checked.entries, 7, "the lines verify");
+}
+
+/// Run `f` on another thread and give up after 30 seconds: a read of a
+/// view that never ends would never return.
+fn within_30s<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx.recv_timeout(Duration::from_secs(30))
+        .expect("did not return within 30 s")
+}
+
+/// Opening reads no table before it has checked that the tables, indexes
+/// and views are exactly the schema's: a `log.db` in which a table is a
+/// view that never ends is refused at once, by the reader, the writer and
+/// `verify_store`, instead of being read forever. So is an extra table,
+/// index or view, and a table whose definition was changed in place.
+#[test]
+fn the_schema_is_checked_before_any_table_is_read() {
+    let tmp = tempfile::tempdir().unwrap();
+    let forever = "WITH RECURSIVE c(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM c)";
+    let cases = [
+        format!(
+            "DROP TABLE heads; CREATE VIEW heads AS {forever} SELECT 's' AS system, 't' AS type, \
+             'k' AS key, 'l' AS lane, 'h' || i AS id FROM c"
+        ),
+        format!(
+            "DROP TABLE entries; CREATE VIEW entries AS {forever} SELECT i AS seq, \
+             'object' AS kind, 'r' || i AS ref, 'x' AS received_at, 1 AS epoch, \
+             'h' || i AS entry_hash, '{{}}' AS entry FROM c"
+        ),
+        format!(
+            "DROP TABLE meta; CREATE VIEW meta AS {forever} SELECT 'format' AS k, \
+             'store/0' AS v FROM c"
+        ),
+        "CREATE TABLE extra (x)".into(),
+        "CREATE INDEX extra ON entries(received_at)".into(),
+        "CREATE VIEW extra AS SELECT 1".into(),
+        "PRAGMA writable_schema = ON; \
+         UPDATE sqlite_master SET sql = replace(sql, ') STRICT', ')') WHERE name = 'entries'"
+            .into(),
+    ];
+    for (i, sql) in cases.into_iter().enumerate() {
+        let dir = tmp.path().join(format!("store-{i}"));
+        drop(sample(&dir));
+        let conn = raw(&dir);
+        conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        conn.execute_batch(&sql).unwrap();
+        drop(conn);
+        let checked = dir.clone();
+        within_30s(move || refused(&checked, "S_NOT_A_STORE"));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Opening
 
@@ -571,6 +836,11 @@ fn not_a_store() {
     refused(&dir, "S_NOT_A_STORE");
 }
 
+/// The genesis of every store `sample` makes.
+fn sample_genesis() -> evidence_log::Genesis {
+    evidence_log::Genesis::new("cer-demo", &store_key().public_key()).unwrap()
+}
+
 /// A `meta` row that is missing or invalid is `S_NOT_A_STORE`; one that
 /// names another format or schema version is `S_FORMAT`.
 #[test]
@@ -637,15 +907,45 @@ fn meta_is_checked_on_open() {
         restore(key);
         assert!(verify(&dir).ok(), "{key} restored");
     }
-    // Another key, consistent with its signer and name: it opens (only the
-    // genesis line would tell), and a checkpoint with the real key is
-    // refused before the clock is read.
-    set("store_key", Some(&other_key));
-    let mut log = SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap();
-    assert_eq!(log.genesis().key, other_key);
-    assert_eq!(error_code(log.checkpoint(&store_key())), "S_STORE_KEY");
+    // Another key, consistent with its signer and name, or another name
+    // with its signer: valid on their own, so a reader opens, and
+    // verify_store finds them against the genesis line. The writer refuses
+    // them: it would sign checkpoints with that key, or under that name.
+    let others: [&[(&str, &str)]; 2] = [
+        &[("store_key", &other_key)],
+        &[
+            ("name", "other"),
+            ("store_signer", "service:evidence-store/other"),
+        ],
+    ];
+    for changes in others {
+        for (key, value) in changes {
+            set(key, Some(value));
+        }
+        let reader = SqliteReader::open(&dir).unwrap();
+        assert_ne!(reader.genesis(), &sample_genesis(), "{changes:?}");
+        assert_eq!(codes(&verify(&dir)), [("S_META_MISMATCH", None)]);
+        let writer = SqliteLog::open(&dir, Box::new(ScriptClock::default()));
+        assert_eq!(error_code(writer), "S_IO", "{changes:?}");
+        for (key, _) in changes {
+            restore(key);
+        }
+        assert!(verify(&dir).ok());
+    }
+
+    // A writer_epoch below the epoch of an entry: only damage gives one.
+    // The writer would append an epoch that goes back.
+    let c = clock(&["2026-11-26T00:00:05Z"]);
+    let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+    assert_eq!(log.epoch(), 2);
+    log.checkpoint(&store_key()).unwrap();
     drop(log);
-    restore("store_key");
+    set("writer_epoch", Some("1"));
+    assert_eq!(codes(&verify(&dir)), [("S_META_MISMATCH", None)]);
+    let writer = SqliteLog::open(&dir, Box::new(ScriptClock::default()));
+    assert_eq!(error_code(writer), "S_IO");
+    set("writer_epoch", Some("2"));
+    assert!(verify(&dir).ok());
 
     // The schema version.
     raw(&dir).execute_batch("PRAGMA user_version = 2").unwrap();
@@ -758,6 +1058,107 @@ fn a_store_that_cannot_be_written_is_read_as_an_immutable_file() {
     assert!(!SqliteReader::open(&dir).unwrap().is_immutable());
 }
 
+/// A reader of an immutable file notices a writer by `log.db` itself too,
+/// not only by `LOCK` and the WAL: here the store had no `LOCK` when the
+/// reader opened (as an import no writer has opened yet), and a writer
+/// opens it, appends, closes, and its `LOCK` is then removed (it is only
+/// diagnostics). Every read after that is `S_IO`, not the old head.
+#[cfg(unix)]
+#[test]
+fn an_immutable_reader_notices_a_writer_that_came_and_went() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    fs::remove_file(dir.join(LOCK_FILE)).unwrap();
+    let wal = dir.join("log.db-wal");
+    let block_wal = || std::os::unix::fs::symlink(tmp.path().join("absent/wal"), &wal).unwrap();
+    block_wal();
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert!(reader.is_immutable());
+    assert_eq!(reader.head().unwrap().seq, 7);
+    assert_eq!(reader.lines(1, 100).unwrap().len(), 7);
+
+    fs::remove_file(&wal).unwrap();
+    let c = clock(&["2026-11-26T00:00:05Z"]);
+    let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+    log.append(&object("004-external-content")).unwrap();
+    drop(log);
+    fs::remove_file(dir.join(LOCK_FILE)).unwrap();
+    block_wal();
+    assert_eq!(names(&dir), [DB_FILE, "log.db-wal"]);
+    assert_eq!(error_code(reader.head()), "S_IO");
+    assert_eq!(error_code(reader.lines(1, 100)), "S_IO");
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert!(reader.is_immutable());
+    assert_eq!(reader.head().unwrap().seq, 8);
+}
+
+/// SQLite keeps the WAL beside the file a symlinked `log.db` leads to, so
+/// that is where a reader looks for WAL content before it reads `log.db`
+/// as an immutable file: WAL content there (a writer that did not close)
+/// is `S_IO`, not an older state of the log.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_log_db_is_judged_by_the_wal_beside_its_target() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    let elsewhere = tmp.path().join("elsewhere");
+    fs::create_dir(&elsewhere).unwrap();
+    let real = elsewhere.join("real.db");
+    fs::rename(dir.join(DB_FILE), &real).unwrap();
+    std::os::unix::fs::symlink(&real, dir.join(DB_FILE)).unwrap();
+    // SQLite cannot make the -shm beside the target, so the reader cannot
+    // read the WAL there.
+    let real_wal = elsewhere.join("real.db-wal");
+    fs::write(&real_wal, [0x5a; 32]).unwrap();
+    std::os::unix::fs::symlink(tmp.path().join("absent/shm"), elsewhere.join("real.db-shm"))
+        .unwrap();
+    assert_eq!(error_code(SqliteReader::open(&dir)), "S_IO");
+    assert_eq!(
+        error_code(verify_store(&dir, VerifyOptions::default())),
+        "S_IO"
+    );
+    // With an empty WAL there, log.db holds the log: read as a file.
+    fs::write(&real_wal, b"").unwrap();
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert!(reader.is_immutable());
+    assert_eq!(reader.head().unwrap().seq, 7);
+    // WAL content that appears there later is a writer.
+    fs::write(&real_wal, [0x5a; 32]).unwrap();
+    assert_eq!(error_code(reader.head()), "S_IO");
+}
+
+/// A reader that cannot write `log.db` (another user's file, in a directory
+/// it can write) must not let SQLite create `log.db-wal` and `log.db-shm`:
+/// they would be this user's, and the writer could not open the store
+/// until someone removed them. It reads `log.db` as an immutable file and
+/// creates nothing. As root the permission does not hold, and the reader
+/// reads as usual.
+#[cfg(unix)]
+#[test]
+fn a_reader_that_cannot_write_log_db_creates_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    let db = dir.join(DB_FILE);
+    fs::set_permissions(&db, fs::Permissions::from_mode(0o444)).unwrap();
+    let writable = fs::OpenOptions::new().write(true).open(&db).is_ok();
+    let before = names(&dir);
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert_eq!(reader.head().unwrap().seq, 7);
+    assert!(verify(&dir).ok());
+    if !writable {
+        assert!(reader.is_immutable());
+        assert_eq!(names(&dir), before, "nothing created");
+    }
+    drop(reader);
+    fs::set_permissions(&db, fs::Permissions::from_mode(0o644)).unwrap();
+    drop(SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap());
+    assert_eq!(names(&dir), [LOCK_FILE, DB_FILE]);
+}
+
 /// The usual case: a store directory this user cannot write. As root the
 /// permission does not hold, and the reader reads as usual.
 #[cfg(unix)]
@@ -832,8 +1233,9 @@ fn init_needs_an_absent_path_or_an_empty_directory() {
     assert_eq!(error_code(e), "E_USAGE");
 }
 
-/// A failed `init` removes what it created: the directory if it made it,
-/// otherwise the files it put in the empty directory it was given.
+/// A failed `init` removes what it created: the directory and its parents
+/// if it made them, otherwise the files it put in the empty directory it
+/// was given.
 #[test]
 fn a_failed_init_leaves_nothing() {
     let tmp = tempfile::tempdir().unwrap();
@@ -842,8 +1244,7 @@ fn a_failed_init_leaves_nothing() {
     let e = SqliteLog::init(&absent, "cer-demo", &Garbage, Box::new(c.clone()));
     assert_eq!(error_code(e), "S_STORE_KEY");
     assert_eq!(c.remaining(), 0, "one reading");
-    assert!(!absent.exists());
-    assert_eq!(names(&tmp.path().join("a")), Vec::<String>::new());
+    assert!(names(tmp.path()).is_empty());
 
     let empty = tmp.path().join("empty");
     fs::create_dir(&empty).unwrap();
@@ -937,71 +1338,6 @@ fn init_takes_what_a_killed_init_left() {
     );
     assert_eq!(error_code(e), "S_EXISTS");
     assert_eq!(names(&dir), [LOCK_FILE, INIT_FILE, "notes.txt"]);
-}
-
-/// The variable that makes [`killed_init_child`] create a store.
-const INIT_CHILD: &str = "EVIDENCE_STORE_TEST_INIT_CHILD";
-
-/// Not a test of its own: [`init_killed_at_any_moment`] runs this test
-/// binary with only this test, and `INIT_CHILD` set to a directory, and
-/// kills it while it creates a store there. Without the variable it does
-/// nothing.
-#[test]
-fn killed_init_child() {
-    let Some(dir) = std::env::var_os(INIT_CHILD) else {
-        return;
-    };
-    let c = clock(&["2026-11-26T00:00:00Z"]);
-    drop(SqliteLog::init(Path::new(&dir), "cer-demo", &store_key(), Box::new(c)).unwrap());
-}
-
-/// An init killed at any moment (here, from 0 to 20 ms after its process
-/// starts) leaves either a complete store, which verifies and opens, or
-/// nothing but what the next `init` takes: never a directory that is
-/// neither.
-#[test]
-fn init_killed_at_any_moment() {
-    let tmp = tempfile::tempdir().unwrap();
-    let exe = std::env::current_exe().unwrap();
-    let leftovers = [
-        LOCK_FILE,
-        INIT_FILE,
-        "log.db.init-journal",
-        "log.db.init-wal",
-        "log.db.init-shm",
-    ];
-    let (mut stores, mut taken) = (0, 0);
-    for run in 0..40_u64 {
-        let dir = tmp.path().join(format!("run-{run}")).join("store");
-        let mut child = Command::new(&exe)
-            .args(["killed_init_child", "--exact", "--test-threads=1", "-q"])
-            .env(INIT_CHILD, &dir)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        std::thread::sleep(Duration::from_micros(run * 500));
-        let _ = child.kill();
-        child.wait().unwrap();
-        if dir.join(DB_FILE).exists() {
-            assert!(verify(&dir).ok(), "run {run}: {:?}", names(&dir));
-            drop(SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap());
-            stores += 1;
-            continue;
-        }
-        if dir.exists() {
-            let left = names(&dir);
-            assert!(
-                left.iter().all(|name| leftovers.contains(&name.as_str())),
-                "run {run}: {left:?}"
-            );
-        }
-        let c = clock(&["2026-11-26T00:00:00Z"]);
-        drop(SqliteLog::init(&dir, "cer-demo", &store_key(), Box::new(c)).unwrap());
-        assert!(verify(&dir).ok(), "run {run}");
-        taken += 1;
-    }
-    assert_eq!(stores + taken, 40);
 }
 
 /// Two writers on one store cannot both create it: the second `init` into

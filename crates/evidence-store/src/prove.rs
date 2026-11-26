@@ -37,8 +37,10 @@ pub struct InclusionProof {
     pub proof: Vec<Digest>,
     /// The tree hash over entries 1 to `size`.
     pub root: Digest,
-    /// The id of the checkpoint whose `size` is `size`, if there is one.
-    /// Sizes of checkpoints strictly increase, so there is at most one.
+    /// The id of the first checkpoint, in seq order, whose `size` is
+    /// `size`, if there is one. A log this crate writes has at most one,
+    /// since its checkpoint sizes strictly increase; an imported log may
+    /// have several, and every one has this proof's `root`.
     pub checkpoint: Option<String>,
 }
 
@@ -137,8 +139,12 @@ fn digests(list: &[Digest]) -> Value {
 ///   does not parse or holds the entry of another seq (a damaged store), or
 ///   its leaf hash is not leaf `seq` − 1. `S_IO` too if `leaf_hashes` does
 ///   not give `size` leaves.
-/// - `checkpoint` is the id of the checkpoint in [`LogRead::checkpoints`]
-///   whose `size` is `size`, if any.
+/// - `checkpoint` is the id of the first checkpoint in
+///   [`LogRead::checkpoints`] (in seq order) whose `size` is `size`, if
+///   any. `S_IO` if a checkpoint of that size has a `root` other than the
+///   one computed here: the stored entries are not those it signed (a
+///   damaged store), and a proof must not name a signed checkpoint whose
+///   root it does not have.
 pub fn inclusion(log: &dyn LogRead, seq: u64, size: u64) -> Result<InclusionProof, StoreError> {
     let head = log.head()?;
     if !(1 <= seq && seq <= size && size <= head.seq) {
@@ -169,20 +175,48 @@ pub fn inclusion(log: &dyn LogRead, seq: u64, size: u64) -> Result<InclusionProo
             "the leaf hash of seq {seq} is not the hash of its entry"
         )));
     }
-    let checkpoint = log
-        .checkpoints()?
-        .into_iter()
-        .find(|c| c.size == size)
-        .map(|c| c.id);
+    let root = merkle::root(&leaves);
+    let checkpoint = checkpoints_agree(log, &[(size, &root)])?;
     Ok(InclusionProof {
         seq,
         size,
         entry: line.entry,
         leaf_hash,
         proof: merkle::inclusion_proof(&leaves, index),
-        root: merkle::root(&leaves),
+        root,
         checkpoint,
     })
+}
+
+/// `S_IO` unless every checkpoint whose `size` is one of these sizes has
+/// the `root` given for it. Gives the id of the first checkpoint, in seq
+/// order, of the first size.
+fn checkpoints_agree(
+    log: &dyn LogRead,
+    roots: &[(u64, &Digest)],
+) -> Result<Option<String>, StoreError> {
+    let mut first = None;
+    for c in log.checkpoints()? {
+        let Some((i, (size, root))) = roots
+            .iter()
+            .enumerate()
+            .find(|(_, (size, _))| *size == c.size)
+        else {
+            continue;
+        };
+        if c.root != merkle::to_text(root) {
+            return Err(damaged(format!(
+                "checkpoint {} of size {size} has root {}, but the stored entries give {}",
+                c.id,
+                c.root,
+                merkle::to_text(root)
+            )));
+        }
+        if i == 0 && first.is_none() {
+            first = Some(c.id);
+        }
+    }
+    Ok(first)
 }
 
 /// The consistency proof from tree size `old_size` to `new_size`.
@@ -194,6 +228,8 @@ pub fn inclusion(log: &dyn LogRead, seq: u64, size: u64) -> Result<InclusionProo
 ///   gives `new_size` of them); `old_root` and `new_root` are `merkle::root`
 ///   of the first `old_size` and of all of them; `proof` =
 ///   `merkle::consistency_proof(leaves, old_size)`.
+/// - `S_IO` if a checkpoint whose `size` is `old_size` or `new_size` has
+///   another `root` than the one computed here (a damaged store).
 pub fn consistency(
     log: &dyn LogRead,
     old_size: u64,
@@ -212,11 +248,14 @@ pub fn consistency(
         .ok()
         .and_then(|n| leaves.get(..n))
         .ok_or_else(|| damaged(format!("the log has fewer than {old_size} leaves")))?;
+    let old_root = merkle::root(old);
+    let new_root = merkle::root(&leaves);
+    checkpoints_agree(log, &[(old_size, &old_root), (new_size, &new_root)])?;
     Ok(ConsistencyProof {
         old_size,
         new_size,
-        old_root: merkle::root(old),
-        new_root: merkle::root(&leaves),
+        old_root,
+        new_root,
         proof: merkle::consistency_proof(&leaves, old_size),
     })
 }
@@ -419,6 +458,9 @@ mod tests {
         ShortLeaves,
         /// `leaf_hashes` gives a wrong leaf at every position.
         WrongLeaves,
+        /// `leaf_hashes` gives a wrong first leaf: the stored entries are
+        /// not those the checkpoints signed, though the target's is.
+        FirstLeaf,
     }
 
     struct View<'a>(&'a MemLog, Damage);
@@ -472,6 +514,7 @@ mod tests {
                     leaves.pop();
                 }
                 Damage::WrongLeaves => leaves.iter_mut().for_each(|l| l[0] ^= 1),
+                Damage::FirstLeaf => leaves[0][0] ^= 1,
                 _ => {}
             }
             Ok(leaves)
@@ -497,5 +540,27 @@ mod tests {
         assert_eq!(e.code_str(), "S_IO", "{e}");
         // Lines are not read for a consistency proof.
         assert!(consistency(&View(&log, Damage::NoLine), 3, 6).is_ok());
+    }
+
+    /// A proof never names a checkpoint whose root it does not have: when
+    /// the stored entries are not those a checkpoint of that size signed,
+    /// the proof is `S_IO`, for inclusion and for consistency. Sizes that no
+    /// checkpoint has give the proof of what is stored.
+    #[test]
+    fn a_checkpoint_with_another_root_is_s_io() {
+        let log = log();
+        let view = View(&log, Damage::FirstLeaf);
+        for (seq, size) in [(3, 3), (3, 6), (6, 6)] {
+            let e = inclusion(&view, seq, size).unwrap_err();
+            assert_eq!(e.code_str(), "S_IO", "seq {seq} size {size}: {e}");
+        }
+        for (old, new) in [(3, 5), (4, 6), (3, 6)] {
+            let e = consistency(&view, old, new).unwrap_err();
+            assert_eq!(e.code_str(), "S_IO", "{old} to {new}: {e}");
+        }
+        let p = inclusion(&view, 3, 5).unwrap();
+        assert_eq!(p.checkpoint, None);
+        assert!(p.verify());
+        assert!(consistency(&view, 4, 5).unwrap().verify());
     }
 }

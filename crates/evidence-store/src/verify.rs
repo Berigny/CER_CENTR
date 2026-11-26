@@ -4,16 +4,17 @@
 //! One algorithm, `evidence_log::Verifier`, checks every source; this module
 //! feeds it:
 //!
-//! | | lines | projections (`S_PROJECTION_DRIFT`) | triggers (`S_TRIGGERS_MISSING`) | `meta.log_id` (`S_META_MISMATCH`) | manifest |
-//! |---|---|---|---|---|---|
-//! | [`verify_log`], any [`LogRead`] | yes | yes | no | no | no |
-//! | [`verify_store`], a store directory | yes | yes | yes | yes | no |
-//! | [`verify_export_dir`], an export directory | yes | no | no | no | yes |
+//! | | lines | projections (`S_PROJECTION_DRIFT`) | derived columns and rows (`S_PROJECTION_DRIFT`) | triggers (`S_TRIGGERS_MISSING`) | `meta` (`S_META_MISMATCH`) | manifest |
+//! |---|---|---|---|---|---|---|
+//! | [`verify_log`], any [`LogRead`] | yes | yes | no | no | no | no |
+//! | [`verify_store`], a store directory | yes | yes | yes | yes | yes | no |
+//! | [`verify_export_dir`], an export directory | yes | no | no | no | no | yes |
 //!
-//! A log's own [`LogRead::log_id`] is not compared with the lines by
-//! `verify_log`: for `MemLog` it is the genesis id by construction, and for
-//! the SQLite types it is `meta.log_id`, which only `verify_store` checks.
-//! Triggers exist only in the SQLite store.
+//! A log's own [`LogRead::log_id`] and [`LogRead::genesis`] are not
+//! compared with the lines by `verify_log`: for `MemLog` they are the
+//! genesis's by construction, and for the SQLite types they come from
+//! `meta`, which only `verify_store` checks. Triggers, derived columns and
+//! `meta` exist only in the SQLite store.
 
 use std::path::Path;
 
@@ -45,13 +46,21 @@ const CHUNK: usize = 1024;
 /// An error from the log (`S_IO`) is returned as an error, not a finding:
 /// a report is only given for a log that could be read.
 pub fn verify_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<StoreReport, StoreError> {
-    Ok(check_log(log, opts)?.finish())
+    let (mut verifier, drift) = check_log(log, opts)?;
+    if drift {
+        verifier.add_finding(Finding::new(FindingCode::ProjectionDrift));
+    }
+    Ok(verifier.finish())
 }
 
-/// Steps 1 to 3 of [`verify_log`]: the lines and the projection drift
-/// check, with the verifier given back before `finish()`, so that
-/// [`verify_store`] can add the live-store findings in the same snapshot.
-pub(crate) fn check_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<Verifier, StoreError> {
+/// Steps 1 and 2 of [`verify_log`], and whether the projections drift
+/// (step 3), with the verifier given back before the finding is added and
+/// before `finish()`, so that [`verify_store`] can add the live-store
+/// findings in the same snapshot.
+pub(crate) fn check_log(
+    log: &dyn LogRead,
+    opts: VerifyOptions,
+) -> Result<(Verifier, bool), StoreError> {
     let mut verifier = Verifier::new(VerifyOptions {
         max_findings: opts.max_findings,
         source: Source::Store,
@@ -77,10 +86,8 @@ pub(crate) fn check_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<Verifi
             None => break,
         }
     }
-    if projections_drift(log, &verifier)? {
-        verifier.add_finding(Finding::new(FindingCode::ProjectionDrift));
-    }
-    Ok(verifier)
+    let drift = projections_drift(log, &verifier)?;
+    Ok((verifier, drift))
 }
 
 /// Whether the log's `heads` or `checkpoints` differ in any row from the
@@ -110,24 +117,51 @@ fn projections_drift(log: &dyn LogRead, verifier: &Verifier) -> Result<bool, Sto
 ///
 /// 1. `SqliteReader::open(dir)`: `S_NOT_A_STORE` or `S_FORMAT` as it says.
 /// 2. In one snapshot: the lines and the projection drift check, as
-///    [`verify_log`]; then `S_TRIGGERS_MISSING` (no seq) unless
-///    `has_append_only_triggers()`; then `S_META_MISMATCH` (no seq) unless
-///    the lines have a log id and it equals `meta.log_id`.
+///    [`verify_log`]; then:
+///    - `S_PROJECTION_DRIFT` (no seq, at most one with step 3 of
+///      `verify_log`) if anything else the store keeps beside the canonical
+///      texts differs from what the lines give: SQLite's integrity check
+///      fails, a column of an `entries`, `objects` or `attestations` row
+///      differs from its line (the stored `entry` must be the line's
+///      canonical entry), or an `objects` or `attestations` row is at no
+///      entry of its kind. These columns and rows are what lookups and the
+///      writer read (the tip's hash and time, an object's `at`, a ref), so
+///      a store whose lines verify while they differ could still answer
+///      wrongly, or lead its writer to append lines that never verify;
+///    - `S_TRIGGERS_MISSING` (no seq) unless `has_append_only_triggers()`:
+///      the six triggers, as `schema.sql` creates them, and no others;
+///    - `S_META_MISMATCH` (no seq, at most one) unless the lines have a log
+///      id and it equals `meta.log_id`; unless they have a genesis and
+///      `meta`'s `name`, `store_key` and `store_signer` are its own; or if
+///      `meta.writer_epoch` is missing or below the epoch of a line. The
+///      writer signs checkpoints with the key in `meta`, and appends at
+///      `writer_epoch` + 1.
 /// 3. `finish()`. The report's source is `store`.
 ///
-/// The stored log id is read inside the snapshot too; a `meta` row that is
-/// gone by then gives `S_META_MISMATCH`, not an error. Damaged content in
-/// the tables (an edited line, a missing seq, a row with no item) is a
-/// finding; only a store that cannot be read at all is an error.
+/// `meta` is read inside the snapshot too; a row that is gone by then gives
+/// `S_META_MISMATCH`, not an error. Damaged content in the tables (an
+/// edited line, a missing seq, a row with no item, a derived column that
+/// was edited) is a finding; only a store that cannot be read at all is an
+/// error.
 pub fn verify_store(dir: &Path, opts: VerifyOptions) -> Result<StoreReport, StoreError> {
     let reader = SqliteReader::open(dir)?;
     reader.snapshot(|r| {
-        let mut verifier = check_log(r, opts)?;
+        let (mut verifier, drift) = check_log(r, opts)?;
+        let derived = r.derived()?;
+        if drift || derived.drift {
+            verifier.add_finding(Finding::new(FindingCode::ProjectionDrift));
+        }
         if !r.has_append_only_triggers()? {
             verifier.add_finding(Finding::new(FindingCode::TriggersMissing));
         }
         let stored = r.stored_log_id()?;
-        if stored.is_none() || verifier.log_id() != stored.as_deref() {
+        let (genesis, writer_epoch) = r.stored_genesis_and_epoch()?;
+        let meta_ok = stored.is_some()
+            && verifier.log_id() == stored.as_deref()
+            && verifier.genesis().is_some()
+            && verifier.genesis() == genesis.as_ref()
+            && writer_epoch.is_some_and(|epoch| derived.max_epoch.is_none_or(|max| epoch >= max));
+        if !meta_ok {
             verifier.add_finding(Finding::new(FindingCode::MetaMismatch));
         }
         Ok(verifier.finish())

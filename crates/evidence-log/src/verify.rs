@@ -269,6 +269,12 @@ impl Verifier {
         self.log.as_deref()
     }
 
+    /// The genesis read so far: the store's name, signer and key, once a
+    /// usable line at seq 1 has been read as a valid genesis.
+    pub fn genesis(&self) -> Option<&Genesis> {
+        self.genesis.as_ref().map(|(genesis, _)| genesis)
+    }
+
     /// The seq and entry hash of the last usable line read so far.
     pub fn head(&self) -> Option<(u64, String)> {
         self.head.map(|(seq, hash)| (seq, merkle::to_text(&hash)))

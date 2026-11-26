@@ -169,9 +169,13 @@ impl ExportBytes {
 ///   `.jsonl`, in name order, read the same way. `S_IO` if `dir` cannot be
 ///   listed.
 ///
-/// Only regular files are read (a symlink is followed to one): an export
-/// may come from anywhere, and a FIFO would block the read forever and a
-/// device such as `/dev/zero` would never end. Each file is read whole.
+/// Only regular files are read (a symlink is followed to one), and each
+/// only up to the size it reports: an export may come from anywhere, and a
+/// FIFO would block the read forever, while a device such as `/dev/zero`,
+/// or a `/proc` file that reports size 0, would never end. A file that
+/// holds more than its size says reads as unreadable, as a file that is not
+/// regular does. Each file is read whole into memory, so the memory used is
+/// the sum of the sizes the export's files report.
 pub fn read_export_dir(dir: &Path) -> Result<ExportBytes, StoreError> {
     let path = dir.join(MANIFEST_FILE);
     let manifest = match read_regular(&path) {
@@ -800,10 +804,10 @@ mod tests {
             .expect("read_export_dir did not return")
     }
 
-    /// A FIFO or a device in an export, under a listed name or as
-    /// `manifest.json`, is not read: a listed file reads as absent (empty
-    /// bytes, `S_SEGMENT_HASH`) and the manifest as `S_IO`. Nothing blocks
-    /// and nothing reads without end.
+    /// A FIFO, a device or a `/proc` file in an export, under a listed name
+    /// or as `manifest.json`, is not read: a listed file reads as absent
+    /// (empty bytes, `S_SEGMENT_HASH`) and the manifest as `S_IO`. Nothing
+    /// blocks and nothing reads without end.
     #[cfg(unix)]
     #[test]
     fn files_that_are_not_regular_are_not_read() {
@@ -813,11 +817,13 @@ mod tests {
         export(&log, &out, 3).unwrap();
         let files = export_files(&log, 3).unwrap();
         let segment = |i: usize| files.files[i].1.clone();
+        // Through libc rather than the mkfifo program: a process started
+        // here would hold a copy of every open file, the lease of a test
+        // running beside this one included, until it runs its program.
         let mkfifo = |path: &Path| {
-            std::process::Command::new("mkfifo")
-                .arg(path)
-                .status()
-                .is_ok_and(|s| s.success())
+            let c_path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+            // SAFETY: a valid C string; mkfifo only creates a file.
+            unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) == 0 }
         };
 
         fs::remove_file(out.join("000002.jsonl")).unwrap();
@@ -841,6 +847,15 @@ mod tests {
         std::os::unix::fs::symlink("/dev/zero", out.join("000002.jsonl")).unwrap();
         let bytes = read_with_deadline(&out).unwrap();
         assert_eq!(bytes.segments, vec![segment(0), Vec::new(), segment(2)]);
+        // A /proc file says it is a regular file of size 0, then reads on
+        // (/proc/self/pagemap for gigabytes): read as absent too.
+        let proc_file = Path::new("/proc/self/status");
+        if proc_file.exists() {
+            fs::remove_file(out.join("000002.jsonl")).unwrap();
+            std::os::unix::fs::symlink(proc_file, out.join("000002.jsonl")).unwrap();
+            let bytes = read_with_deadline(&out).unwrap();
+            assert_eq!(bytes.segments, vec![segment(0), Vec::new(), segment(2)]);
+        }
         fs::remove_file(out.join("000002.jsonl")).unwrap();
         fs::write(out.join("000002.jsonl"), segment(1)).unwrap();
         assert!(read_with_deadline(&out).is_ok());
@@ -856,6 +871,11 @@ mod tests {
         std::os::unix::fs::symlink("/dev/zero", out.join(MANIFEST_FILE)).unwrap();
         assert_eq!(read_with_deadline(&out).unwrap_err().code_str(), "S_IO");
         fs::remove_file(out.join(MANIFEST_FILE)).unwrap();
+        if proc_file.exists() {
+            std::os::unix::fs::symlink(proc_file, out.join(MANIFEST_FILE)).unwrap();
+            assert_eq!(read_with_deadline(&out).unwrap_err().code_str(), "S_IO");
+            fs::remove_file(out.join(MANIFEST_FILE)).unwrap();
+        }
         // A symlink to a regular file is followed.
         let elsewhere = dir.path().join("manifest-copy.json");
         fs::write(&elsewhere, &manifest).unwrap();

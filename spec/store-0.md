@@ -374,9 +374,9 @@ The lines are verified whatever the manifest checks find, after `S_MANIFEST_INVA
 
 These are checked after the lines, against the store's own tables. Each gives at most one finding, with no seq.
 
-- The projections give `S_PROJECTION_DRIFT` when the `heads` table differs in any row from the heads fold over the lines (see [Lanes and heads](#lanes-and-heads)), or the `checkpoints` table differs in any row from the lines that are checkpoints with no `S_CHECKPOINT_INVALID` (their seq, id, `size`, `root` and `head`). One recompute gives one finding, however many rows differ and in which table.
-- Missing append-only triggers give `S_TRIGGERS_MISSING`. The reference store's triggers refuse UPDATE and DELETE on its log tables, aborting with the message `S_APPEND_ONLY`.
-- A stored log id (`meta.log_id`) that differs from the log id of the lines, or lines that have none, give `S_META_MISMATCH`.
+- The projections give `S_PROJECTION_DRIFT` when the `heads` table differs in any row from the heads fold over the lines (see [Lanes and heads](#lanes-and-heads)), or the `checkpoints` table differs in any row from the lines that are checkpoints with no `S_CHECKPOINT_INVALID` (their seq, id, `size`, `root` and `head`). So does anything else the store keeps beside the texts its lines are made of, and reads to answer a query or to write, that differs from what the lines give: in the reference store, a column of an `entries`, `objects` or `attestations` row that differs from its line (the stored entry text must be the line's own `entry`, not merely give the same line), a row of `objects` or `attestations` that belongs to no line of its kind, and an index that differs from its table. One recompute gives one finding, however many rows differ and in which table.
+- Append-only triggers that are missing, or not exactly the store's, give `S_TRIGGERS_MISSING`. The reference store's triggers refuse UPDATE and DELETE on its log tables, aborting with the message `S_APPEND_ONLY`; it has no others, since another trigger could drop or change what a writer inserts.
+- A stored log id (`meta.log_id`) that differs from the log id of the lines, or lines that have none, give `S_META_MISMATCH`. So do a stored name, store key or store signer that differ from the genesis's, lines with no valid genesis, and a stored writer epoch below the epoch of a line: a writer signs checkpoints with the stored key and appends at the stored epoch + 1.
 
 ### Collecting and ordering findings
 
@@ -449,9 +449,9 @@ In sort order:
 | `S_CHECKPOINT_INVALID` | line | A checkpoint by the genesis signer is not valid checkpoint/0 for this log. |
 | `S_CHECKPOINT_MISMATCH` | line | A checkpoint's `size` is not below its seq, or its `head` or `root` disagrees with the usable lines before it. |
 | `S_CHECKPOINT_UNSIGNED` | end | A checkpoint has no valid witness by the genesis key. |
-| `S_PROJECTION_DRIFT` | live | The stored heads or checkpoints differ from a recompute. At most once. |
-| `S_TRIGGERS_MISSING` | live | The append-only triggers are missing. At most once. |
-| `S_META_MISMATCH` | live | The stored log id differs from the log id of the lines. At most once. |
+| `S_PROJECTION_DRIFT` | live | The stored heads or checkpoints, or anything else the store derives from the lines, differ from a recompute. At most once. |
+| `S_TRIGGERS_MISSING` | live | The append-only triggers are missing, or not exactly the store's. At most once. |
+| `S_META_MISMATCH` | live | The stored log id, genesis or writer epoch disagrees with the lines. At most once. |
 
 ### Intake and operation codes
 
@@ -462,8 +462,8 @@ These are returned by writers and tools, and never appear in a report. `S_RESERV
 | `S_STALE_HEADS` | A compare-and-set append found heads different from `if_heads`. The current heads are returned. |
 | `S_STORE_KEY` | The key offered to sign a checkpoint is not the genesis key, or what it signs does not verify under the genesis key. Nothing is written. |
 | `S_LOCKED` | Another writer holds the store. |
-| `S_NOT_A_STORE` | The directory is not a store. |
-| `S_EXISTS` | The target already exists: a store directory that is not empty, or an export or import destination. |
+| `S_NOT_A_STORE` | The directory is not a store (or, where an export is read, not an export: it has no `manifest.json`). |
+| `S_EXISTS` | The target already exists: a store directory that holds anything but what an interrupted store creation leaves, or an export or import destination; or no free name is left for the temporary directory beside a destination. |
 | `S_FORMAT` | The store's format version is not one this implementation supports. |
 | `S_IO` | An I/O or storage-engine error. |
 

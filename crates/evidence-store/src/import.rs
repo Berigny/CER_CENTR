@@ -22,7 +22,7 @@ use crate::export::read_export_dir;
 use crate::files::{create_partial, place, refuse_existing, sync_file, target_name};
 use crate::intake::{NewAttestation, NewEntry, NewItem, NewObject};
 use crate::sqlite::db::{self, Writer};
-use crate::sqlite::{DB_FILE, FORMAT, SCHEMA_SQL, WRITER_PRAGMAS};
+use crate::sqlite::{plain, DB_FILE, FORMAT, SCHEMA_SQL, WRITER_PRAGMAS};
 use crate::verify::verify_store;
 
 /// Rebuild the store in `export_dir` as a new store directory `into`.
@@ -112,7 +112,7 @@ fn build(dir: &Path, log_id: &str, segments: &[&[u8]]) -> Result<(), StoreError>
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_CREATE
         | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let mut conn = Connection::open_with_flags(dir.join(DB_FILE), flags)?;
+    let mut conn = Connection::open_with_flags(plain(&dir.join(DB_FILE)), flags)?;
     conn.execute_batch(WRITER_PRAGMAS)?;
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     tx.execute_batch(SCHEMA_SQL)?;
@@ -248,7 +248,7 @@ fn genesis_of(new: &NewEntry) -> Result<Genesis, StoreError> {
 fn settle_and_place(partial: &Path, into: &Path) -> Result<(), StoreError> {
     let db = partial.join(DB_FILE);
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let conn = Connection::open_with_flags(&db, flags)?;
+    let conn = Connection::open_with_flags(plain(&db), flags)?;
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
         r.get::<_, i64>(0)
     })?;

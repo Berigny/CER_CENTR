@@ -20,15 +20,32 @@
 //! holds a file that is no longer the store's `LOCK`, so on Unix `acquire`
 //! checks that the name still leads to the file it locked, and otherwise
 //! opens the name again.
+//!
+//! `LOCK` must be a regular file in the store directory: a symlink there is
+//! not followed (`S_IO`), so a planted link cannot make a writer overwrite
+//! another file with its lease text.
+//!
+//! The lock belongs to the open file, so a process that starts another
+//! program (`fork` then `exec`) while it holds the lease lends the child a
+//! copy of that open file until the child's `exec` closes it. If the lease
+//! is dropped in that moment, it stays held until the `exec`, and an
+//! `acquire` right after the drop, in this process or another, can get
+//! `S_LOCKED` with no other writer about. A caller that starts programs
+//! from other threads while it reopens a store retries after a moment.
 
-use std::fs::{self, File, OpenOptions, TryLockError};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use crate::api::StoreError;
+use crate::files::read_bounded;
+use crate::hook;
 
 /// The name of the lease file in a store directory.
 pub const LOCK_FILE: &str = "LOCK";
+
+/// The most of `LOCK` that is ever read: its text is a few dozen bytes.
+pub(crate) const LOCK_TEXT_LIMIT: u64 = 4096;
 
 /// How many times [`Lease::acquire`] opens `LOCK` before it gives up on a
 /// name that keeps leading to another file than the one it locked.
@@ -43,31 +60,43 @@ pub struct Lease {
 
 impl Lease {
     /// Take the lease on the store in `dir`: open `<dir>/LOCK` (creating it
-    /// if absent, never truncating it) for reading and writing, then
-    /// `try_lock` it. On Unix, check that `<dir>/LOCK` still names the file
-    /// it locked (same device and inode); if it does not (it was removed,
-    /// or removed and created again, in between), let go and start again,
-    /// up to 8 times in all.
+    /// if absent, never truncating it, and on Unix with `O_NOFOLLOW` and
+    /// `O_NONBLOCK`) for reading and writing, check that it is a regular
+    /// file, then `try_lock` it. On Unix, check that `<dir>/LOCK` still
+    /// names the file it locked (same device and inode); if it does not (it
+    /// was removed, or removed and created again, in between), let go and
+    /// start again, up to 8 times in all.
     ///
     /// - `S_LOCKED` (`StoreError::Locked`) when another holder has it
     ///   (`TryLockError::WouldBlock`); `holder` is the file's text as read
-    ///   then, which may be empty while a holder is rewriting it. Also
-    ///   `S_LOCKED`, with an empty `holder`, when the name never stays.
-    /// - `S_IO` for any other failure.
+    ///   then (at most 4096 bytes), which may be empty while a holder is
+    ///   rewriting it. Also `S_LOCKED`, with an empty `holder`, when the
+    ///   name never stays.
+    /// - `S_IO` for any other failure, a `LOCK` that is a symlink or not a
+    ///   regular file included.
     ///
     /// The caller checks that `dir` holds a store (or, for `init`, is to
     /// hold one) before taking the lease, so that `LOCK` is never created
     /// anywhere else.
     pub fn acquire(dir: &Path) -> Result<Lease, StoreError> {
         let path = dir.join(LOCK_FILE);
+        let cannot_open = |e: &dyn std::fmt::Display| {
+            StoreError::Io(format!("cannot open {}: {e}", path.display()))
+        };
         for _ in 0..OPENS {
-            let file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(&path)
-                .map_err(|e| StoreError::Io(format!("cannot open {}: {e}", path.display())))?;
+            hook::at("lease:open", &path)?;
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).create(true).truncate(false);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_NOCTTY);
+            }
+            let file = options.open(&path).map_err(|e| cannot_open(&e))?;
+            if !file.metadata().map_err(|e| cannot_open(&e))?.is_file() {
+                return Err(cannot_open(&"not a regular file"));
+            }
+            hook::at("lease:opened", &path)?;
             match file.try_lock() {
                 Ok(()) if still_named(&file, &path) => return Ok(Lease { file }),
                 // Dropping the file lets go of it.
@@ -76,7 +105,7 @@ impl Lease {
                     // Diagnostics only: whatever can be read now, maybe
                     // nothing.
                     let mut text = Vec::new();
-                    let holder = match (&file).read_to_end(&mut text) {
+                    let holder = match (&file).take(LOCK_TEXT_LIMIT).read_to_end(&mut text) {
                         Ok(_) => String::from_utf8_lossy(&text).into_owned(),
                         Err(_) => String::new(),
                     };
@@ -110,10 +139,11 @@ impl Lease {
 
     /// The text of `<dir>/LOCK`, lossily decoded as UTF-8, without taking
     /// the lease: who holds, or last held, the store. `S_IO` if it cannot be
-    /// read.
+    /// read, is not a regular file (a symlink is not followed) or holds more
+    /// than 4096 bytes.
     pub fn holder(dir: &Path) -> Result<String, StoreError> {
         let path = dir.join(LOCK_FILE);
-        let bytes = fs::read(&path)
+        let bytes = read_bounded(&path, LOCK_TEXT_LIMIT, false)
             .map_err(|e| StoreError::Io(format!("cannot read {}: {e}", path.display())))?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
@@ -124,7 +154,7 @@ impl Lease {
 #[cfg(unix)]
 fn still_named(file: &File, path: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
-    match (file.metadata(), fs::metadata(path)) {
+    match (file.metadata(), std::fs::symlink_metadata(path)) {
         (Ok(locked), Ok(named)) => locked.dev() == named.dev() && locked.ino() == named.ino(),
         (_, Err(e)) => e.kind() != std::io::ErrorKind::NotFound,
         (Err(_), Ok(_)) => true,
@@ -141,6 +171,7 @@ fn still_named(_file: &File, _path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn one_holder_at_a_time_even_in_one_process() {
@@ -190,6 +221,71 @@ mod tests {
         ));
         drop(second);
         Lease::acquire(tmp.path()).unwrap();
+    }
+
+    /// `acquire` itself starts again when `LOCK` is removed, or removed and
+    /// created again, between its open and its lock: the lease it returns
+    /// is on the file the name leads to now.
+    #[cfg(unix)]
+    #[test]
+    fn acquire_starts_again_when_lock_is_replaced_before_it_locks() {
+        for recreate in [false, true] {
+            let tmp = tempfile::tempdir().unwrap();
+            let path = tmp.path().join(LOCK_FILE);
+            let mut opens = 0;
+            let _hook = hook::set(move |point, at| {
+                if point == "lease:opened" {
+                    opens += 1;
+                    if opens == 1 {
+                        fs::remove_file(at).unwrap();
+                        if recreate {
+                            fs::write(at, b"pid 1\nepoch 1\n").unwrap();
+                        }
+                    }
+                }
+                Ok(())
+            });
+            let lease = Lease::acquire(tmp.path()).unwrap();
+            assert!(still_named(&lease.file, &path), "recreate {recreate}");
+            assert!(matches!(
+                Lease::acquire(tmp.path()),
+                Err(StoreError::Locked { .. })
+            ));
+        }
+    }
+
+    /// A `LOCK` that is a symlink is not followed, so the file it leads to
+    /// is never written; one that is not a regular file is refused too.
+    #[cfg(unix)]
+    #[test]
+    fn a_lock_that_is_not_a_regular_file_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let victim = tmp.path().join("victim.txt");
+        fs::write(&victim, b"keep me\n").unwrap();
+        let dir = tmp.path().join("store");
+        fs::create_dir(&dir).unwrap();
+        std::os::unix::fs::symlink(&victim, dir.join(LOCK_FILE)).unwrap();
+        assert_eq!(Lease::acquire(&dir).unwrap_err().code_str(), "S_IO");
+        assert_eq!(Lease::holder(&dir).unwrap_err().code_str(), "S_IO");
+        assert_eq!(fs::read(&victim).unwrap(), b"keep me\n");
+        fs::remove_file(dir.join(LOCK_FILE)).unwrap();
+        // A dangling symlink is not followed to create its target.
+        std::os::unix::fs::symlink(tmp.path().join("made"), dir.join(LOCK_FILE)).unwrap();
+        assert_eq!(Lease::acquire(&dir).unwrap_err().code_str(), "S_IO");
+        assert!(!tmp.path().join("made").exists());
+        fs::remove_file(dir.join(LOCK_FILE)).unwrap();
+        fs::create_dir(dir.join(LOCK_FILE)).unwrap();
+        assert_eq!(Lease::acquire(&dir).unwrap_err().code_str(), "S_IO");
+        fs::remove_dir(dir.join(LOCK_FILE)).unwrap();
+        // A LOCK too long to be lease text is not read whole.
+        fs::write(dir.join(LOCK_FILE), vec![b'x'; 5000]).unwrap();
+        assert_eq!(Lease::holder(&dir).unwrap_err().code_str(), "S_IO");
+        let held = Lease::acquire(&dir).unwrap();
+        match Lease::acquire(&dir) {
+            Err(StoreError::Locked { holder }) => assert_eq!(holder.len(), 4096),
+            other => panic!("expected S_LOCKED, got {other:?}"),
+        }
+        drop(held);
     }
 
     #[test]

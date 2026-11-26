@@ -257,6 +257,7 @@ version = "0.1.0"
 dependencies = [
  "evidence-core",
  "evidence-log",
+ "libc",
  "proptest",
  "rusqlite",
  "tempfile",

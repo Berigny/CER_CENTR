@@ -11,8 +11,12 @@
 //! the verifier as a finding instead of failing the read. A value of the
 //! wrong SQL type, which the `STRICT` tables refuse, is `S_IO`.
 
+use evidence_core::canon;
+use evidence_core::json::Value;
 use evidence_core::time::{self, Timestamp};
-use evidence_log::{merkle, render_line, Digest, Kind, SubjectKey};
+use evidence_log::{
+    lane_of, merkle, parse_line, render_line, subject_of, Body, Digest, Entry, Kind, SubjectKey,
+};
 use rusqlite::types::ValueRef;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
@@ -275,16 +279,190 @@ pub(crate) fn meta(conn: &Connection, key: &str) -> Result<Option<String>, Store
     Ok(v)
 }
 
-/// The `tbl_name` and `sql` of a trigger in `sqlite_master`, or None.
-pub(crate) fn trigger(
-    conn: &Connection,
-    name: &str,
-) -> Result<Option<(String, Option<String>)>, StoreError> {
-    let row = conn
-        .prepare("SELECT tbl_name, sql FROM sqlite_master WHERE type = 'trigger' AND name = ?1")?
-        .query_row([name], |r| Ok((text(r, 0)?, text_opt(r, 1)?)))
+/// One row of `sqlite_master`, without its root page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SchemaRow {
+    pub(crate) kind: String,
+    pub(crate) name: String,
+    pub(crate) table: String,
+    pub(crate) sql: Option<String>,
+}
+
+/// The `sqlite_master` rows that are triggers (`triggers` true) or that are
+/// not (tables, indexes and views), sorted by type and name. Reading them
+/// reads no table and runs no view.
+pub(crate) fn schema_rows(conn: &Connection, triggers: bool) -> rusqlite::Result<Vec<SchemaRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT type, name, tbl_name, sql FROM sqlite_master \
+         WHERE (type = 'trigger') = ?1 ORDER BY type, name",
+    )?;
+    let rows = stmt.query_map([triggers], |r| {
+        Ok(SchemaRow {
+            kind: text(r, 0)?,
+            name: text(r, 1)?,
+            table: text(r, 2)?,
+            sql: text_opt(r, 3)?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// The epoch of the last entry, or None if there is none.
+pub(crate) fn last_epoch(conn: &Connection) -> Result<Option<u64>, StoreError> {
+    let epoch = conn
+        .prepare("SELECT epoch FROM entries ORDER BY seq DESC LIMIT 1")?
+        .query_row([], |r| count(r, 0))
         .optional()?;
-    Ok(row)
+    Ok(epoch)
+}
+
+/// What [`derived`] finds.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Derived {
+    /// Whether anything the store keeps beside the canonical texts differs
+    /// from what the lines give (see [`derived`]).
+    pub(crate) drift: bool,
+    /// The highest `epoch` of the lines that parse, if any does.
+    pub(crate) max_epoch: Option<u64>,
+}
+
+/// The columns of one entry row and the object and attestation rows at its
+/// seq, as [`derived`] reads them.
+struct Rows {
+    seq: i64,
+    kind: String,
+    reference: String,
+    received_at: String,
+    epoch: i64,
+    entry_hash: String,
+    entry: String,
+    /// id, at, op, system, type, key, lane, bytes.
+    object: Option<[String; 8]>,
+    /// hash, object, purpose, signer, key, at, line.
+    attestation: Option<[String; 7]>,
+}
+
+/// What `verify_store` checks in the tables beside the lines and the
+/// projections. Everything the store reads to answer a query or to plan a
+/// write, other than the canonical texts the lines are rendered from, must
+/// be what the lines give, or a store that verifies could still answer
+/// wrongly, or lead its writer to append lines that never verify. `drift`
+/// is set when:
+///
+/// 1. SQLite's `PRAGMA integrity_check` finds a fault (an index that
+///    differs from its table, say, so that a lookup by id or ref misses a
+///    row a scan finds). The rows are then not compared.
+/// 2. For a line that parses (one that does not is a finding of its own):
+///    a column of its `entries` row (`seq`, `kind`, `ref`, `received_at`,
+///    `epoch`, `entry_hash`, and `entry`, which must be the line's
+///    canonical entry, not merely render to the same line) differs from
+///    the line; or a column of its `objects` row (`id`, `at`, `op`,
+///    `system`, `type`, `key`, `lane`, `bytes`) or `attestations` row
+///    (`hash`, `object`, `purpose`, `signer`, `key`, `at`, `line`) differs
+///    from its body.
+/// 3. An `objects` or `attestations` row is not at the seq of an entry of
+///    its kind: a row that no line shows, which a lookup would still find.
+pub(crate) fn derived(conn: &Connection) -> Result<Derived, StoreError> {
+    let integrity: String = conn.query_row("PRAGMA integrity_check(1)", [], |r| text(r, 0))?;
+    if integrity != "ok" {
+        return Ok(Derived {
+            drift: true,
+            max_epoch: None,
+        });
+    }
+    let mut found = Derived::default();
+    let mut stmt = conn.prepare(
+        "SELECT e.seq, e.kind, e.ref, e.received_at, e.epoch, e.entry_hash, e.entry, \
+         o.id, o.at, o.op, o.system, o.type, o.key, o.lane, o.bytes, \
+         a.hash, a.object, a.purpose, a.signer, a.key, a.at, a.line \
+         FROM entries AS e LEFT JOIN objects AS o ON o.seq = e.seq \
+         LEFT JOIN attestations AS a ON a.seq = e.seq ORDER BY e.seq",
+    )?;
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let columns = |from: usize, n: usize| -> rusqlite::Result<Option<Vec<String>>> {
+            if matches!(r.get_ref(from)?, ValueRef::Null) {
+                return Ok(None);
+            }
+            (from..from + n)
+                .map(|i| text(r, i))
+                .collect::<rusqlite::Result<_>>()
+                .map(Some)
+        };
+        let found_rows = Rows {
+            seq: r.get(0)?,
+            kind: text(r, 1)?,
+            reference: text(r, 2)?,
+            received_at: text(r, 3)?,
+            epoch: r.get(4)?,
+            entry_hash: text(r, 5)?,
+            entry: text(r, 6)?,
+            object: columns(7, 8)?.and_then(|v| v.try_into().ok()),
+            attestation: columns(15, 7)?.and_then(|v| v.try_into().ok()),
+        };
+        if !rows_match(&found_rows, &mut found.max_epoch) {
+            found.drift = true;
+        }
+    }
+    let strays: i64 = conn.query_row(
+        "SELECT (SELECT count(*) FROM objects WHERE seq NOT IN \
+           (SELECT seq FROM entries WHERE kind = 'object')) \
+         + (SELECT count(*) FROM attestations WHERE seq NOT IN \
+           (SELECT seq FROM entries WHERE kind = 'attestation'))",
+        [],
+        |r| r.get(0),
+    )?;
+    found.drift |= strays > 0;
+    Ok(found)
+}
+
+/// Step 2 of [`derived`] for one entry: false if a column differs from the
+/// line it renders. A line that does not parse is left to the verifier.
+/// Raises `max_epoch` to the line's epoch.
+fn rows_match(rows: &Rows, max_epoch: &mut Option<u64>) -> bool {
+    let (kind, body) = match (rows.kind.as_str(), &rows.object, &rows.attestation) {
+        ("object", Some(o), None) => (Kind::Object, &o[7]),
+        ("attestation", None, Some(a)) => (Kind::Attestation, &a[6]),
+        // An item row of the other kind at this seq belongs to no line.
+        ("object", _, Some(_)) | ("attestation", Some(_), _) => return false,
+        // No item row: the line is {"entry":E}, which the verifier finds.
+        _ => return true,
+    };
+    let Ok(line) = parse_line(render_line(&rows.entry, kind, body).as_bytes()) else {
+        return true;
+    };
+    let e = &line.entry;
+    *max_epoch = Some(max_epoch.map_or(e.epoch, |m| m.max(e.epoch)));
+    let entry_ok = u64::try_from(rows.seq) == Ok(e.seq)
+        && rows.kind == e.kind.as_str()
+        && rows.reference == e.reference
+        && rows.received_at == e.received_at
+        && u64::try_from(rows.epoch) == Ok(e.epoch)
+        && rows.entry_hash == canon::sha256_hex(line.entry_canonical.as_bytes())
+        && rows.entry == line.entry_canonical;
+    let member = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).map(str::to_string);
+    let item_ok = match (&line.body, &rows.object, &rows.attestation) {
+        (Body::Object(v), Some([id, at, op, system, r#type, key, lane, bytes]), _) => {
+            let subject = subject_of(v);
+            *id == e.reference
+                && Some(at) == member(v, "at").as_ref()
+                && Some(op) == member(v, "op").as_ref()
+                && (system, r#type, key) == (&subject.system, &subject.r#type, &subject.key)
+                && *lane == lane_of(v)
+                && *bytes == canon::canonicalize(v)
+        }
+        (Body::Attestation(v), _, Some([hash, object, purpose, signer, key, at, text])) => {
+            *hash == e.reference
+                && Some(object) == member(v, "object").as_ref()
+                && Some(purpose) == member(v, "purpose").as_ref()
+                && Some(signer) == member(v, "signer").as_ref()
+                && Some(key) == member(v, "key").as_ref()
+                && Some(at) == member(v, "at").as_ref()
+                && *text == canon::canonicalize(v)
+        }
+        _ => false,
+    };
+    entry_ok && item_ok
 }
 
 // ---------------------------------------------------------------------------
@@ -295,14 +473,34 @@ pub(crate) fn trigger(
 pub(crate) struct State<'a>(pub(crate) &'a Connection);
 
 impl IntakeState for State<'_> {
+    /// The last entry's `seq`, `entry_hash` and `received_at`, which the
+    /// next entry chains to and dates from. `S_IO` unless they are those of
+    /// the entry text stored beside them (its hash, and its own `seq` and
+    /// `received_at`): a damaged or edited row would otherwise be carried
+    /// into every later entry.
     fn tip(&self) -> Result<Tip, StoreError> {
         let tip = self
             .0
-            .prepare("SELECT seq, entry_hash, received_at FROM entries ORDER BY seq DESC LIMIT 1")?
-            .query_row([], |r| Ok((count(r, 0)?, text(r, 1)?, text(r, 2)?)))
+            .prepare(
+                "SELECT seq, entry_hash, received_at, entry FROM entries \
+                 ORDER BY seq DESC LIMIT 1",
+            )?
+            .query_row([], |r| {
+                Ok((count(r, 0)?, text(r, 1)?, text(r, 2)?, text(r, 3)?))
+            })
             .optional()?;
-        let (seq, entry_hash, received_at) =
+        let (seq, entry_hash, received_at, entry) =
             tip.ok_or_else(|| StoreError::Io("the log has no entries".into()))?;
+        let matches = Entry::parse(entry.as_bytes()).is_ok_and(|e| {
+            e.seq == seq
+                && e.received_at == received_at
+                && canon::sha256_hex(entry.as_bytes()) == entry_hash
+        });
+        if !matches {
+            return Err(crate::api::damaged(format!(
+                "the entry row of seq {seq} does not match its entry text"
+            )));
+        }
         let parsed = time::parse(&received_at)
             .map_err(|_| StoreError::Io(format!("seq {seq} has received_at {received_at:?}")))?;
         Ok(Tip {

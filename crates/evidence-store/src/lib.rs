@@ -26,6 +26,7 @@ pub mod api;
 pub mod clock;
 pub mod export;
 mod files;
+mod hook;
 pub mod import;
 pub mod intake;
 pub mod mem;
