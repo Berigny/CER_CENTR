@@ -1,15 +1,15 @@
 # Kernel/2: prime-coordinate facets (profile `kernel/2`)
 
-**Status:** draft for review, 26 November 2026. Corrected from the submitted draft CER-KERNEL-002 v1.0.0 (changes listed in [Appendix B](#appendix-b-changes-from-the-submitted-draft)). Built at roadmap milestone M9 ([roadmap](roadmap.md)); nothing here is implemented yet.
+**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Built at roadmap milestone M9 ([roadmap](roadmap.md)); nothing here is implemented yet. This repository is not affiliated with any agency, and this draft describes no agency's process.
 
-**Labels.** **[derived]** means mechanically checked by a test. **[declared]** means a design decision. **[open]** means a decision the owner still has to confirm. The ontology that motivated the design (the "native register") is in [Appendix A](#appendix-a-native-register-non-normative) and is not normative.
+**Labels.** **[derived]** means mechanically checked by a test. **[declared]** means a design decision. **[open]** means a decision still to be made.
 
 ## 1. Purpose and scope
 
 Kernel/2 gives every attribution facet of a regulated unit (for example a certificate's lifecycle: methodology, project, measurement, reporting, retirement) its own prime number, so that a set of facets can be summarised as one integer, the **coordinate**, and recovered from it exactly.
 
 - It is a **profile** of evidence/0, carried under `ext["kernel/2"]` ([spec](../spec/evidence-0.md#profiles)). The core verifier hashes it but does not interpret it.
-- Its first use is certificate lifecycles in the Clean Energy Regulator's schemes (for example ACCUs, LGCs and STCs). It complements CENTR, which concerns products, installers and installations: an STC arising from a small-scale installation can reference that installation's evidence.
+- It is designed with certificate lifecycles in mind (for example ACCUs, LGCs and STCs); no agency has adopted it. It complements CENTR, which concerns products, installers and installations: an STC arising from a small-scale installation can reference that installation's evidence.
 - **The evidence chain holds the path; the coordinate is an index.** Order, timing, who acted and why come from the chain of evidence objects (`prev` links, `at`, attestations). The coordinate summarises which facets hold, for fast filtering. It never replaces the chain and is never part of an object's id.
 
 ## 2. The dictionary
@@ -143,7 +143,7 @@ Five events for one unit, each pointing at the previous one with `prev`. The val
 
 - After E4, `S` no longer holds the measurement facets (the unit left that block), while `H` still records them, and the exit.
 - After E5, `S` holds the registry facets `entry`, `locked` and `executed` and the infrastructure facets; `H` is 100 bits, which is why coordinates are strings.
-- Retirement uses `registry.executed`, not a second `registry.entry`: the unit is still in the registry, now retired. Whether retirement should also add `universal.exit` is [open] (the submitted draft used a second universal entry here, which reads as re-entering the scheme).
+- Retirement uses `registry.executed`, not a second `registry.entry`: the unit is still in the registry, now retired. Whether retirement should also add `universal.exit` is [open]. An alternative considered, a second `universal.entry`, reads as re-entering the scheme.
 
 ## 6. Versioning
 
@@ -158,50 +158,24 @@ As for evidence/0 (decision D7), the vectors are the contract. At M9 this profil
 - event-chain vectors (valid and invalid) for REQ-KRN-009, 010, 013 and 020, including merges, exits and re-entries;
 - an independent JavaScript reference, alongside the Rust verifier, for coordinate derivation and the gates.
 
-## 8. Open questions for the owner
+## 8. Open questions
 
-1. Confirm the contradiction table in REQ-KRN-010, or supply the intended one.
+1. Confirm the contradiction table in REQ-KRN-010, or replace it.
 2. Allow a `remove` list in events, or require exit and re-entry to change a state?
 3. Should retirement add `universal.exit`?
-4. Confirm the tightening in REQ-KRN-009: an exit requires the block to have been entered (the submitted draft accepted either the entry or the exit facet as evidence of presence).
+4. Confirm the rule in REQ-KRN-009 that an exit requires the block to have been entered. An alternative considered accepts either the entry or the exit facet as evidence of presence.
 
 ---
 
-## Appendix A. Native register (non-normative)
+## Appendix. Design choices and why
 
-The submitted draft described the same arithmetic in a second vocabulary, drawn from a wave-domain reading of the design. It is kept here as the motivation for the structure, not as a derivation: physics can motivate a data rule, but the rules in section 4 are design decisions.
-
-| Normative identifier | Native name |
-|---|---|
-| `universal` | GEN (the unified field substrate) |
-| `measurement` | Visual |
-| `emissions` | Olfactory |
-| `reporting` | Auditory |
-| `inputs` | Gustatory |
-| `infrastructure` | Tactile |
-| `registry` | Symbolic |
-| `entry` / `exit` | Sink / Branch (imposing and releasing a boundary condition) |
-| `unclassified` | Null (radiative balance; the I = 0 condition) |
-| `quantified` | Electric (storage projection) |
-| `transfer` | Magnetic (transport projection) |
-| `locked` | Resonance (trapped mode) |
-| `committed` | Potential (energy held) |
-| `unit` | Unit (quanta) |
-| `linked` | Relation (binding, phase-locking) |
-| `executed` | Action (directed force) |
-
-In that reading, the `universal` block is the field and each other block a boundary-conditioned mode of it, so a universal state and a block state of the same kind may coexist (the same configuration read at two scales). The draft also proposed a geometric correspondence with a 27-node lattice (one mediator node for the universal block, six face centres for the blocks, eight vertices for the states, twelve edge midpoints for the entry and exit transitions); the edge assignment is a convention, not a theorem.
-
-## Appendix B. Changes from the submitted draft
-
-| Submitted draft v1.0.0 | This draft | Why |
+| Choice | Instead of | Why |
 |---|---|---|
-| Coordinates assumed to fit 64 bits (REQ-KRN-007) | Decimal strings (or exponent vectors); REQ-KRN-007 up to 1,024 bits; REQ-KRN-012 added | The draft's own ACCU example is 108 bits, and all 70 primes once is 467 bits. evidence/0 numbers stop at 2^53. |
-| "The final coordinate encodes the full provenance path" | The chain holds the path; the coordinate is an index | Multiplication ignores order: entering then leaving two blocks in either order gives the same number. |
-| Factors only accumulate, and REQ-KRN-010 rejects contradictory states | Two coordinates: history `H` (accumulates, never gated) and state `S` (can shrink, gated) | A unit whose state changes would otherwise fail the coexistence gate. |
-| One contradictory pair given (Electric × Magnetic) | A proposed table, marked [open] | The gate was untestable beyond one example; the draft's own §4.2 example (Null with Electric) was ambiguous. |
-| Retirement multiplied in a second GEN.Sink (entry) | `registry.executed`; `universal.exit` is an open question | Entry for retirement read as re-entering the scheme. |
-| GEN + domain coexistence and the gates labelled [derived] from physics | Gates are [declared]; [derived] only for mechanically checked arithmetic | A physical theory cannot derive a data-validity rule; it can motivate one. |
-| Native register normative alongside the CER register | CER register normative; native register in Appendix A | Reviewers can check the rules without adopting the ontology. |
-| Prime range 2 to 349 presented as a standalone namespace | Every coordinate tagged `kernel/2`; indexes key on (profile, coordinate) | The range overlaps other prime-based schemes, so separation must come from the tag. |
-| Coordinate stored as the certificate's fingerprint | Coordinates derived, never in an id (REQ-KRN-013) | Same rule as the prime-coordinate conditions in the [README](../README.md#proposed-prime-coordinates-for-faceted-queries). |
+| Coordinates as decimal strings (or exponent vectors); REQ-KRN-007 up to 1,024 bits; REQ-KRN-012 | Assuming a coordinate fits 64 bits | The example in section 5 reaches 100 bits, and all seventy primes once would be 467 bits. evidence/0 numbers stop at 2^53. |
+| The chain holds the path; the coordinate is an index | A coordinate that encodes the full path | Multiplication ignores order: entering then leaving two blocks in either order gives the same number. |
+| Two coordinates: history `H` (accumulates, never gated) and state `S` (can shrink, gated) | One coordinate whose factors only accumulate, with REQ-KRN-010 rejecting contradictory states | A unit whose state changes would otherwise fail the coexistence gate. |
+| A proposed contradiction table, marked [open] | A single contradictory pair (`quantified` × `transfer`) | One pair leaves the gate untestable beyond that pair, and leaves cases such as `unclassified` with `quantified` unclear. |
+| Retirement adds `registry.executed`; `universal.exit` is an open question | Retirement adding a second `universal.entry` | An entry at retirement reads as re-entering the scheme. |
+| Gates are [declared]; [derived] only for mechanically checked arithmetic | Labelling the gates [derived], including the coexistence of `universal` and block states | A data-validity rule is a design decision; only arithmetic can be checked mechanically. |
+| Every coordinate tagged `kernel/2`; indexes key on (profile, coordinate) | Treating primes 2 to 349 as a namespace of their own | The range overlaps other prime-based schemes, so separation must come from the tag. |
+| Coordinates derived, never in an id (REQ-KRN-013) | Storing the coordinate as the certificate's fingerprint | Same rule as the prime-coordinate conditions in the [README](../README.md#proposed-prime-coordinates-for-faceted-queries). |
