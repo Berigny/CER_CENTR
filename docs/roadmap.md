@@ -1,13 +1,13 @@
 # Roadmap: from evidence layer to memory
 
-Status: decisions confirmed by the owner on 26 November 2026 (recorded as D11-D13 in [decisions.md](decisions.md); the rest apply as written below). The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md).
+Status: decisions confirmed by the owner on 26 November 2026 (recorded as D11-D13 in [decisions.md](decisions.md); the rest apply as written [below](#decisions-confirmed-26-november-2026)) and on 27 November 2026 ([the edge track and approvals](#decisions-confirmed-27-november-2026)). The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md). This stays the only roadmap. Nothing here describes any agency's process, and the project is not affiliated with any agency.
 
 ## What's next, in short
 
 Today the layer can create, sign and verify single evidence objects. To become an organisation's memory it needs four more things, in this order:
 
 1. **A safe place to keep what it records.** A store that can only be added to, where anyone can check, offline or in a browser, that nothing was changed or removed since a signed fingerprint of its history was taken.
-2. **Eyes on an existing database, without touching it.** Read-only capture turns each change in a register into evidence, with no schema change in the register.
+2. **Capture from an existing database, without changing it.** Read-only capture turns each change in a register into evidence, with no schema change in the register.
 3. **Continuous comparison in both directions.** On a schedule, the store and the database are compared, and every difference (including edits made outside the normal process) is recorded as evidence. Nothing is repaired automatically.
 4. **Memory reads.** Staff and applications can ask what a record said on any date, under which schema, who changed it and why, and get an answer they can verify.
 
@@ -18,10 +18,11 @@ Only after that does the layer accept requests to change records: first in shado
 - **Observe before writing.** The layer starts read-only and stays "beside, never instead" ([D3](decisions.md)) until a write path is separately approved.
 - **The log is authoritative and lossless.** Every observation, request, state change and reconciliation result is itself an evidence object in the store. There is no best-effort mirror that can silently drop events.
 - **Record changes are observations.** `create`, `update` and `delete` in the log only ever describe changes seen in a system of record. Anything the layer or an application states itself (a request, a decision, a check) is an `assert`, so the log never claims a change it did not see.
+- **Approvals count only under published rules.** Who may approve, and which approvals each kind of record needs, is published data: approver lists and approval rules, versioned and approved before use; how a list or rule set is changed, and by whom, is proposed in [approvals.md](approvals.md#53-changing-a-list-or-a-rule-set) and stays open until keys are bound at M5. Whether an object is approved is a view computed from the log at a stated position, never a stored field, and it has no effect outside this layer ([approvals.md](approvals.md)).
 - **One comparator.** The same comparison decides whether a write landed and whether the store and the database still agree.
 - **Two clocks.** An object's `at` is its writer's claim. The store adds its own position and received time outside the object, and every query says which clock it uses.
 - **Privacy fails closed.** Every captured column must be classified before capture starts. Values that are not classified as non-personal are kept by reference, outside the log, with keyed hashes, because an append-only log cannot forget.
-- **evidence/0 does not change.** Store facts go in a companion `store/0` spec; domain and connector rules go in profiles under `ext`.
+- **evidence/0 does not change.** Store facts go in a separate `store/0` spec; domain and connector rules go in profiles under `ext`.
 - **Every format has vectors.** Formats that others must reproduce get an independent JavaScript reference, as the object format does today ([D7](decisions.md)).
 
 ## Milestones
@@ -31,14 +32,14 @@ Only after that does the layer accept requests to change records: first in shado
 | M1 | Verifiable store: append-only log, checkpoints, offline verification | M-L: about 5 engineer-weeks (about a quarter of it the JS reference) |
 | M2 | Read-only capture from a synthetic register | L: about 5 engineer-weeks |
 | M3 | Two-way reconciliation, report-only, recorded as evidence | M: about 3 engineer-weeks |
-| M4 | Memory reads: index, query API, bundles, read-only service | L: about 4-5 engineer-weeks (M4b: 1-2 weeks, optional) |
+| M4 | Memory reads: index, query API, bundles, read-only service | L: about 4-5 engineer-weeks for the index, queries, bundles and service; the additions of 27 November 2026 are not yet sized (M4b prime-coordinate column: 1-2 weeks, optional) |
 | M5 | Pilot gate: trust, time, replication, privacy operations | M-L: about 4-5 engineer-weeks, plus external legal and security review time |
 | M6 | Requests and the outbox as evidence, in shadow mode (no write code) | L: about 4 engineer-weeks |
 | M7 | Write-through to the synthetic database only (writes opt-in) | L: about 5-6 engineer-weeks |
 | M8 | (optional) Postgres and vendor-platform sources | M-L: about 3-4 engineer-weeks |
 | M9 | (optional) centr/0 profile, register views and prime coordinates | M: about 2-3 engineer-weeks, only once a dictionary and a consumer exist |
 
-\*Sizes are estimates for one engineer. The pilot gate (M5) also depends on legal and security review, and on agreeing data access with the system's owner, which run on their own timelines.
+\*Sizes are estimates for one engineer. The pilot gate (M5) also depends on legal and security review, and on agreeing data access with the system's owner, which run on their own timelines. These sizes predate the additions of 27 November 2026, which are not yet sized: the approval-status and disagreement views, read labels and grant-scoped tokens (M4); the assert intake (late M4 or early M6); wider key binding, key-bound approver lists and the id directory (M5); approval rules as data and continuity notes (M6); and the edge track.
 
 ### M1 Verifiable store: append-only log, checkpoints, offline verification
 
@@ -66,7 +67,7 @@ Give evidence objects and attestations a durable, single-writer home. Each entry
 
 ### M2 Read-only capture from a synthetic register
 
-Turn every change in an existing database into evidence using only read access and no schema change. Capture is idempotent, survives crashes and refuses to run on unclassified data. This is the first demo that is directly relevant to CER.
+Turn every change in an existing database into evidence using only read access and no schema change. Capture is idempotent, survives crashes and refuses to run on unclassified data. This is the first demo that is directly relevant to consumer energy resources (CER) records.
 
 **Deliverables**
 
@@ -135,9 +136,9 @@ Prove continuously and verifiably that the store and the database agree. Where t
 
 ### M4 Memory reads: index, query API, bundles, read-only service
 
-Make the store the place where staff and applications ask what a record said, under which schema, who changed it, as of when, and why. These are the first memory-alternative reads.
+Make the store the place where staff and applications ask what a record said, under which schema, who changed it, as of when, and why. These are the first memory reads.
 
-Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents call before they rely on evidence: what it verifies, its read receipt, and when a read that informs an action is recorded as an `assert`. Its open decisions (where a decision's basis goes, completeness at a checkpoint, an intake for asserts) bear on the index and bundles below.
+Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents call before they rely on evidence: what it verifies, its read receipt, and when a read that informs an action is recorded as an `assert`. Its open decisions (where a decision's basis goes, completeness at a checkpoint, an intake for asserts) bear on the index and bundles below. Also [approvals.md](approvals.md), which proposes approver lists and approval rules as published data, an approval-status view, and hooks for tools; its views and labels are M4 deliverables below.
 
 **Deliverables**
 
@@ -152,8 +153,13 @@ Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents c
   - Reverse lookups by content hash, schema hash and signer.
   Every answer carries the watermark, the clock used, the echoed limits, and a truncated flag computed by fetching limit+1.
 - Bundles: objects, attestations, entries, a covering checkpoint and inclusion proofs. `evidence bundle verify` works in the CLI, WASM and Python. A bundle can be sealed as an assert, which answers 'what the register showed on date X'.
-- crates/evidenced (axum and tokio): one process per store, holding the lease. Its read-only HTTP API mirrors the CLI. Bearer tokens map to actors, with read scopes per subject.system that are closed by default.
+- crates/evidenced (axum and tokio): one process per store, holding the lease. Its read-only HTTP API mirrors the CLI. Bearer tokens map to actors and carry the actor's kind (`human`, `service` or `agent`), with read scopes per subject.system that are closed by default. A token issued to a tool acting for someone takes its read scopes from that person's grant (`approval/grant@0`), never wider.
+- The approval-status view ([approvals.md](approvals.md)): for one object at a watermark, one of a fixed list of statuses (approved, awaiting approval, contested, superseded, unknown), with the rule set used, each step and who filled it, the escalations, the positions recorded, the lines that did not count and why, what would move the status on (`next`), and the label `not-established-before-key-binding` until M5. It is computed from the log and writes nothing. Lineage-style vectors and an independent JavaScript reference ([D7](decisions.md#d7-the-vectors-are-the-contract)).
+- A disagreement view per subject, for the edge profile ([cer-edge.md](cer-edge.md)): more than one head in a lane, a parent with children in more than one lane, and the differences that the approval rules' comparisons find between a record and a linked statement. It is computed from `prev` links over the whole history and writes nothing, with vectors for cases that must be flagged and cases that must not.
+- Read labels: every item a read returns gets the first label that fits: `observed` (a record lane written by capture), `note` (a continuity note), `tool-stated` (any other assert made for someone else, with `on_behalf_of`, whatever the actor's kind; every agent's assert has one) or `stated` (anything else, including a record-lane object not written by capture). Nothing is returned as observed unless capture wrote it.
+- The read-basis profile ([turn-reader open decision 2](turn-reader.md#2-the-basis-profile), working name `read-basis/0`): its shape and the `P_BASIS_*` checks, including `P_BASIS_STALE`, which the `basis-stale` condition in [approvals.md](approvals.md) uses. Vectors and an independent JavaScript reference.
 - test-vectors/lineage: forks, merges, deletes, baselines, late arrivals, and as_of on both clocks. Optional M4b adds a prime-coordinate column, only once a published dictionary exists.
+- Late M4, or early M6 at the latest: an intake for asserts ([turn-reader open decision 7](turn-reader.md#7-an-intake-for-asserts)). One request is one batch: the object and its attestation lines, with optional if_heads and write scopes per lane. Before appending, it runs the pure checks: actor id form, an author line signed as actor.id, the kind of on_behalf_of, the record-lane writer, and grants. It refuses with every failed code, and verification repeats the same checks.
 
 **Acceptance**
 
@@ -162,23 +168,26 @@ Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents c
 - Dropping and rebuilding index.db gives an identical index digest, and a rebuild-equivalence proptest holds. Tampered index rows are classified as missing, extra or stale.
 - An object byte changed behind the triggers is excluded from answers, listed in rejected[] and reported by `store verify`.
 - A bundle verifies offline in the CLI, WASM and Python, and changing one byte makes it fail with a code.
-- HTTP answers are byte-identical to CLI answers. A token scoped to one system gets 403 for the others. Without the HMAC key, index.db holds no plaintext sentinel values.
+- HTTP answers are byte-identical to CLI answers. A token scoped to one system gets 403 for the others, and a delegated token gets 403 outside its grant. Without the HMAC key, index.db holds no plaintext sentinel values.
+- The approval-status vectors give the same status, steps and codes in Rust and the JavaScript reference at every log position they name.
 
 ### M5 Pilot gate: trust, time, replication, privacy operations
 
-Make M1-M4 safe to run beside a real CER database on real data. That needs keys bound to people, independent time, copies off the machine, erasure, access control, and legal sign-off.
+Make M1-M4 safe to run beside a real system of record on real data. That needs keys bound to people, independent time, copies off the machine, erasure, access control, and legal sign-off.
 
 **Deliverables**
 
-- Key-binding objects: an administrator's approve binds a key to a person or service, with a validity period and revocation. Verification gains S_KEY_UNBOUND and S_KEY_REVOKED, and M3 resolutions are re-checked against the bindings.
+- Key-binding objects: an administrator's approve binds a key to an actor id, with a validity period and revocation. They cover persons, services, organisations, gateways and agents; an agent's binding names its sponsor, the person or organisation accountable for it, and a gateway's binding also names its log id and store key. The id is not the key, so a key can be rotated or revoked without the id changing. Verification gains S_KEY_UNBOUND and S_KEY_REVOKED, and M3 resolutions are re-checked against the bindings.
+- Approver lists ([approvals.md](approvals.md)) become key-bound: an approval counts only when its key is bound to the listed id at the line's log position.
+- The id directory, which maps pseudonymous actor ids to people, is held off the log and access-controlled, with its own access log. It is never appended to the store.
 - Signer backends for PKCS#11 (tested against SoftHSM in CI) and a cloud KMS. RFC 3161 timestamp tokens are recorded on checkpoints as witness attestations.
 - Sealed exports are replicated to an object-lock bucket and/or a git remote held by another party. A pull either completes or changes nothing. Consistency proofs run between published checkpoints, with codes S_REPLICA_TRUNCATED and S_REPLICA_FORK.
-- Erasure deletes a blob and appends a redaction assert approved by a bound key, and verify then reports the blob as erased, not missing. A leak scanner covers the log, exports, blobs, the index, logs and HTTP responses.
+- Erasure deletes a blob and appends a redaction assert approved by a bound key, and verify then reports the blob as erased, not missing. A leak scanner covers the log, exports, blobs, the index, logs and HTTP responses, and its seeded sentinels include directory entries (synthetic ids and the personal details they map to) that exist only in the directory, so finding one anywhere else shows that the directory leaked.
 - A container image, a runbook, health and metrics (capture lag, last reconcile, open findings, watermark) and an ISM-style security description. A legal review covers the store's status under the Privacy Act (APP 11), the Archives Act 1983 and FOI.
 
 **Acceptance**
 
-- Key-binding vectors: a signature by a revoked key dated after revocation fails, one dated before revocation passes, and an unbound key gives S_KEY_UNBOUND.
+- Key-binding vectors: an unbound key gives S_KEY_UNBOUND. For a line held in a store, revocation is judged by the entry's received_at, because an attestation's `at` is chosen by its signer: a line received after revocation fails, and one received before it passes. For a line outside a store, the result is unknown unless a witness line or a timestamp token shows when it existed.
 - A recorded TSA token fixture verifies offline in Rust, WASM and Python.
 - A truncated replica gives S_REPLICA_TRUNCATED and a rewritten one gives S_REPLICA_FORK. A clean replica verifies with no access to the primary, and a store restored from it has the same head.
 - After an erasure, `store verify` reports the blob as erased, and every id and the chain still verify. The leak scanner finds no seeded sentinel value for an unprivileged role.
@@ -191,7 +200,8 @@ Let applications hand over a request to change a record instead of acting on the
 **Deliverables**
 
 - register/0: the write allow-list held as data (kinds, operations, fields, types, limits; deletes forbidden by default). It is published as an assert, and every request carries its {ref, hash}.
-- sync/0 profile. The request (intent) is an assert on the SoR subject. Its content is the full proposed comparable projection, built at intake from the base head plus the requested field changes. The actor is a person, or a service with on_behalf_of, which is required. ext carries op, base, base_sor_version, change_key, app, and the register and mapping refs.
+- The approval rules for requests are data too: P_APPROVAL_REQUIRED and the two-person rule for an overwrite on a stale base are written as `approval/rules@0` rules ([approvals.md](approvals.md)), not as code.
+- sync/0 profile. The request (intent) is an assert on the SoR subject. Its content is the full proposed comparable projection, built at intake from the base head plus the requested field changes. The actor is a person, or a service with on_behalf_of, which is required. Whether an agent may file a request under a grant is open. ext carries op, base, base_sor_version, change_key, app, and the register and mapping refs.
 - Intake checks the person's identity. A register violation is refused with field:code and nothing is stored. Dedupe on the change key returns the existing request. The request object is itself the queued state, so intake is one atomic append.
 - Transitions are value-free asserts on subject evidence-sync/intent/<id>, appended with append_if_heads.
   - Members are a closed list: intent, from, to, reason code, attempt, epoch, receipt, sor_version, observed_hash.
@@ -200,6 +210,7 @@ Let applications hand over a request to change a record instead of acting on the
   - Every chained append uses the service-time rule.
 - The working outbox view in index.db is rebuilt from the transitions. The state() view overlays a caller's pending requests. Reconciliation compares requests with observations (shadow_match, shadow_differs, superseded) and the outbox view with the transitions. HTTP: POST /intents, GET /intents/{id}, and a held list.
 - Proof that the default build has no delivery path: a compile_fail doctest, plus a cargo feature-graph check that no pilot build enables the `writes` feature.
+- Continuity notes for tools ([turn-reader open decision 13](turn-reader.md#13-continuity-for-tools)), built on the assert intake once M5's erasure exists: by-reference asserts under a grant, in a dedicated notes system, labelled `note` and recalled only within the grant's window. No recall endpoint, ranking or similarity search.
 
 **Acceptance**
 
@@ -211,7 +222,7 @@ Let applications hand over a request to change a record instead of acting on the
 
 ### M7 Write-through to the synthetic database only (writes opt-in)
 
-Close the loop on the demo database. Changes are delivered through its own write interface, and a change counts as done only when a read-back with the same comparator proves it and capture later sees it. Writing to any CER system stays a separate decision for the owner and CER.
+Close the loop on the demo database. Changes are delivered through its own write interface, and a change counts as done only when a read-back with the same comparator proves it and capture later sees it. Writing to any real system stays a separate decision for that system's owner.
 
 **Deliverables**
 
@@ -249,14 +260,14 @@ Close the loop on the demo database. Changes are delivered through its own write
 
 ### M8 (optional) Postgres and vendor-platform sources
 
-Capture from realistic infrastructure once CER's technology is known, without losing changes on a crash.
+Capture from realistic infrastructure once a real system's technology is known, without losing changes on a crash.
 
 **Deliverables**
 
 - A Postgres polling source.
 - Logical decoding using pg_logical_slot_peek_changes, then pg_replication_slot_advance only after a durable commit (or streaming replication with feedback after commit). The consuming get_changes is never used.
 - A CI service image that includes wal2json. An HTTP API adapter for vendor platforms.
-- PgLog behind the same traits, only if CER operations require their own database estate.
+- PgLog behind the same traits, only if a system owner's operations require their own database estate.
 
 **Acceptance**
 
@@ -280,22 +291,41 @@ Answer domain queries and publish registers as views over the store. Prime coord
 - A register snapshot recomputed at its recorded watermark is byte-identical.
 - On 100k objects, divisibility queries return exactly the same rows as facet queries, every coordinate is carried as a decimal string and decodes to exactly its facets, and an unknown facet gives a finding.
 
+## Edge track
+
+The edge track adds records about consumer energy resources devices: an installer's commissioning record, a network connection record, and a gateway's own settings or measurement summary. The profile is a draft in [cer-edge.md](cer-edge.md); the approvals it relies on are in [approvals.md](approvals.md). The track sits under the milestones above, so this stays the only roadmap. Nothing in it is built.
+
+- **Two kinds of edge object, chosen by record type.** A record held in another system enters as a record change observed by a capture service, in the record lane. A gateway's own settings or measurement summary is an `assert` by the gateway, with an opaque service id.
+- **The installer approves the captured record** with an `approve` attestation. A published approver list says whose approvals count, and approval rules say when a listed reviewer is also needed.
+- **No writes and no automated decisions.** The edge track adds no write path to another system, and only synthetic data is used until M5. A difference between two records is a prompt for review, not a finding, and a person resolves it. Each status says what is still needed and who can still supply it, so uncertainty is shared and a person can decide.
+
+| Step | Content | When |
+|---|---|---|
+| EG1 | The edge profile and the `approval/0` shapes (approver list, rules, position, resolution, grant), with vectors built from the profile's examples; a synthetic edge workload for the M2 simulator; a gateway deployment profile ([cer-edge.md section 6](cer-edge.md#6-moving-records-between-sites-proposed)) | Alongside M2 |
+| EG2 | Sync between sites (ingest, or one replica per gateway), the receipt profile, exports that end at a checkpoint, and a check for two histories signed by one key, with vectors | With M4 |
+| EG3 | Gateway key binding (signing key, log id and store key), how gateways get their devices' keyed digests, the transport decision and an ARM build. A trial with real devices only after M5, with legal review and the agreement of the device owners and of the systems' owners | After M5 |
+| EG4 | Edge rules that need more than one listed person in the same role (`count` above 1), only if a use needs them. Before keys are bound, two names need not be two people | After M5 |
+
+The edge track is not yet sized; each step adds to the milestone it sits under.
+
 ## Decisions (confirmed 26 November 2026)
+
+Edited on 27 November 2026 for party-neutral wording; no decision changed.
 
 1. **Record D11 now: observe first, writes later only through explicit requests**
    - Options: (a) Record D11 now and keep D3 as written until a write path is separately approved. (b) Amend D3 now to describe the end state. (c) Say nothing until M6.
    - Recommended: (a), using the wording in the M1 spec. Record ops in the log are only observations of the system of record. Requests come later, checked against an allow-list the SoR owner publishes and delivered through the SoR's own interface. They are off by default and enabled per record type. Turning the layer off never loses a confirmed change, but once writes are on, pending requests depend on the layer being available.
-   - Why: It tells CER exactly what the pilot will and will not do. It also fixes the rule that shapes M2's objects. And it is honest about the one way a write path weakens D3's 'turning it off loses nothing'.
+   - Why: It says exactly what a pilot would and would not do. It also fixes the rule that shapes M2's objects. And it is honest about the one way a write path weakens D3's 'turning it off loses nothing'.
 2. **Spec impact: freeze evidence/0 or bump it**
-   - Options: (a) Freeze evidence/0. Add a store/0 companion spec (log-entry/0, checkpoint/0, segments/0, store-report/0) now, and later profiles under ext (capture/0, mapping/0, reconcile/0, sync/0). (b) evidence/0.1 with received time or an intent key inside the object. (c) evidence/1.
+   - Options: (a) Freeze evidence/0. Add a separate store/0 spec (log-entry/0, checkpoint/0, segments/0, store-report/0) now, and later profiles under ext (capture/0, mapping/0, reconcile/0, sync/0). (b) evidence/0.1 with received time or an intent key inside the object. (c) evidence/1.
    - Recommended: (a)
    - Why: Received time and position are facts about one particular store. Inside the object they would give the same object a different id in each store. Status is already defined as a view, and the change key is derived from the object, so nothing found so far needs a bump. A bump would invalidate every binding and vector.
 3. **Authoritative storage engine**
    - Options: SQLite log.db as the authority, plus exported JSON Lines segments, plus a derived index.db from M4 / JSONL segments as the authority with a SQLite index / git as primary / Postgres / a pure-Rust KV store (redb, fjall)
-   - Recommended: SQLite, through rusqlite with the bundled build, as the authority. Segments are the portable and conformance form. Git or object storage hold replicas only. Postgres goes behind the same traits only if CER operations insist on their own database estate.
+   - Recommended: SQLite, through rusqlite with the bundled build, as the authority. Segments are the portable and conformance form. Git or object storage hold replicas only. Postgres goes behind the same traits only if a system owner's operations require their own database estate.
    - Why: One transaction covers the append, the heads, and (from M2) the capture cursor and the change-key uniqueness constraint. Triggers make the tables append-only inside storage itself. It needs no server, and auditors can open the file. Because the export defines conformance, a later backend can be proven equivalent. Making JSONL the authority means hand-written crash recovery and pushes uniqueness into a derived index. Git has no compare-and-set or transactions.
 4. **What data and keys are allowed before the pilot gate (M5)**
-   - Options: (a) Synthetic or already-public data only, with a development seed file for the store key, until M5 delivers KMS/HSM, key binding and legal review. (b) Real CER data from M2 with development keys. (c) KMS from M1.
+   - Options: (a) Synthetic or already-public data only, with a development seed file for the store key, until M5 delivers KMS/HSM, key binding and legal review. (b) Real data from M2 with development keys. (c) KMS from M1.
    - Recommended: (a)
    - Why: An attestation proves only that the holder of a key signed (spec 'Not in v0'). Signatures and approvals made with development seeds must not be presented as accountability evidence. Anything wrongly put into an append-only log cannot be taken out.
 5. **Scope of the two-implementation rule (D7) for new formats**
@@ -306,13 +336,13 @@ Answer domain queries and publish registers as views over the store. Prime coord
    - Options: Reserve them, so that requests, outcomes, decisions and checks are all asserts / let requests use op=update with a role marker
    - Recommended: Reserve them. A first sighting of an existing row is an assert (a baseline) in the record lane, never a fabricated create.
    - Why: The log then never claims an SoR change it did not see. A request can also be matched to the change it caused by an equal change key, with no change to the SoR schema.
-7. **Capture route for the CER pilot (needed before M2 ends)**
-   - Options: (a) Periodic snapshot comparison over a read-only connection to a replica or extract. (b) Change files from CER's own change-data-capture tooling, handed over as files. (c) Database log-based CDC granted to the layer. (d) The SoR vendor's API. (e) Triggers in the SoR.
+7. **Capture route for a pilot (needed before M2 ends)**
+   - Options: (a) Periodic snapshot comparison over a read-only connection to a replica or extract. (b) Change files from the system owner's own change-data-capture tooling, handed over as files. (c) Database log-based CDC granted to the layer. (d) The SoR vendor's API. (e) Triggers in the SoR.
    - Recommended: Start with (a) or (b), neither of which changes the SoR. Move to (c) for record types where full history matters. Never use (e) outside the demo.
    - Why: These have the smallest security footprint and are the fastest to agree. Snapshots miss intermediate versions, so every observation records how it was seen. If access is not agreed early, M2's adapter targets the wrong thing.
 8. **Privacy defaults for captured records**
    - Options: Inline whole rows / inline only columns classified as non-personal, everything else by reference with a keyed salt / never inline
-   - Recommended: Every column must be classified, or capture refuses to start. The default is by reference: bytes go in an erasable blob store outside the log, with a keyed salt so hashes cannot be guessed. Only columns classified as non-personal are inline. Personal values that must be linked become keyed digests. CER holds the keys, one per link domain, in its key service.
+   - Recommended: Every column must be classified, or capture refuses to start. The default is by reference: bytes go in an erasable blob store outside the log, with a keyed salt so hashes cannot be guessed. Only columns classified as non-personal are inline. Personal values that must be linked become keyed digests. The data owner holds the keys, one per link domain, in its key service.
    - Why: The log cannot forget. A bare hash of a low-entropy value can be reversed by guessing. And a CI leak test only means something if classification fails closed.
 9. **Policy on claimed times**
    - Options: Reject objects whose `at` is well after the store's received time / accept and count them / rewrite them
@@ -321,20 +351,29 @@ Answer domain queries and publish registers as views over the store. Prime coord
 10. **Unknown profile keys under ext at intake**
    - Options: Reject / store them and report them as unchecked
    - Recommended: Store them. Only the store's own subjects are reserved. From M2, the profiles the store knows (capture/0 and later ones) are always checked, and any others are listed as unchecked.
-   - Why: Objects carrying other agencies' profiles can then be kept and verified at the core level, even though the store does not understand those profiles.
+   - Why: Objects carrying other bodies' profiles can then be kept and verified at the core level, even though the store does not understand those profiles.
+
+## Decisions (confirmed 27 November 2026)
+
+1. **The edge work is a profile and an edge track under this roadmap.** The profile is [cer-edge.md](cer-edge.md), the steps are EG1-EG4 in the [edge track](#edge-track), and this stays the only roadmap.
+2. **Edge objects follow the record type.** A record held in another system enters as a record change observed by a capture service, in the record lane. A gateway's own settings or measurement summary is an `assert` by the gateway.
+3. **The installer approves; a published approver list says whose approvals count.** The installer signs `approve` on the captured record. Approver lists and approval rules are published data ([approvals.md](approvals.md)).
+4. **What matters is how uncertainty is shared and how decisions are enabled, not who runs which system.** The layer records where there is doubt and where a person's decision is still needed, and makes no decision itself.
+5. **Approval is spread in that spirit; ids are pseudonyms; tools are actors.** Approval rests with the parties on published approver lists, and actor ids are pseudonymous. An AI agent is one kind of actor, not only a reader or contributor. The core and the hooks are the same for every tool: grants, verified reads, recorded checks and doubt, witnessing, and continuity notes kept between sessions. Whether a tool may ever fill an approval step is still open; the proposal is that it never does ([approvals.md open question 4](approvals.md#15-open-questions)).
 
 ## Risks
 
-- Access to CER's real system of record is unknown: its technology, whether a replica or extract is available, whether CDC is permitted, whether it is a vendor platform with only an API, and whether it has version columns. This shapes M2 and M3. Mitigation: SorReader and ChangeSource traits with snapshot, change-file, CDC and HTTP adapters, plus agreeing access before M2 ends.
+- Access to a real system of record is unknown: its technology, whether a replica or extract is available, whether CDC is permitted, whether it is a vendor platform with only an API, and whether it has version columns. This shapes M2 and M3. Mitigation: SorReader and ChangeSource traits with snapshot, change-file, CDC and HTTP adapters, plus agreeing access before M2 ends.
 - Privacy and records law. An append-only log cannot forget, so a field classified wrongly is permanent. Mitigation: fail-closed mapping, CI sentinel leak tests, an erasable blob store outside the log, synthetic data only until M5, and legal advice before any real data on the Privacy Act (APP 11), the Archives Act 1983 and FOI.
 - False drift from normalisation (NUMERIC 6.6 vs 6.600, DATE vs TIMESTAMP, time zones, NULL, trailing spaces) will quickly erode trust in reconciliation. Mitigation: one versioned normalisation shared by projection and the comparator, covered by vectors, plus a CI clean run that must report zero findings.
 - Until M5, signatures prove only that a key holder signed. Approvals and resolutions are not accountability evidence before key binding. Before KMS and independent time are in place, a stolen store key could forge history after the last externally witnessed checkpoint.
 - Polling loses history. Snapshot capture sees only the state at each poll, so intermediate versions are never evidenced. Objects and the UI must say 'as observed', and CDC should be used where completeness matters.
 - The change key has subtleties. SoR-computed columns (updated_at, row versions, trigger output) must be left out of the comparable projection, or confirmations never match. An identical manual change looks like a confirmation: that is deliberate in shadow mode, but once writes are on, telling them apart needs the provenance side table, which the SoR owner must approve.
-- Single node, single writer, so no high availability until replication and a warm standby (M5). The flock lease needs a local disk, not NFS. An fsync on every commit limits the append rate, which is fine at CER volumes; capture batches its commits.
-- Timeline: about 31 engineer-weeks for one engineer to reach writes to the synthetic database (8-9 months with contingency), with memory reads at about week 18 and the write half last. Mitigation: each milestone ships on its own, and a second engineer can build M4 alongside M3.
-- Perception: CER may read any write path as drift toward 'instead'. Mitigation: record D11 now, ship pilot builds that provably contain no delivery code, enable writes per record type under the owner's published allow-list, always deliver through the SoR's own interface, and treat writes to CER as a separate decision.
+- Single node, single writer, so no high availability until replication and a warm standby (M5). The flock lease needs a local disk, not NFS. An fsync on every commit limits the append rate, which is fine at register volumes; capture batches its commits.
+- Timeline: about 31 engineer-weeks for one engineer to reach writes to the synthetic database (8-9 months with contingency), with memory reads at about week 18 and the write half last. These figures predate the additions of 27 November 2026 and the edge track, which will lengthen them once sized. Mitigation: each milestone ships on its own, and a second engineer can build M4 alongside M3.
+- Perception: a system's owner may read any write path as drift toward 'instead'. Mitigation: record D11 now, ship pilot builds that provably contain no delivery code, enable writes per record type under the system owner's published allow-list, always deliver through the SoR's own interface, and treat writes to any real system as a separate decision.
 - Dependency weight goes against the project's minimal-dependency stance (D8, D9): rusqlite bundles C SQLite, and axum and tokio arrive in M4. Mitigation: keep them out of evidence-core, evidence-log, the WASM build and the Python build, enforced by a CI guard.
-- Postgres logical decoding tooling in Rust is thin, and the consuming slot function loses changes on a crash. Use peek followed by advance after a durable commit, and a custom CI image with wal2json. Keep it optional until CER's stack is known.
-- Scope creep toward fuzzy recall (embeddings, ranking, token or prime indexes). Earlier designs produced results that could not be reproduced and indexes that drifted. Retrieval stays exact, bounded and verifiable, and prime coordinates appear only as a derived export field.
-- Public-repo hygiene: no prior-system names and synthetic data only. Small inconsistencies slip in easily (an early vector's subject key disagreed with its content, since fixed); M2's subject-key check rejects such a mismatch in captured records.
+- Postgres logical decoding tooling in Rust is thin, and the consuming slot function loses changes on a crash. Use peek followed by advance after a durable commit, and a custom CI image with wal2json. Keep it optional until a real system's stack is known.
+- Scope creep toward fuzzy recall (embeddings, ranking, token or prime indexes). Retrieval stays exact, bounded and verifiable, and prime coordinates appear only as a derived export field. Continuity notes for tools are governed asserts under a grant, not a recall service.
+- A review status can be misread as a finding. Statuses are review statuses with no effect outside this layer, and a difference between records is a prompt for review, not a finding. Before M5 no approval is accountability evidence, and every status output says so.
+- Public-repo hygiene: synthetic data and pseudonymous actor ids only; new profile vectors use the opaque id form of [approvals.md](approvals.md#3-parties-and-ids-proposed). Small inconsistencies slip in easily (an early vector's subject key disagreed with its content, since fixed); M2's subject-key check rejects such a mismatch in captured records.

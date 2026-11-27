@@ -8,9 +8,9 @@ It does not replace any database, schema or register. It reads from them and nev
 
 ## What it is for
 
-- **Audit trails** for decisions, whether made by people, services or AI agents.
+- **Audit trails** for decisions and for the service and AI outputs they rely on, with who approved each.
 - **Data shared with other bodies** that the receiver can verify without access to the source system.
-- **Chain of custody** for evidence in compliance and enforcement matters.
+- **Chain of custody** for records that may later be relied on, showing each version in order and who signed it.
 - **Records of AI-assisted checks:** what the model was given, what it returned, and who approved or overrode it.
 - **Public registers as views:** a published list is an evidence object recording a query result, so "what did the list show on date X?" has a provable answer.
 
@@ -34,6 +34,8 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`tools/verify-page/`](tools/verify-page/) | A static page that verifies a store export in the browser, offline (M1) |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 | [`docs/turn-reader.md`](docs/turn-reader.md) | Design note: a reader that tools and AI agents call before they rely on evidence, and when a read must be recorded (input to M4, M6 and M9; not built) |
+| [`docs/approvals.md`](docs/approvals.md) | Design note: approver lists and approval rules as published data, an approval-status view, disagreement resolved by a person, pseudonymous actor ids, and hooks that let any tool, AI agents included, act under a grant and keep continuity notes (input to M4, M5 and M6; not built) |
+| [`docs/cer-edge.md`](docs/cer-edge.md) | Draft profile for edge-device records in consumer energy resources, for the roadmap's edge track EG1-EG4 (synthetic data only; not built) |
 
 ## Quick start
 
@@ -180,7 +182,7 @@ A draft profile that applies this to certificate lifecycles is in [`docs/kernel-
 
 **Proposed use** (roadmap M9). Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
 
-**Conditions**, learned from an earlier draft where they were missing:
+**Conditions:**
 - **Derived, never authoritative.** The verifier computes the coordinate from the object and the profile's dictionary. It is never part of the id, and readers recompute it rather than trust a stored value.
 - **One dictionary per namespace.** Published, versioned, and the only source; schemas and code are generated from it, not hand-copied.
 - **Unknown facets are errors,** never silently skipped.
