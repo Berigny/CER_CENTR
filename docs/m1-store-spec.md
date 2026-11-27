@@ -1,6 +1,6 @@
 # M1 build specification: a verifiable append-only evidence store
 
-**Status:** built; complete once CI passes. Decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors), B (export verifier and bindings), C and D (the store library: in-memory and SQLite logs, export, import, verification, proofs) and E (the command-line store commands, crash test, browser page, CI, nightly runs and docs) are done, and every acceptance test of section 11 passes locally. M1 is done, by section 1, when they pass in CI.
+**Status:** complete; the acceptance tests pass in CI (27 November 2026). Decisions confirmed 26 November 2026 (D11-D13 in [decisions.md](decisions.md)). Phases A (formats, reference, vectors), B (export verifier and bindings), C and D (the store library: in-memory and SQLite logs, export, import, verification, proofs) and E (the command-line store commands, crash test, browser page, CI, nightly runs and docs) are done, and every acceptance test of section 11 passes locally and in CI, so M1 is done by section 1.
 **Size:** about 5 engineer-weeks for one experienced Rust engineer. That includes the JavaScript reference work D7 requires, roughly a quarter of the effort.
 **Dependencies:** nothing outside this repository.
 **System of record:** not touched; no SoR is read or written.

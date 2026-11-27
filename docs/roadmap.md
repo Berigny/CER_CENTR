@@ -137,6 +137,8 @@ Prove continuously and verifiably that the store and the database agree. Where t
 
 Make the store the place where staff and applications ask what a record said, under which schema, who changed it, as of when, and why. These are the first memory-alternative reads.
 
+Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents call before they rely on evidence: what it verifies, its read receipt, and when a read that informs an action is recorded as an `assert`. Its open decisions (where a decision's basis goes, completeness at a checkpoint, an intake for asserts) bear on the index and bundles below.
+
 **Deliverables**
 
 - crates/evidence-index: index.db is derived from log.db behind a watermark (seq plus entry hash) and rebuilds deterministically. Index-vs-log reconciliation reports index_missing, index_extra and index_stale.

@@ -33,6 +33,7 @@ The first domain profile in view is CENTR, the proposed Consumer Energy National
 | [`crates/evidence-store/`](crates/evidence-store/) | The store: an append-only log in one SQLite file (and an in-memory reference), writer lease, signed checkpoints, export, import, live verification and Merkle proofs (M1) |
 | [`tools/verify-page/`](tools/verify-page/) | A static page that verifies a store export in the browser, offline (M1) |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
+| [`docs/turn-reader.md`](docs/turn-reader.md) | Design note: a reader that tools and AI agents call before they rely on evidence, and when a read must be recorded (input to M4, M6 and M9; not built) |
 
 ## Quick start
 
@@ -148,7 +149,7 @@ CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). A
 
 ## Status
 
-Scaffold. Milestone M1, the verifiable store, is built, and its acceptance tests pass locally; it is complete once they pass in CI. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the specs and the vectors work and are tested. The store is a Rust library (a SQLite store, with an in-memory reference), and the command-line tool runs it: init, append, attest, checkpoint, get, heads, log, verify, export, import and prove. Rust, the WebAssembly module, Python, the independent JavaScript reference and a static browser page give the same report, byte for byte, on all 42 export cases. A crash test kills appends and imports at random and checks that every receipt printed is kept and no half-written store is left. Read-only capture (M2) comes next.
+Scaffold. Milestone M1, the verifiable store, is complete: its acceptance tests pass in CI. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the specs and the vectors work and are tested. The store is a Rust library (a SQLite store, with an in-memory reference), and the command-line tool runs it: init, append, attest, checkpoint, get, heads, log, verify, export, import and prove. Rust, the WebAssembly module, Python, the independent JavaScript reference and a static browser page give the same report, byte for byte, on all 42 export cases. A crash test kills appends and imports at random and checks that every receipt printed is kept and no half-written store is left. Read-only capture (M2) comes next.
 
 ## Next steps
 
