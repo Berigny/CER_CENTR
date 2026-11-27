@@ -1,6 +1,6 @@
 # The turn-by-turn reader (design note)
 
-**Status:** design note, 27 November 2026, revised after review. Design input for [M4](roadmap.md#m4-memory-reads-index-query-api-bundles-read-only-service) (memory reads), [M6](roadmap.md#m6-requests-and-the-outbox-as-evidence-in-shadow-mode-no-write-code) (requests) and [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-prime-coordinates) (prime coordinates). Open decisions 8, 12 and 13 have a recommended design in [approvals.md](approvals.md). Nothing here is built. The examples are synthetic, and each evidence object in them verifies with the `evidence` command-line tool. This repository is not affiliated with any agency, and this note describes no agency's process.
+**Status:** design note, 27 November 2026, revised after review. Design input for [M4](roadmap.md#m4-memory-reads-index-query-api-bundles-read-only-service) (memory reads), [M6](roadmap.md#m6-requests-and-the-outbox-as-evidence-in-shadow-mode-no-write-code) (requests) and [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-prime-coordinates) (prime coordinates). Open decisions 8, 12 and 13 have a recommended design in [approvals.md](approvals.md). Nothing here is built. The examples are synthetic, and each evidence object in them verifies with the `evidence` command-line tool. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 ## In short
 
@@ -130,7 +130,7 @@ Kernel/2 defines S and H for each event, over that event and its ancestors ([3.2
 
 ### Worked table
 
-This is the ACCU lifecycle of [Kernel/2 section 5](kernel-2.md#5-example-an-accu-lifecycle), one event per turn. Each event lists the previous one in `prev`, and all of them are record changes in the subject's record lane. A script recomputed every value from the committed dictionary, and each equals section 5.
+This is the illustrative ACCU-style lifecycle of [Kernel/2 section 5](kernel-2.md#5-example-an-accu-lifecycle), one event per turn. Each event lists the previous one in `prev`, and all of them are record changes in the subject's record lane. A script recomputed every value from the committed dictionary, and each equals section 5.
 
 | After turn | The event adds | Record-lane heads | S (`kernel/2`) | H (`kernel/2`) |
 |---|---|---|---|---|
@@ -338,7 +338,7 @@ A prototype of these checks, run over the synthetic log, found nothing on the ex
 
 - **The acting tool.** The reader never writes. The tool that takes the action appends the assert.
 - **Persist before acting.** Where policy says an action needs a basis assert, the action goes ahead only after the store has returned an append receipt for it. Failing to record means not acting.
-- **Policy as data.** The list of action types that need a basis assert is published data, an `assert` like M6's `register/0`, or part of the published approval rules ([open decision 4](#4-when-a-basis-assert-is-required)). It is not a per-request flag or a deployment switch.
+- **Policy as data.** The owner of each tool publishes the list of action types that need a basis assert for that tool. The list is published data: an `assert` like M6's `register/0`, which the deployment's approval rules can name ([open decision 4](#4-when-a-basis-assert-is-required)). It is not a per-request flag or a deployment switch.
 - **The channel does not exist yet.** Appending needs the store's single-writer lease; without it the store answers `S_LOCKED`. From M4 the service holds the lease and its API is read-only. M6 adds intake only for `sync/0` requests. Until there is an intake for asserts, a tool that records asserts must run inside the writer process ([open decision 7](#7-an-intake-for-asserts)). M2's mapping asserts and M3's resolutions have the same gap.
 
 ### Signing
@@ -381,7 +381,7 @@ A prototype of these checks, run over the synthetic log, found nothing on the ex
 8. **Who acted is kept apart from who is accountable.** An agent's assert names `on_behalf_of`, a tool acts for a person only under a grant in force, and approval is the accountable person's attestation ([approvals.md](approvals.md)).
 9. **Reads never write.** Numbering that depends on the order of reads cannot be reproduced. The reader writes nothing, and an unknown facet is a finding.
 10. **Tool output is not observation.** A tool's earlier output never comes back as if it were an observed record. Derived values come from record lanes only. A basis that includes a tool's assert (one with `on_behalf_of`) says so, and a checker can flag reliance on ones that their `on_behalf_of` has not approved.
-11. **Continuity is explicit.** M4 memory reads are verified queries over the log, with each item labelled `observed`, `stated`, `tool-stated` or `note`, and nothing labelled `observed` unless capture wrote it ([approvals.md](approvals.md#8-hooks-for-tools-proposed)). They are not recall of a tool's earlier turns. Continuity between turns, where a tool needs it, is explicit notes under a recorded grant, built at M6: a forgotten version stops recall, and M5 erasure deletes the body ([open decision 13](#13-continuity-for-tools)).
+11. **Continuity is explicit.** M4 memory reads are verified queries over the log, with each item labelled `observed`, `stated`, `tool-stated` or `note`, and nothing labelled `observed` unless capture wrote it ([approvals.md](approvals.md#8-hooks-for-tools-proposed)). They are not recall of a tool's earlier turns. Continuity between turns, where a tool needs it, is explicit notes under a recorded grant (proposed for M6; the timing is open): a forgotten version stops recall, and M5 erasure deletes the body ([open decision 13](#13-continuity-for-tools)).
 12. **A decision stays with its basis.** A decision goes in the same store as its basis, separated by lane, whatever kind of actor wrote it. A basis in another store names that store's log and checkpoint.
 13. **A decision carries its rules and its inputs' versions.** It carries its rule set by hash, the profile of any derived values, the clock and the basis.
 14. **Two clocks.** Staleness is judged on `seq` and `received_at`, not on writers' claimed times ([D13](decisions.md#d13-two-clocks)).
@@ -408,9 +408,9 @@ A prototype of these checks, run over the synthetic log, found nothing on the ex
 
 ### 4. When a basis assert is required
 
-- Options: (a) each tool's operator decides case by case; (b) a published list of action types that require one, enforced fail-closed; (c) every read.
-- Recommended: (b). "Must" for listed action types, by default every action on a subject that relies on an agent's or a service's output, such as a recommendation or a check result. "May" otherwise. The list can live in the same published `approval/rules@0` object as the approval rules ([approvals.md](approvals.md)).
-- Why: it keeps this a matter of policy, not architecture, while making the policy itself checkable.
+- Options: (a) the tool owner decides case by case; (b) a published list of action types that require one, enforced fail-closed; (c) every read.
+- Recommended: (b). "Must" for listed action types, by default every action on a subject that relies on an agent's or a service's output, such as a recommendation or a check result. "May" otherwise. The list is published data: an `assert` that the tool owner publishes for that tool, like M6's `register/0`. The deployment's approval rules ([approvals.md](approvals.md#52-approval-rules)) can say which list applies to which tool, as they say which list supplies each role.
+- Why: it keeps this a matter of policy, not architecture, while making the policy itself checkable. Under (b), the owner of each tool sets and publishes the list for that tool, so the decision stays with the tool owner.
 
 ### 5. Failed verifications
 
@@ -450,7 +450,7 @@ These belong in [Kernel/2's open questions](kernel-2.md#8-open-questions).
 - **Lane of events.** Options: the record lane, with events as lifecycle changes that capture observes in the registry; assert lanes under one schema family; either. Recommended: the record lane, so that one fold and store/0's fork count both cover the whole chain.
 - **Order at a merge.** Options: log order (`seq`); `at` order; a topological order with ties broken by (`at`, id); S defined only on linear chains, with a merge event restating the state. Recommended: topological order with (`at`, id) ties, because it depends on the objects alone and not on one store's positions. Run the gates per event over that event's own ancestors, and add merge vectors.
 - **Order within an event.** Options: exits first; exits last; forbid an exit and an entry of the same block in one event. Recommended: exits first, which is the only reading under which exiting and re-entering a block in one event changes a state.
-- **Scope.** Options: Kernel/2 also covers installations; installations get their own dictionary and profile tag at M9. Recommended: their own, with Kernel/2 kept for certificate lifecycles. The edge profile ([cer-edge.md](cer-edge.md)) takes the same view: a device dictionary only if one is wanted.
+- **Scope.** Options: Kernel/2 also covers installations and devices; they get their own dictionary and profile tag at M9. Recommended: their own, with Kernel/2 kept for certificate lifecycles. The edge profile ([cer-edge.md](cer-edge.md)) leaves this open and defines no device index.
 - **Size.** Decided (27 November 2026): decimal strings. M9's acceptance test and the README were amended to match.
 - **Not coordinates.** Recorded here for any derived index: actor ids and approval status are never coordinates. A coordinate is decodable by design, so an actor id in one would publish who acted on what. An approval arrives after the object it approves, so approval status is a view at a log position ([approvals.md](approvals.md)), not a facet of the object.
 
@@ -488,6 +488,6 @@ These belong in [Kernel/2's open questions](kernel-2.md#8-open-questions).
 - Recommended: (b), with these definitions. A recommended design is in [approvals.md](approvals.md).
   - **The recorded grant** is an `approval/grant@0` assert by the accountable person, approved by them. It names the tool, what it may write and read, which purposes it may sign, a notes subject, a `recall_until` time and a validity period. Its periods are judged on the store's clock (`received_at`), never on the tool's own `at`. Changing or revoking a grant is a new version.
   - **Continuity notes** are asserts by reference in a dedicated notes system, under the grant. The hash is in the log; the body, with a random salt, is in the erasable blob store (M2). The reader labels them `note`, never `observed`, and returns them to the grantee only while the grant is in force and its recall window is open on the store's clock, and to the grantor at any time. A new version marked forgotten stops recall, and M5 erasure deletes the body. Revoking a grant ends the grantee's recall, and either party to the grant may record the forgotten version.
-  - M4 serves no recall endpoint, ranking or similarity search. Continuity notes are built at M6, on the assert intake, once M5 erasure exists.
+  - M4 serves no ranking or similarity search. Proposed timing: M4 serves no recall endpoint either, and continuity notes are built at M6, on the assert intake, once M5 erasure exists.
 - Why: memory reads are verified queries over the log, and nothing comes back as `observed` unless capture wrote it. A tool's own earlier output must not come back as if it were observed ([design rule 10](#design-rules)).
-- **[open]** The default recall window and retention, what a note body may hold (ids, codes and hashes only, or text the tool wrote, kept by reference), and whether a tool may file M6 requests under a grant.
+- **[open]** When notes and their recall are built (at M6, once M5 erasure exists, as proposed, or sooner), the default recall window and retention, what a note body may hold (ids, codes and hashes only, or text the tool wrote, kept by reference), and whether a tool may file M6 requests under a grant.

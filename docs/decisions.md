@@ -4,13 +4,13 @@ Short records of choices that are easy to revisit by accident. Newest last.
 
 ## D1. A neutral name
 
-"CER" already means three things: Clinical Evaluation Report, the Clean Energy Regulator, and Consumer Energy Resources. The core is called `evidence/0`, with no domain or agency in the name. Domain work goes in profiles such as `centr/0`.
+"CER" already means more than one thing, including the Clean Energy Regulator and consumer energy resources. The core is called `evidence/0`, with no domain or agency in the name. Domain work goes in profiles such as `centr/0`.
 
 ## D2. Point at the existing schema; don't restate the domain
 
 The object carries `schema.ref` and `schema.hash` for whatever definition the system of record already has (DDL, JSON Schema, data dictionary). It does not copy domain enums or tables.
 
-An earlier draft re-declared the CENTR domain (subject kinds, standards, roles, jurisdictions) in both the schema and a prime dictionary. The two drifted apart within one draft. Pointing at the source avoids that class of bug, and it means adoption needs no schema change in the system of record.
+Re-declaring a domain (subject kinds, standards, roles, jurisdictions) in both a schema and a prime dictionary lets the two drift apart. Pointing at the source avoids that class of bug, and it means adoption needs no schema change in the system of record.
 
 ## D3. Beside the system of record, never instead of it
 
@@ -18,7 +18,7 @@ Evidence objects are written from changes and decisions in existing systems (for
 
 ## D4. Signatures outside the object
 
-Attestations are separate lines keyed by the object id, so approvals and witnesses can be added later without changing the id. This is carried over from the original evidence-object design.
+Attestations are separate lines keyed by the object id, so approvals and witnesses can be added later without changing the id.
 
 ## D5. Stricter than RFC 8785 on input
 
@@ -28,7 +28,7 @@ The number rule is by magnitude, not by how the number is written. A rule like "
 
 ## D6. One small core, many profiles
 
-The core has no gate clauses, prime coordinates, verdicts or registers. Those were in the earlier CENTR draft and are where most of its bugs were. They can come back as profiles and query layers once there is a concrete use, each with its own vectors.
+The core has no gate clauses, prime coordinates, verdicts or registers. Keeping them out keeps the core small and testable. They can come back as profiles and query layers once there is a concrete use, each with its own vectors.
 
 ## D7. The vectors are the contract
 
@@ -38,7 +38,7 @@ This caught a real bug during the scaffold: Rust's shortest float formatting rou
 
 ## D8. Rust for the core
 
-The core is the one part that must give byte-identical answers everywhere: canonicalisation, hashing, signature checks. One Rust implementation can ship as a command-line tool, a WebAssembly module (browser, Node, .NET or Java hosts) and Python or C bindings. Users on other stacks run the binary or module; they do not have to maintain Rust.
+The core is the one part that must give byte-identical answers everywhere: canonicalisation, hashing, signature checks. One Rust implementation can ship as a command-line tool, a WebAssembly module (browser, Node, .NET or Java hosts) and Python or C bindings. Users on other stacks run the binary or module; they do not have to maintain Rust. Confirmed 26 November 2026: the core stays in Rust and JavaScript stays the independent second implementation (D7). Go users can embed the WebAssembly module in-process with a pure-Go runtime such as wazero; a native Go implementation can be added later if it passes the shared vectors.
 
 The WebAssembly module uses a one-function JSON ABI (`evidence_alloc`, `evidence_call`, `evidence_free`) rather than generated JavaScript glue, so the same file works in browsers, Node and non-JavaScript hosts. Python uses a native PyO3 extension instead of the WebAssembly module: it is the usual way to ship Python packages, and one abi3 wheel covers every CPython from 3.10.
 
@@ -57,7 +57,7 @@ Confirmed 26 November 2026, with the other roadmap decisions ([roadmap](roadmap.
 The evidence layer starts by only reading. It records what it observes in a system of record, and what people and services assert, using read-only access and no change to the system of record.
 
 - Record changes in the log (`create`, `update`, `delete`) are only ever observations of a system of record. Anything the layer or an application states itself (a request, a decision, a check, a first sighting of an existing row) is an `assert`.
-- Applications may later request changes through the layer, but only as explicit requests checked against an allow-list the system-of-record owner publishes, delivered through the system of record's own interface, off by default, and enabled per record type with the owner's agreement.
+- Applications may later request changes through the layer, but only as explicit requests checked against an allow-list the system-of-record owner publishes, delivered through the system of record's own interface, off by default, and enabled per record type with the system-of-record owner's agreement.
 - While the layer only reads, D3 holds exactly. Once requests flow through it, turning it off still loses no confirmed change, but requests not yet delivered exist only in the layer, so applications then depend on it being available.
 
 ## D12. One SQLite file is the authoritative store

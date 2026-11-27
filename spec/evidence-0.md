@@ -30,6 +30,8 @@ It does not model the domain. Products, installers, installations and decisions 
 }
 ```
 
+The names in this example (`rec-registry`, the version `@12` and the capture service `rec-registry-cdc`) are synthetic placeholders, not a real system's schema, version or interface.
+
 | Field | Required | Meaning |
 |---|---|---|
 | `v` | yes | Always `"evidence/0"`. |

@@ -29,7 +29,7 @@ What runs where: libraries plus the CLI on one host. There is no network service
 - Applications may later request changes through the layer, but only:
   - as explicit requests checked against an allow-list the system-of-record owner publishes;
   - delivered through the system of record's own interface;
-  - off by default, and enabled per record type with the owner's agreement.
+  - off by default, and enabled per record type with the system-of-record owner's agreement.
 - While the layer only reads, D3 holds exactly. Once requests flow through it, turning it off still loses no confirmed change. Requests not yet delivered, however, exist only in the layer, so applications then depend on it being available.
 
 **D12. Storage.** One SQLite file, `log.db`, is the authoritative log.
@@ -341,7 +341,7 @@ Lines are processed in order.
 - `source` is `"store"` or `"export"`.
 - `log`, `head` and `covered` are omitted when unknown or empty.
 - `covered` is the highest checkpoint that verified and has a valid witness.
-- `counts.at_after_received` counts objects whose `at` is more than 300 s after their entry's received_at. It is informational (see owner decision 9).
+- `counts.at_after_received` counts objects whose `at` is more than 300 s after their entry's received_at. It is informational (see roadmap decision 9).
 - A finding has `code` (always), plus `seq`, `ref`, `core` and `file` where known. There is **no free text**, so every implementation emits identical bytes. The CLI prints human-readable detail to stderr only.
 
 **Report codes**, in sort order:
@@ -449,7 +449,7 @@ pub const CHECKPOINT_SCHEMA_REF: &str = "evidence-store/checkpoint@0";
 pub const CHECKPOINT_SCHEMA_HASH: &str = "sha256:…";   // test: equals sha256(spec/schema/checkpoint-0.schema.json)
 ```
 
-The Verifier keeps per-entry hashes in memory: about 200 MB per million entries, which is fine for the pilot. A bounded-memory verifier is a later improvement.
+The Verifier keeps per-entry hashes in memory: about 200 MB per million entries, which is fine at the volumes in view. A bounded-memory verifier is a later improvement.
 
 ## 7. crate evidence-store (I/O)
 

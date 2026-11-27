@@ -490,7 +490,7 @@ The store keeps two clocks apart ([D13](../docs/decisions.md)).
 
 - **Rejected input is not stored anywhere.** There is no quarantine of rejected bytes, because a rejected object can hold personal data.
 - **An append-only log cannot forget.** Whatever is appended stays in every later export and copy. evidence/0's privacy rules apply in full: do not inline personal information, and remember that a bare hash of a guessable value does not hide it.
-- **Synthetic or public data only, for now.** Until the pilot gate (M5 in the [roadmap](../docs/roadmap.md)), which adds trust, time, replication and privacy operations, only synthetic or public data goes into a store.
+- **Synthetic or public data only, for now.** Until the real-data gate (M5 in the [roadmap](../docs/roadmap.md)), which adds trust, time, replication and privacy operations, only synthetic or public data goes into a store.
 - The store's own objects, the genesis and checkpoints, hold no personal data.
 
 ## Programming interfaces

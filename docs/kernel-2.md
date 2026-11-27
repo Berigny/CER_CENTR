@@ -1,6 +1,6 @@
 # Kernel/2: prime-coordinate facets (profile `kernel/2`)
 
-**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Built at roadmap milestone M9 ([roadmap](roadmap.md)); nothing here is implemented yet. This repository is not affiliated with any agency, and this draft describes no agency's process.
+**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Built at roadmap milestone M9 ([roadmap](roadmap.md)); nothing here is implemented yet. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 **Labels.** **[derived]** means mechanically checked by a test. **[declared]** means a design decision. **[open]** means a decision still to be made.
 
@@ -9,7 +9,7 @@
 Kernel/2 gives every attribution facet of a regulated unit (for example a certificate's lifecycle: methodology, project, measurement, reporting, retirement) its own prime number, so that a set of facets can be summarised as one integer, the **coordinate**, and recovered from it exactly.
 
 - It is a **profile** of evidence/0, carried under `ext["kernel/2"]` ([spec](../spec/evidence-0.md#profiles)). The core verifier hashes it but does not interpret it.
-- It is designed with certificate lifecycles in mind (for example ACCUs, LGCs and STCs); no agency has adopted it. It complements CENTR, which concerns products, installers and installations: an STC arising from a small-scale installation can reference that installation's evidence.
+- It is designed with certificate lifecycles in mind (for example ACCUs, LGCs and STCs); it is a draft profile, not part of any scheme's rules. It complements CENTR, which concerns products, installers and installations: an STC arising from a small-scale installation can reference that installation's evidence.
 - **The evidence chain holds the path; the coordinate is an index.** Order, timing, who acted and why come from the chain of evidence objects (`prev` links, `at`, attestations). The coordinate summarises which facets hold, for fast filtering. It never replaces the chain and is never part of an object's id.
 
 ## 2. The dictionary
@@ -131,7 +131,7 @@ Each rule has an id, a verification method (A: analysis/automated test), and a p
 
 ## 5. Example: an ACCU lifecycle
 
-Five events for one unit, each pointing at the previous one with `prev`. The values are computed with the dictionary in section 2.3.
+Five events for one unit, each pointing at the previous one with `prev`. The values are computed with the dictionary in section 2.3. The sequence is a simplified illustration of how facets combine, not the ACCU Scheme's process: under the scheme, units are issued only after a project report is assessed ([Clean Energy Regulator](https://cer.gov.au/schemes/australian-carbon-credit-unit-scheme/how-to-participate-accu-scheme/project-reporting-and-audits)).
 
 | Event | `add` | S after the event | H after the event |
 |---|---|---|---|

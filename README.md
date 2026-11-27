@@ -4,7 +4,7 @@ A small, portable **evidence object** that sits beside an existing system of rec
 
 It does not replace any database, schema or register. It reads from them and never writes back. Each object points at the system of record's own schema by hash, so people and AI tools can interpret a record exactly, and anyone with the object can check it without access to the source database.
 
-> Independent work. Not affiliated with or endorsed by the Clean Energy Regulator. All data in this repository is synthetic.
+> Not an official publication of, or endorsed by, the Clean Energy Regulator or any other government body. It draws only on publicly available information about the programs it mentions, and all data in this repository is synthetic.
 
 ## What it is for
 
@@ -14,7 +14,7 @@ It does not replace any database, schema or register. It reads from them and nev
 - **Records of AI-assisted checks:** what the model was given, what it returned, and who approved or overrode it.
 - **Public registers as views:** a published list is an evidence object recording a query result, so "what did the list show on date X?" has a provable answer.
 
-The first domain profile in view is CENTR, the proposed Consumer Energy National Technical Regulator ([notes](docs/centr-profile-notes.md)). The core is deliberately domain-neutral.
+The first domain profile in view, as an example drawn from public information, is CENTR, the proposed Consumer Energy National Technical Regulator ([public description](https://cer.gov.au/national-technical-regulator); [notes](docs/centr-profile-notes.md)). The core is deliberately domain-neutral.
 
 ## Layout
 
@@ -161,12 +161,12 @@ The aim is for the layer to become an organisation's memory: a durable, verifiab
 2. **Read-only capture (M2).** Turn every change in an existing database into evidence, using read access only and no schema change. Capture refuses to start until every column is classified for privacy.
 3. **Two-way reconciliation (M3).** Compare the store and the database on a schedule, in both directions, and record every difference as evidence, including edits made outside the normal process. Report only; nothing is repaired automatically.
 4. **Memory reads (M4).** Ask what a record said on any date, under which schema, who changed it and why, through a query API whose answers can be verified.
-5. **Pilot gate (M5).** Keys bound to people and organisations, trusted timestamps (RFC 3161), copies held off the machine, privacy operations, and legal and security review before any real data.
+5. **Real-data gate (M5).** Keys bound to people and organisations, trusted timestamps (RFC 3161), copies held off the machine, privacy operations, and legal and security review before any real data.
 6. **Change requests in shadow mode (M6).** Applications hand over requests instead of changing the database; requests and their outcomes are recorded as evidence and compared with what staff actually did. No write code.
 7. **Write-through to a test database (M7).** Requests are delivered through the database's own interface, and a change counts as done only when it is read back. Off by default; writing to any real system is a separate decision for its owner.
 8. **Optional:** Postgres and vendor-platform capture; the `centr/0` profile ([notes](docs/centr-profile-notes.md)), public registers as views, and prime coordinates (below).
 
-Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short .NET (Wasmtime) and Java (Chicory) host examples for the WebAssembly module.
+Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short .NET (Wasmtime), Java (Chicory) and Go (wazero) host examples for the WebAssembly module.
 
 ### Proposed: prime coordinates for faceted queries
 
@@ -175,7 +175,7 @@ Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short
 **Why.**
 - **Lossless.** By unique factorisation, a coordinate decodes back to exactly one set of facets.
 - **Queries become arithmetic.** An object has a facet if that facet's prime divides its coordinate. It has all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" becomes a divisibility test on one integer field, which any database or language can run.
-- **Collision-free across domains.** Namespaces that use disjoint prime ranges can share one index: no product of one range's primes can equal a product of another's.
+- **Namespaces stay apart by tag.** Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), so dictionaries that reuse the same primes cannot be confused ([Kernel/2](docs/kernel-2.md)). Namespaces that also choose disjoint prime ranges get a further guarantee: no product of one range's primes can equal a product of another's.
 - **Portable.** Coordinates are plain integers, written as decimal strings so they stay exact in JSON and JavaScript at any size. A product of a handful of primes soon passes 2^53, where JSON numbers stop being exact.
 
 A draft profile that applies this to certificate lifecycles is in [`docs/kernel-2.md`](docs/kernel-2.md).
@@ -187,9 +187,9 @@ A draft profile that applies this to certificate lifecycles is in [`docs/kernel-
 - **One dictionary per namespace.** Published, versioned, and the only source; schemas and code are generated from it, not hand-copied.
 - **Unknown facets are errors,** never silently skipped.
 - **At most one prime per single-valued facet.** Multi-valued facets need an explicit rule.
-- **A shared registry of prime ranges,** so a new namespace cannot overlap another prime-based scheme.
+- **Tagged with their profile id,** with indexes keyed on (profile, coordinate). A shared registry of prime ranges is optional, for namespaces that also want disjoint ranges.
 - **Carried as decimal strings,** never as JSON numbers, so coordinates of any size survive JSON.
 
 ## Licence
 
-[Apache License 2.0](LICENSE). It is permissive, so an agency, its vendors and other regulators can adopt the spec and code with no obligation beyond keeping the notices. It also includes an explicit patent licence from contributors, which matters for a format that others are meant to implement.
+[Apache License 2.0](LICENSE). It is permissive, so anyone, public bodies and their suppliers included, can adopt the spec and code. Anyone who redistributes them must include a copy of the licence, keep the notices and mark the files they changed. It also includes an explicit patent licence from contributors, which matters for a format that others are meant to implement.
