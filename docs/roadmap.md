@@ -278,7 +278,7 @@ Answer domain queries and publish registers as views over the store. Prime coord
 
 - The centr/0 vectors pass, including the absent cases.
 - A register snapshot recomputed at its recorded watermark is byte-identical.
-- On 100k objects, divisibility queries return exactly the same rows as facet queries, every coordinate stays below 2^53, and an unknown facet gives a finding.
+- On 100k objects, divisibility queries return exactly the same rows as facet queries, every coordinate is carried as a decimal string and decodes to exactly its facets, and an unknown facet gives a finding.
 
 ## Decisions (confirmed 26 November 2026)
 

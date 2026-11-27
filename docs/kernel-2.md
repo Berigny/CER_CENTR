@@ -169,7 +169,7 @@ As for evidence/0 (decision D7), the vectors are the contract. At M9 this profil
 
 ## Appendix A. Native register (non-normative)
 
-The submitted draft described the same arithmetic in a second vocabulary, drawn from a wave-domain reading of the design (the draft cites El Darazi and Kaja, 2026). It is kept here as the motivation for the structure, not as a derivation: physics can motivate a data rule, but the rules in section 4 are design decisions.
+The submitted draft described the same arithmetic in a second vocabulary, drawn from a wave-domain reading of the design. It is kept here as the motivation for the structure, not as a derivation: physics can motivate a data rule, but the rules in section 4 are design decisions.
 
 | Normative identifier | Native name |
 |---|---|

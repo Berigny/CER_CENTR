@@ -174,7 +174,7 @@ Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short
 - **Lossless.** By unique factorisation, a coordinate decodes back to exactly one set of facets.
 - **Queries become arithmetic.** An object has a facet if that facet's prime divides its coordinate. It has all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" becomes a divisibility test on one integer field, which any database or language can run.
 - **Collision-free across domains.** Namespaces that use disjoint prime ranges can share one index: no product of one range's primes can equal a product of another's.
-- **Portable.** Coordinates are plain integers. Kept below 2^53, they are exact in JSON and JavaScript.
+- **Portable.** Coordinates are plain integers, written as decimal strings so they stay exact in JSON and JavaScript at any size. A product of a handful of primes soon passes 2^53, where JSON numbers stop being exact.
 
 A draft profile that applies this to certificate lifecycles is in [`docs/kernel-2.md`](docs/kernel-2.md).
 
@@ -186,7 +186,7 @@ A draft profile that applies this to certificate lifecycles is in [`docs/kernel-
 - **Unknown facets are errors,** never silently skipped.
 - **At most one prime per single-valued facet.** Multi-valued facets need an explicit rule.
 - **A shared registry of prime ranges,** so a new namespace cannot overlap another prime-based scheme.
-- **Kept below 2^53,** or carried as strings, so coordinates survive JSON.
+- **Carried as decimal strings,** never as JSON numbers, so coordinates of any size survive JSON.
 
 ## Licence
 

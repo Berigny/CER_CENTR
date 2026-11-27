@@ -184,7 +184,7 @@ The reader cannot be specified fully until Kernel/2 settles these ([open decisio
 - **Which lane its events use.** Kernel/2 names no `op`. As record changes, its events share the record lane, as above. As asserts, they land in `assert:<schema>` lanes. A chain that alternates between the two shows up in store/0 as a record-lane fork, and a fork inside an assert lane is not counted at all.
 - **Order within one event.** Whether exits apply before entries changes S when one event exits and re-enters a block, which is how [Kernel/2 section 4](kernel-2.md#4-rules-verifier-gates) suggests changing a state.
 - **Scope.** Kernel/2's first use is certificate lifecycles. Whether it, or a separate CENTR dictionary, applies to installations (the proposal's subject) is undecided.
-- **Size.** M9's acceptance test says "every coordinate stays below 2^53". Kernel/2 coordinates do not, so one of the two has to change.
+- **Size.** Decided (27 November 2026): coordinates are decimal strings, and M9's acceptance test and the README now say so.
 - **Draft status.** Kernel/2's own open questions (a `remove` list, `universal.exit` at retirement) change S. Until it ships at M9, coordinates are computed against a draft, and a receipt or basis that keeps them should say which.
 
 ## Reads that become evidence
@@ -463,7 +463,7 @@ These belong in [Kernel/2's open questions](kernel-2.md#8-open-questions-for-the
 - **Order at a merge.** Options: log order (`seq`); `at` order; a topological order with ties broken by (`at`, id); S defined only on linear chains, with a merge event restating the state. Recommended: topological order with (`at`, id) ties, because it depends on the objects alone and not on one store's positions. Run the gates per event over that event's own ancestors, and add merge vectors.
 - **Order within an event.** Options: exits first; exits last; forbid an exit and an entry of the same block in one event. Recommended: exits first, which is the only reading under which exiting and re-entering a block in one event changes a state.
 - **Scope.** Options: Kernel/2 also covers installations; installations get their own dictionary and profile tag at M9. Recommended: their own, with Kernel/2 kept for certificate lifecycles.
-- **Size.** Options: keep M9's "below 2^53" acceptance test; accept decimal strings. Recommended: amend M9's test to require decimal strings, as Kernel/2 and the README's own conditions already allow.
+- **Size.** Decided (27 November 2026): decimal strings. M9's acceptance test and the README were amended to match.
 
 ### 10. Proving completeness to a remote reader
 
