@@ -1,6 +1,13 @@
-//! `evidence`: command-line tool for evidence/0 objects.
+//! `evidence`: command-line tool for evidence/0 objects and store/0 stores.
+//!
+//! The object commands are here; `evidence store …` is in [`store_cmd`]
+//! (`docs/m1-store-spec.md` section 8).
 
+mod store_cmd;
+
+use std::ffi::OsString;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -8,7 +15,7 @@ use evidence_core::api::{self, VerifyArgs};
 use evidence_core::{canon, object, time};
 
 const USAGE: &str = "\
-evidence: create and verify evidence/0 objects
+evidence: create and verify evidence/0 objects, and keep them in a store/0 log
 
 USAGE:
   evidence canon <file>                  print canonical JSON (RFC 8785)
@@ -17,28 +24,93 @@ USAGE:
   evidence id <file>                     print the id an object should have
   evidence seal <file>                   print the object with its id filled in
   evidence verify <file> [--attestations <file.jsonl>] [--store <dir>] [--require <purpose>]...
-                                         print a JSON report; exit 0 if valid, 1 if not
+                                         print a JSON report; exit 0 if valid, 1 if not.
+                                         --store: a folder of .json objects, or a store
+                                         (a directory holding log.db), read only
   evidence sign <file> --seed <file> --signer <id> --purpose <author|approve|witness> [--at <time>]
                                          print one attestation line for a valid object
   evidence keygen <seed-file>            write a new random seed (hex) and print its public key
 
+STORE (store/0: an append-only log in a directory holding log.db):
+  evidence store init <dir> --name <name> --seed <seed-file>
+                                         create a store whose key is the seed's
+  evidence store append <dir> <object.json>... [--if-heads <id>[,<id>...] | --if-heads none]
+                                         append each file in its own transaction
+  evidence store attest <dir> <attestations.jsonl>...
+                                         append each line that is not blank in its own transaction
+  evidence store checkpoint <dir> --seed <seed-file>
+                                         sign a checkpoint over every entry so far
+  evidence store get <dir> <id> [--require <purpose>]...
+                                         print a held object, its entry, attestations and report
+  evidence store heads <dir> <system> <type> <key> [--lane <lane>]
+                                         print a subject's heads in a lane (default: record)
+  evidence store log <dir> [--from <seq>] [--limit <n>]
+                                         print log lines (default: from seq 1, at most 100)
+  evidence store verify <dir> [--max-findings <n>]
+                                         verify a store or an export; print store-report/0
+  evidence store export <dir> --out <dir> [--segment-size <n>]
+                                         write an export to a new directory; print its manifest
+  evidence store import <export-dir> --into <dir>
+                                         build a new store from an export that verifies
+  evidence store prove <dir> --seq <n> [--size <m>]
+                                         inclusion proof (default size: the latest checkpoint's)
+  evidence store prove <dir> --from <old-size> --to <new-size>
+                                         consistency proof
+
+Store commands print canonical JSON on standard output, one value per line,
+and details on standard error. When they exit with status 2, the last line
+of standard output is {\"code\":...,\"ok\":false}.
+
 Seed files hold an Ed25519 private key in hex. They are for development and
 test vectors only; production keys belong in an HSM or a key service.
 
-Exit status: 0 success, 1 verification failed, 2 usage or I/O error.";
+Exit status: 0 success; 1 verification failed, or a store item was rejected;
+2 usage, I/O or store operation error.";
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let raw: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let is_store = raw.first().is_some_and(|command| command == "store");
+    // Every argument is read as UTF-8 text; one that is not (a path with
+    // such a name) is a usage error, never a panic.
+    let args: Vec<String> = match raw.into_iter().map(OsString::into_string).collect() {
+        Ok(args) => args,
+        Err(arg) if is_store => return store_cmd::not_utf8(&arg),
+        Err(arg) => {
+            to_stderr(&format!(
+                "evidence: usage: argument {arg:?} is not UTF-8\n\n{USAGE}"
+            ));
+            return ExitCode::from(2);
+        }
+    };
+    if let Some(("store", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
+        return store_cmd::run(rest);
+    }
     match run(&args) {
         Ok(code) => code,
         Err(msg) => {
-            eprintln!("evidence: {msg}");
+            to_stderr(&format!("evidence: {msg}"));
             if msg.starts_with("usage") {
-                eprintln!("\n{USAGE}");
+                to_stderr(&format!("\n{USAGE}"));
             }
             ExitCode::from(2)
         }
     }
+}
+
+/// Print `text` and an LF on standard output, flushed. A write that fails
+/// (a closed pipe, a full disk) is an error, exit 2, never a panic.
+fn print(text: &str) -> Result<(), String> {
+    let mut out = io::stdout().lock();
+    writeln!(out, "{text}")
+        .and_then(|()| out.flush())
+        .map_err(|e| format!("standard output: {e}"))
+}
+
+/// Write `text` and an LF on standard error. A write that fails is
+/// ignored, as in the store commands: it must not make a command panic or
+/// change its exit status.
+fn to_stderr(text: &str) {
+    let _ = writeln!(io::stderr().lock(), "{text}");
 }
 
 fn run(args: &[String]) -> Result<ExitCode, String> {
@@ -48,33 +120,47 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
     let flags = Flags::parse(rest)?;
     let text = |r: evidence_core::Result<String>| r.map_err(|e| e.to_string());
     match cmd.as_str() {
-        "canon" => println!("{}", text(api::canonicalize(&read(flags.one_path()?)?))?),
-        "content-hash" => println!("{}", text(api::content_hash(&read(flags.one_path()?)?))?),
-        "file-hash" => println!("{}", api::file_hash(&read(flags.one_path()?)?)),
-        "id" => println!("{}", text(api::compute_id(&read(flags.one_path()?)?))?),
+        "canon" => print(&text(api::canonicalize(&read(flags.one_path()?)?))?)?,
+        "content-hash" => print(&text(api::content_hash(&read(flags.one_path()?)?))?)?,
+        "file-hash" => print(&api::file_hash(&read(flags.one_path()?)?))?,
+        "id" => print(&text(api::compute_id(&read(flags.one_path()?)?))?)?,
         "seal" => {
             let sealed = text(api::seal(&read(flags.one_path()?)?))?;
-            println!("{sealed}");
+            print(&sealed)?;
             if let Err(e) = object::check(sealed.as_bytes()) {
-                eprintln!("evidence: sealed, but the object is not valid: {e}");
+                to_stderr(&format!(
+                    "evidence: sealed, but the object is not valid: {e}"
+                ));
                 return Ok(ExitCode::from(1));
             }
         }
         "verify" => {
             let bytes = read(flags.one_path()?)?;
             let attestations = flags.value("--attestations").map(read).transpose()?;
-            let store = flags.value("--store").map(load_store).transpose()?;
             let require = flags.values("--require");
-            let report = api::verify(
-                &bytes,
-                &VerifyArgs {
-                    attestations: attestations.as_deref(),
-                    store: store.as_deref(),
-                    require: &require,
-                },
-            )
-            .map_err(|e| format!("usage: {}", e.detail))?;
-            println!("{}", canon::canonicalize(&report.to_value()));
+            let report = match flags.value("--store") {
+                // An empty value names no directory: the folder form
+                // refuses it, as it always has.
+                Some(dir) if !dir.is_empty() && holds_store(&dir)? => store_cmd::verify_with_store(
+                    &bytes,
+                    attestations.as_deref(),
+                    Path::new(&dir),
+                    &require,
+                )?,
+                dir => {
+                    let store = dir.map(load_store).transpose()?;
+                    api::verify(
+                        &bytes,
+                        &VerifyArgs {
+                            attestations: attestations.as_deref(),
+                            store: store.as_deref(),
+                            require: &require,
+                        },
+                    )
+                    .map_err(|e| format!("usage: {}", e.detail))?
+                }
+            };
+            print(&canon::canonicalize(&report.to_value()))?;
             return Ok(if report.ok() {
                 ExitCode::SUCCESS
             } else {
@@ -95,7 +181,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
                 &at,
             )
             .map_err(|e| format!("refusing to sign: {e}"))?;
-            println!("{line}");
+            print(&line)?;
         }
         "keygen" => {
             let path = flags.one_path()?;
@@ -106,9 +192,9 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
             getrandom::fill(&mut seed).map_err(|e| format!("no system randomness: {e}"))?;
             let hex: String = seed.iter().map(|b| format!("{b:02x}")).collect();
             write_private(&path, &format!("{hex}\n"))?;
-            println!("{}", text(api::public_key(&hex))?);
+            print(&text(api::public_key(&hex))?)?;
         }
-        "help" | "-h" | "--help" => println!("{USAGE}"),
+        "help" | "-h" | "--help" => print(USAGE)?,
         other => return Err(format!("usage: unknown command {other:?}")),
     }
     Ok(ExitCode::SUCCESS)
@@ -168,6 +254,13 @@ impl Flags {
         self.value(name)
             .ok_or_else(|| format!("usage: {name} is required"))
     }
+}
+
+/// Whether `--store <dir>` is a store rather than a folder
+/// ([`store_cmd::holds_store`]). When that cannot be told, the error of the
+/// store form: `<dir>: S_IO: <detail>`.
+fn holds_store(dir: &str) -> Result<bool, String> {
+    store_cmd::holds_store(Path::new(dir)).map_err(|e| format!("{dir}: {e}"))
 }
 
 fn read(path: impl AsRef<Path>) -> Result<Vec<u8>, String> {

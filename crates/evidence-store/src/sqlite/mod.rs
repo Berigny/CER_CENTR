@@ -14,8 +14,8 @@
 //! - [`SqliteReader`] reads without the lease, through a read-only connection
 //!   (`SQLITE_OPEN_READ_ONLY` and `PRAGMA query_only = ON`), while a writer
 //!   appends. A store it cannot write (a read-only file system, a
-//!   directory or a `log.db` of another user) it reads as an immutable
-//!   file when it can; see [`SqliteReader::open`].
+//!   directory of another user), or whose `log.db` its user does not own,
+//!   it reads as an immutable file when it can; see [`SqliteReader::open`].
 //! - Both implement [`LogRead`] and `PrevLookup` with the same queries.
 //!
 //! # Opening a store
@@ -43,7 +43,8 @@
 //!    valid, `store_signer` its signer, and `writer_epoch` a decimal integer
 //!    from 1 to 2^53 − 1. Any missing row, or any other value, is
 //!    `S_NOT_A_STORE`. `log_id` is taken as it is: `verify_store` checks it
-//!    against the lines (`S_META_MISMATCH`).
+//!    against the lines (`S_META_MISMATCH`), and the writer against the
+//!    genesis line (see [`SqliteLog::open`]).
 //!
 //! The log id and genesis these give are cached for [`LogRead::log_id`] and
 //! [`LogRead::genesis`]. A reader never reads the lines to open; the writer
@@ -266,8 +267,10 @@ impl SqliteLog {
     ///    `S_IO`. A trigger of another definition could drop or change the
     ///    rows this writer inserts while it reports success.
     /// 3. Line 1 holds a genesis whose name, signer and key are those in
-    ///    `meta`; otherwise `S_IO`. The writer signs checkpoints with the
-    ///    key in `meta`, so it must be the log's.
+    ///    `meta`, and its entry's `ref` and `log` are `meta.log_id`;
+    ///    otherwise `S_IO`. The writer signs checkpoints with the key in
+    ///    `meta`, and puts the log id in `meta` into every entry and
+    ///    checkpoint it writes, so both must be the log's.
     /// 4. Take the lease (`S_LOCKED` if another writer has it).
     /// 5. Check that `<dir>/log.db` is still the file this connection
     ///    opened (on Unix, the same device and inode): `S_NOT_A_STORE` if
@@ -285,7 +288,7 @@ impl SqliteLog {
         let (mut conn, opened) = connect(dir, flags)?;
         let meta = check_store(&conn, dir)?;
         check_writer_triggers(&conn)?;
-        check_genesis_line(&conn, &meta.genesis)?;
+        check_genesis_line(&conn, &meta)?;
         hook::at("open:checked", dir)?;
         let mut lease = Lease::acquire(dir)?;
         let path = dir.join(DB_FILE);
@@ -469,32 +472,41 @@ impl SqliteReader {
     ///
     /// SQLite reads a database in WAL mode through `log.db-wal` and
     /// `log.db-shm` beside it (beside the file a symlinked `log.db` leads
-    /// to), and creates them when they are absent. A reader must not create
-    /// them unless it could write `log.db`: they would belong to this user,
-    /// and a writer of another user could not open the store until someone
-    /// removed them. So the reader first asks SQLite whether this process
-    /// can write `log.db`, then:
+    /// to), and creates them when they are absent. A file a process creates
+    /// belongs to its user and primary group, and a writer that cannot open
+    /// them cannot open the store until someone removes them: a member of
+    /// the store's group can write a group-writable `log.db`, but the files
+    /// it creates (in a directory without the setgid bit) are of its own
+    /// group; root's are handed to `log.db`'s owner only after they are
+    /// created, so a root reader killed in between leaves files of root.
+    /// So a reader lets SQLite create them only when this process can
+    /// write `log.db` and its effective user owns it. It first asks SQLite
+    /// whether this process can write `log.db`, compares the owner, then:
     ///
-    /// - It can: an ordinary read-only connection. When its first read
-    ///   fails for want of write access to `dir` (`SQLITE_CANTOPEN` or
-    ///   `SQLITE_READONLY`: a read-only file system, or a directory this
-    ///   user cannot write) and the store has no WAL content, it reads
-    ///   `log.db` as an immutable file instead (below); with WAL content,
-    ///   `S_IO`, as SQLite reports it.
-    /// - It cannot, and the store has no WAL content: `log.db` as an
+    /// - It can and owns it: an ordinary read-only connection. When its
+    ///   first read fails for want of write access to `dir`
+    ///   (`SQLITE_CANTOPEN` or `SQLITE_READONLY`: a read-only file system,
+    ///   or a directory this user cannot write) and the store has no WAL
+    ///   content, it reads `log.db` as an immutable file instead (below);
+    ///   with WAL content, `S_IO`, as SQLite reports it.
+    /// - Otherwise, and the store has no WAL content: `log.db` as an
     ///   immutable file.
-    /// - It cannot, the store has WAL content and `log.db-shm` exists (a
+    /// - Otherwise, the store has WAL content and `log.db-shm` exists (a
     ///   writer is open, or one did not close): an ordinary read-only
     ///   connection, which reads the WAL, its latest frames included,
     ///   through the files the writer made (SQLite's read-only WAL
-    ///   support), and creates nothing. Now and then such a read is `S_IO`
-    ///   (`SQLITE_READONLY_CANTINIT`), and a retry reads. Without
-    ///   `log.db-shm`: `S_IO`.
+    ///   support), and creates nothing, unless that writer closes and
+    ///   removes them in the moment between this check and the read. Now
+    ///   and then such a read is `S_IO` (`SQLITE_READONLY_CANTINIT`), and a
+    ///   retry reads. Without `log.db-shm`: `S_IO`.
     ///
     /// "No WAL content" is `log.db-wal` absent or an empty regular file,
     /// SQLite's own rule: then `log.db` alone holds the whole log and no
     /// writer has it open. Read as an immutable file (URI parameters
-    /// `mode=ro&immutable=1`), it creates nothing.
+    /// `mode=ro&immutable=1`), it creates nothing. A `log.db-wal` or
+    /// `log.db-shm` that is there and is not a regular file (a FIFO, say,
+    /// whose open would block) is `S_IO` before anything is opened, for the
+    /// writer too.
     ///
     /// SQLite does not watch an immutable file, so such a reader watches
     /// for a writer itself. When it opens it notes, by absolute path, the
@@ -524,7 +536,8 @@ impl SqliteReader {
     }
 
     /// Whether this reader reads `log.db` as an immutable file, because it
-    /// cannot write the store directory (see [`open`](Self::open)).
+    /// may not let SQLite create files in the store, or cannot (see
+    /// [`open`](Self::open)).
     pub fn is_immutable(&self) -> bool {
         self.frozen.is_some()
     }
@@ -690,8 +703,10 @@ pub(crate) fn plain(path: &Path) -> PathBuf {
 }
 
 /// Open `<dir>/log.db` with `flags`, which never include
-/// `SQLITE_OPEN_CREATE`: `S_NOT_A_STORE` if it is not there or not a file.
-/// Also returns the file status `log.db` had just before the open.
+/// `SQLITE_OPEN_CREATE`: `S_NOT_A_STORE` if it is not there or not a file,
+/// `S_IO` if `log.db-wal` or `log.db-shm` is there and not a regular file
+/// (see [`check_wal_files`]). Also returns the file status `log.db` had
+/// just before the open.
 fn connect(dir: &Path, flags: OpenFlags) -> Result<(Connection, fs::Metadata), StoreError> {
     let path = dir.join(DB_FILE);
     let seen = match fs::metadata(&path) {
@@ -707,10 +722,50 @@ fn connect(dir: &Path, flags: OpenFlags) -> Result<(Connection, fs::Metadata), S
         }
         Err(e) => return Err(io_error(&path, e)),
     };
+    check_wal_files(&path)?;
     let conn = Connection::open_with_flags(plain(&path), flags).map_err(|e| engine(e, dir))?;
     // Set before the checks read anything; it writes nothing.
     conn.busy_timeout(BUSY_TIMEOUT)?;
     Ok((conn, seen))
+}
+
+/// `S_IO` unless `log.db-wal` and `log.db-shm` beside `db` (beside the file
+/// it leads to) are absent or regular files, symlinks followed. SQLite
+/// opens them at the first read: a FIFO there would block that open for
+/// ever (SQLite opens a file it cannot write read-only, and a FIFO opened
+/// read-only waits for a writer), and nothing but a regular file is a WAL.
+fn check_wal_files(db: &Path) -> Result<(), StoreError> {
+    for suffix in ["-wal", "-shm"] {
+        let path = beside(db, suffix).map_err(|e| io_error(db, e))?;
+        match fs::metadata(&path) {
+            Ok(m) if m.is_file() => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err(StoreError::Io(format!(
+                    "{}: not a regular file",
+                    path.display()
+                )))
+            }
+            Err(e) => return Err(io_error(&path, e)),
+        }
+    }
+    Ok(())
+}
+
+/// Whether this process's effective user owns the file with status `m`.
+/// Off Unix there are no owners to tell apart, so it does.
+fn owns(m: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        // SAFETY: geteuid has no preconditions and cannot fail.
+        m.uid() == unsafe { libc::geteuid() }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = m;
+        true
+    }
 }
 
 /// Whether two file statuses are of one file: the same device and inode on
@@ -730,17 +785,18 @@ fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
 }
 
 /// A reader's connection to `<dir>/log.db`, with [`READER_PRAGMAS`] run:
-/// read-only, or immutable when this process cannot write `log.db` or
-/// `dir` and the store has no WAL content (see [`SqliteReader::open`]).
+/// read-only, or immutable when this process may not let SQLite create
+/// files in the store (its user does not own `log.db`, or cannot write it
+/// or `dir`) and the store has no WAL content (see [`SqliteReader::open`]).
 fn connect_reader(dir: &Path) -> Result<(Connection, Option<Frozen>), StoreError> {
     // Asked for read-write, SQLite opens a file this process cannot write
     // read-only, and says so. Opening reads nothing, and creates nothing.
     let probe = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    let (conn, _) = connect(dir, probe)?;
-    let writable = !conn.is_readonly(rusqlite::MAIN_DB)?;
+    let (conn, seen) = connect(dir, probe)?;
+    let may_create = !conn.is_readonly(rusqlite::MAIN_DB)? && owns(&seen);
     drop(conn);
     let db = dir.join(DB_FILE);
-    if !writable {
+    if !may_create {
         let wal = beside(&db, "-wal").map_err(|e| io_error(&db, e))?;
         if !wal_has_content(&wal) {
             return frozen(dir).ok_or_else(|| {
@@ -753,7 +809,7 @@ fn connect_reader(dir: &Path) -> Result<(Connection, Option<Frozen>), StoreError
         let shm = beside(&db, "-shm").map_err(|e| io_error(&db, e))?;
         if fs::symlink_metadata(&shm).is_err() {
             return Err(StoreError::Io(format!(
-                "{}: the store has WAL content and no {}, which this user may not create",
+                "{}: the store has WAL content and no {}, which this process may not create",
                 db.display(),
                 shm.display()
             )));
@@ -1020,8 +1076,9 @@ fn check_writer_triggers(conn: &Connection) -> Result<(), StoreError> {
 }
 
 /// Step 3 of [`SqliteLog::open`]: `S_IO` unless line 1 holds a genesis
-/// object whose content names this name, signer and key.
-fn check_genesis_line(conn: &Connection, genesis: &Genesis) -> Result<(), StoreError> {
+/// object whose content names `meta`'s name, signer and key, and whose
+/// entry's `ref` (the object's id) and `log` are `meta`'s log id.
+fn check_genesis_line(conn: &Connection, meta: &Meta) -> Result<(), StoreError> {
     let lines = db::lines(conn, 1, 1)?;
     let found = match lines.as_slice() {
         [(1, line)] => parse_line(line.as_bytes()).ok().and_then(|line| {
@@ -1030,18 +1087,28 @@ fn check_genesis_line(conn: &Connection, genesis: &Genesis) -> Result<(), StoreE
             };
             let inline = object.get("content")?.get("inline")?;
             let field = |key: &str| inline.get(key).and_then(Value::as_str).map(String::from);
-            Some((field("name")?, field("signer")?, field("key")?))
+            Some((
+                line.entry.reference,
+                line.entry.log,
+                field("name")?,
+                field("signer")?,
+                field("key")?,
+            ))
         }),
         _ => None,
     };
+    let genesis = &meta.genesis;
     let stored = (
+        meta.log_id.clone(),
+        meta.log_id.clone(),
         genesis.name.clone(),
         genesis.signer.clone(),
         genesis.key.clone(),
     );
     if found.as_ref() != Some(&stored) {
         return Err(damaged(
-            "meta's name, store_signer and store_key are not those of the genesis at seq 1",
+            "meta's log_id, name, store_signer and store_key are not those of the genesis \
+             at seq 1",
         ));
     }
     Ok(())
@@ -1539,6 +1606,86 @@ mod tests {
         {
             std::os::unix::fs::symlink(tmp.path().join("absent/wal"), &wal).unwrap();
             assert!(!wal_has_content(&wal), "a symlink to nothing");
+        }
+    }
+
+    /// A `log.db-wal` or `log.db-shm` that is a FIFO is `S_IO` for every
+    /// reader and the writer, at once: SQLite opens it read-only when it
+    /// cannot write it, which for a FIFO waits for a writer that never
+    /// comes. As root (who can write the FIFO) it is shown with a `log.db`
+    /// of another user too, which root reads without creating anything.
+    #[cfg(unix)]
+    #[test]
+    fn wal_files_that_are_not_regular_files_are_refused() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::time::Duration;
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("store");
+        drop(SqliteLog::init(&dir, "cer-demo", &store_key(), one_reading()).unwrap());
+        let db = dir.join(DB_FILE);
+        let mkfifo = |path: &Path| {
+            let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+            // SAFETY: a valid NUL-terminated path.
+            assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) }, 0);
+        };
+        // Each open on a thread of its own, given 30 seconds: one that
+        // blocks fails the test instead of hanging it.
+        let code = |open: fn(&Path) -> Result<(), StoreError>| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let dir = dir.clone();
+            std::thread::spawn(move || {
+                let _ = tx.send(open(&dir).err().map(|e| e.code_str()));
+            });
+            rx.recv_timeout(Duration::from_secs(30))
+                .expect("the open blocked")
+        };
+        let reader: fn(&Path) -> Result<(), StoreError> = |dir| SqliteReader::open(dir).map(drop);
+        let writer: fn(&Path) -> Result<(), StoreError> =
+            |dir| SqliteLog::open(dir, Box::new(ScriptClock::default())).map(drop);
+        let mut given_away = false;
+        for other_owner in [false, true] {
+            if other_owner {
+                // Only root can give a file to another user.
+                use std::os::unix::fs::MetadataExt;
+                let other = if fs::metadata(&db).unwrap().uid() == 65534 {
+                    65533
+                } else {
+                    65534
+                };
+                given_away = std::os::unix::fs::chown(&db, Some(other), Some(other)).is_ok();
+                if !given_away {
+                    break;
+                }
+            }
+            for (fifo, regular) in [("-wal", None), ("-shm", Some(("-wal", vec![0x5a; 32])))] {
+                let fifo = dir.join(format!("{DB_FILE}{fifo}"));
+                mkfifo(&fifo);
+                if let Some((suffix, bytes)) = &regular {
+                    fs::write(dir.join(format!("{DB_FILE}{suffix}")), bytes).unwrap();
+                }
+                let case = format!("{} (another owner: {other_owner})", fifo.display());
+                assert_eq!(code(reader), Some("S_IO"), "reader: {case}");
+                let found = crate::verify_store(&dir, Default::default()).err();
+                assert_eq!(found.map(|e| e.code_str()), Some("S_IO"), "{case}");
+                assert_eq!(code(writer), Some("S_IO"), "writer: {case}");
+                fs::remove_file(&fifo).unwrap();
+                if let Some((suffix, _)) = &regular {
+                    fs::remove_file(dir.join(format!("{DB_FILE}{suffix}"))).unwrap();
+                }
+                assert_eq!(names(&dir), [LOCK_FILE, DB_FILE], "{case}");
+            }
+            assert_eq!(code(reader), None);
+            // Settle what a reader that owns log.db may leave.
+            assert_eq!(code(writer), None);
+        }
+        // Without a FIFO, a reader that owns log.db reads as usual, and
+        // one that does not reads an immutable file and creates nothing.
+        let reader = SqliteReader::open(&dir).unwrap();
+        assert_eq!(reader.is_immutable(), given_away);
+        assert_eq!(reader.head().unwrap().seq, 2);
+        drop(reader);
+        if given_away {
+            assert_eq!(names(&dir), [LOCK_FILE, DB_FILE]);
         }
     }
 

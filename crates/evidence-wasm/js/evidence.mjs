@@ -207,11 +207,15 @@ function bytesListArg(args, name, values) {
     if (typeof s === "string" && LONE_SURROGATE.test(s)) {
       throw new EvidenceError("E_USAGE", `"${name}"[${i}] has a lone surrogate, which is not text`);
     }
+    let bytes;
     try {
-      return toBase64(toBytes(s));
-    } catch {
+      bytes = toBytes(s);
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
       throw new EvidenceError("E_USAGE", `"${name}"[${i}] must be a string, Uint8Array or ArrayBuffer`);
     }
+    // Outside the try: an input too large to encode keeps its own error.
+    return toBase64(bytes);
   });
   return args;
 }
@@ -224,11 +228,29 @@ function toBytes(value) {
   throw new TypeError("expected a string, Uint8Array or ArrayBuffer");
 }
 
+// Bytes per btoa call: a multiple of 3, so the encoded chunks join into one
+// standard base64 text. Small calls matter: Chromium's btoa returns "" instead
+// of throwing when its result would be longer than the longest string.
+const BASE64_CHUNK = 3 * 8192;
+
+// Standard base64 of the bytes. An input whose base64 form does not fit in one
+// string throws the engine's error (a RangeError in browsers). A result of any
+// other length than 4 * ceil(n / 3) throws too, rather than reach the module as
+// shorter bytes.
 function toBase64(bytes) {
-  if (typeof Buffer !== "undefined") return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  let text;
+  if (typeof Buffer !== "undefined") {
+    text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
+  } else {
+    const chunks = [];
+    for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {
+      chunks.push(btoa(String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK))));
+    }
+    text = chunks.join("");
   }
-  return btoa(binary);
+  const want = 4 * Math.ceil(bytes.length / 3);
+  if (text.length !== want) {
+    throw new RangeError(`base64 of ${bytes.length} bytes came out as ${text.length} characters, not ${want}`);
+  }
+  return text;
 }

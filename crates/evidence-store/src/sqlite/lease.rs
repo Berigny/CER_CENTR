@@ -21,9 +21,18 @@
 //! checks that the name still leads to the file it locked, and otherwise
 //! opens the name again.
 //!
-//! `LOCK` must be a regular file in the store directory: a symlink there is
-//! not followed (`S_IO`), so a planted link cannot make a writer overwrite
-//! another file with its lease text.
+//! `LOCK` must be a regular file in the store directory with no other name:
+//! a symlink there is not followed, and a file with more than one hard link
+//! is refused (`S_IO` both), so a planted link cannot make a writer
+//! overwrite another file with its lease text.
+//!
+//! A writer that creates `LOCK` creates it as its own user. When that is
+//! root and the store's `log.db` belongs to another user, the new `LOCK` is
+//! handed to that user and group (as SQLite does with `log.db-wal` and
+//! `log.db-shm`), so that the store's owner can still take the lease. Like
+//! SQLite's, the hand-over follows the create: a root writer killed between
+//! the two leaves a `LOCK` of root, which the owner removes. Nothing else
+//! changes the owner of a `LOCK` that is already there.
 //!
 //! The lock belongs to the open file, so a process that starts another
 //! program (`fork` then `exec`) while it holds the lease lends the child a
@@ -34,7 +43,7 @@
 //! from other threads while it reopens a store retries after a moment.
 
 use std::fs::{File, OpenOptions, TryLockError};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use crate::api::StoreError;
@@ -62,18 +71,20 @@ impl Lease {
     /// Take the lease on the store in `dir`: open `<dir>/LOCK` (creating it
     /// if absent, never truncating it, and on Unix with `O_NOFOLLOW` and
     /// `O_NONBLOCK`) for reading and writing, check that it is a regular
-    /// file, then `try_lock` it. On Unix, check that `<dir>/LOCK` still
-    /// names the file it locked (same device and inode); if it does not (it
-    /// was removed, or removed and created again, in between), let go and
-    /// start again, up to 8 times in all.
+    /// file with one link, hand a `LOCK` this call created to the owner of
+    /// `<dir>/log.db` when this process runs as root on Unix (see the
+    /// module docs), then `try_lock` it. On Unix, check that `<dir>/LOCK`
+    /// still names the file it locked (same device and inode); if it does
+    /// not (it was removed, or removed and created again, in between), let
+    /// go and start again, up to 8 times in all.
     ///
     /// - `S_LOCKED` (`StoreError::Locked`) when another holder has it
     ///   (`TryLockError::WouldBlock`); `holder` is the file's text as read
     ///   then (at most 4096 bytes), which may be empty while a holder is
     ///   rewriting it. Also `S_LOCKED`, with an empty `holder`, when the
     ///   name never stays.
-    /// - `S_IO` for any other failure, a `LOCK` that is a symlink or not a
-    ///   regular file included.
+    /// - `S_IO` for any other failure, a `LOCK` that is a symlink, not a
+    ///   regular file, or a file with another hard link included.
     ///
     /// The caller checks that `dir` holds a store (or, for `init`, is to
     /// hold one) before taking the lease, so that `LOCK` is never created
@@ -85,16 +96,27 @@ impl Lease {
         };
         for _ in 0..OPENS {
             hook::at("lease:open", &path)?;
-            let mut options = OpenOptions::new();
-            options.read(true).write(true).create(true).truncate(false);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_NOCTTY);
-            }
-            let file = options.open(&path).map_err(|e| cannot_open(&e))?;
-            if !file.metadata().map_err(|e| cannot_open(&e))?.is_file() {
+            // Create it if absent, knowing whether this call did; a name
+            // that is there (a symlink too, never followed) is opened.
+            let (file, created) = match open_lock(&path, true) {
+                Ok(file) => (file, true),
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => match open_lock(&path, false) {
+                    Ok(file) => (file, false),
+                    // Removed in between: start again.
+                    Err(e) if e.kind() == ErrorKind::NotFound => continue,
+                    Err(e) => return Err(cannot_open(&e)),
+                },
+                Err(e) => return Err(cannot_open(&e)),
+            };
+            let status = file.metadata().map_err(|e| cannot_open(&e))?;
+            if !status.is_file() {
                 return Err(cannot_open(&"not a regular file"));
+            }
+            if has_other_links(&status) {
+                return Err(cannot_open(&"it has another hard link"));
+            }
+            if created {
+                give_to_store_owner(&file, dir);
             }
             hook::at("lease:opened", &path)?;
             match file.try_lock() {
@@ -148,6 +170,54 @@ impl Lease {
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 }
+
+/// `path` opened for reading and writing, never truncated, on Unix with
+/// `O_NOFOLLOW` (a symlink is an error, not followed) and `O_NONBLOCK`;
+/// created when `create` is set, and then only if absent (`AlreadyExists`
+/// if anything, a symlink included, has the name).
+fn open_lock(path: &Path, create: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create_new(create);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_NOCTTY);
+    }
+    options.open(path)
+}
+
+/// Whether the file with this status has a name besides `LOCK`: more than
+/// one hard link (Unix). A link count of 0 (the name was removed after
+/// the open) is left to [`still_named`].
+#[cfg(unix)]
+fn has_other_links(status: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    status.nlink() > 1
+}
+
+#[cfg(not(unix))]
+fn has_other_links(_status: &std::fs::Metadata) -> bool {
+    false
+}
+
+/// When this process runs as root, hand `file`, a `LOCK` just created in
+/// `dir`, to the user and group of `<dir>/log.db`, as SQLite does with the
+/// files it creates beside `log.db`. Nothing when there is no `log.db` yet
+/// (an `init`), and, as in SQLite, nothing when the change fails.
+#[cfg(unix)]
+fn give_to_store_owner(file: &File, dir: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    // SAFETY: geteuid has no preconditions and cannot fail.
+    if unsafe { libc::geteuid() } != 0 {
+        return;
+    }
+    if let Ok(db) = std::fs::metadata(dir.join(super::DB_FILE)) {
+        let _ = std::os::unix::fs::fchown(file, Some(db.uid()), Some(db.gid()));
+    }
+}
+
+#[cfg(not(unix))]
+fn give_to_store_owner(_file: &File, _dir: &Path) {}
 
 /// Whether `path` still names `file`: the same device and inode. A name
 /// that is gone does not; one whose metadata cannot be read is taken to.
@@ -286,6 +356,48 @@ mod tests {
             other => panic!("expected S_LOCKED, got {other:?}"),
         }
         drop(held);
+        fs::remove_file(dir.join(LOCK_FILE)).unwrap();
+        // A hard link to another file is that file: refused, so the lease
+        // text is never written into it.
+        fs::hard_link(&victim, dir.join(LOCK_FILE)).unwrap();
+        assert_eq!(Lease::acquire(&dir).unwrap_err().code_str(), "S_IO");
+        assert_eq!(fs::read(&victim).unwrap(), b"keep me\n");
+        // Once the other name is gone, the file is LOCK's alone.
+        fs::remove_file(&victim).unwrap();
+        Lease::acquire(&dir).unwrap().record(1).unwrap();
+    }
+
+    /// A `LOCK` that root creates beside a `log.db` of another user belongs
+    /// to that user and group, so that the store's owner can still take the
+    /// lease; one that is already there keeps its owner, and one created
+    /// with no `log.db` (an `init`) is root's. Not root: nothing to show,
+    /// since a file cannot be given away.
+    #[cfg(unix)]
+    #[test]
+    fn a_lock_root_creates_belongs_to_the_owner_of_log_db() {
+        use std::os::unix::fs::MetadataExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let db = tmp.path().join(super::super::DB_FILE);
+        fs::write(&db, b"").unwrap();
+        let owner = |path: &Path| {
+            let m = fs::metadata(path).unwrap();
+            (m.uid(), m.gid())
+        };
+        let other = if owner(&db).0 == 65534 { 65533 } else { 65534 };
+        // Only root can give a file to another user.
+        if std::os::unix::fs::chown(&db, Some(other), Some(other - 1)).is_err() {
+            return;
+        }
+        let lock = tmp.path().join(LOCK_FILE);
+        drop(Lease::acquire(tmp.path()).unwrap());
+        assert_eq!(owner(&lock), (other, other - 1));
+        std::os::unix::fs::chown(&lock, Some(0), Some(0)).unwrap();
+        drop(Lease::acquire(tmp.path()).unwrap());
+        assert_eq!(owner(&lock), (0, 0), "an existing LOCK keeps its owner");
+        fs::remove_file(&lock).unwrap();
+        fs::remove_file(&db).unwrap();
+        drop(Lease::acquire(tmp.path()).unwrap());
+        assert_eq!(owner(&lock), (0, 0), "no log.db: root's");
     }
 
     #[test]

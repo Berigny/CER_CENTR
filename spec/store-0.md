@@ -466,6 +466,7 @@ These are returned by writers and tools, and never appear in a report. `S_RESERV
 | `S_EXISTS` | The target already exists: a store directory that holds anything but what an interrupted store creation leaves, or an export or import destination; or no free name is left for the temporary directory beside a destination. |
 | `S_FORMAT` | The store's format version is not one this implementation supports. |
 | `S_IO` | An I/O or storage-engine error. |
+| `S_NOT_HELD` | A lookup names an object the store does not hold (the reference command line's `store get`). |
 
 ## Two clocks
 

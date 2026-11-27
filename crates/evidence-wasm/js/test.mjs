@@ -260,6 +260,82 @@ function checkProofs(where, proofs, segments) {
   if (mixed !== ev.merkleRoot(["leaf-0", "\u{1F600}"])) fail("store/mixed-leaves", mixed);
 }
 
+// The browser path of the wrapper, run here with Buffer hidden, so bytes go to
+// the module as base64 made by btoa. Chromium's btoa returns "" instead of
+// throwing once its result would pass the longest string. The wrapper must
+// give the same results over several chunks, never pass on a short encoding,
+// and let an encoding error keep its own type and message.
+{
+  const dir = join(exportsDir, "004-multi-segment");
+  const c = JSON.parse(readFileSync(join(dir, "case.json"), "utf8"));
+  const manifest = readFileSync(join(dir, "manifest.json"));
+  const manifestText = manifest.toString("utf8");
+  const segments = ["000001.jsonl", "000002.jsonl", "000003.jsonl", "000004.jsonl"].map((f) =>
+    readFileSync(join(dir, f)),
+  );
+  const want = canonical(c.expect);
+  const pattern = (n) => Uint8Array.from({ length: n }, (_, i) => (i * 7 + (i >> 8)) & 0xff);
+  // Lengths around the 3 * 8192 bytes of one btoa call.
+  const lengths = [0, 1, 2, 3, 24575, 24576, 24577, 49153, 100000];
+  const hashes = lengths.map((n) => ev.fileHash(pattern(n)));
+  const bigRoot = ev.merkleRoot([pattern(100000)]);
+  const thrown = (fn) => {
+    try {
+      fn();
+      return null;
+    } catch (e) {
+      return e;
+    }
+  };
+  const saved = { Buffer: globalThis.Buffer, btoa: globalThis.btoa };
+  try {
+    globalThis.Buffer = undefined;
+    lengths.forEach((n, i) => {
+      count++;
+      const got = ev.fileHash(pattern(n));
+      if (got !== hashes[i]) fail(`base64/btoa/${n} bytes`, `${got}, want ${hashes[i]}`);
+    });
+    count++;
+    const report = canonical(ev.verifyExport(manifest, segments, { maxFindings: c.max_findings }));
+    if (report !== want) fail("base64/btoa/004-multi-segment", report);
+
+    // As Chromium does at its limit, here for results over 30,000 characters.
+    globalThis.btoa = (s) => (s.length > 30000 ? "" : saved.btoa(s));
+    count++;
+    const hash = ev.fileHash(pattern(100000));
+    if (hash !== hashes.at(-1)) fail("base64/long-btoa-empty/fileHash", `${hash}, want ${hashes.at(-1)}`);
+    count++;
+    const root = ev.merkleRoot([pattern(100000)]);
+    if (root !== bigRoot) fail("base64/long-btoa-empty/merkleRoot", `${root}, want ${bigRoot}`);
+
+    // A btoa that gives "" for everything: an error, never a result.
+    globalThis.btoa = () => "";
+    const short = {
+      fileHash: () => ev.fileHash(pattern(10)),
+      "verifyExport manifest": () => ev.verifyExport(manifest, [segments[0]]),
+      "verifyExport segments": () => ev.verifyExport(manifestText, segments),
+    };
+    for (const [what, fn] of Object.entries(short)) {
+      count++;
+      const e = thrown(fn);
+      if (!(e instanceof RangeError)) fail(`base64/btoa-empty/${what}`, e ? `${e.name}: ${e.message}` : "a result");
+    }
+
+    // An engine error while encoding a list item stays that error, not E_USAGE.
+    globalThis.btoa = () => {
+      throw new RangeError("Invalid string length");
+    };
+    count++;
+    const e = thrown(() => ev.verifyExport(manifestText, segments));
+    if (!(e instanceof RangeError) || e.message !== "Invalid string length") {
+      fail("base64/btoa-throws", e ? `${e.name}: ${e.message}` : "a result");
+    }
+  } finally {
+    globalThis.Buffer = saved.Buffer;
+    globalThis.btoa = saved.btoa;
+  }
+}
+
 if (failures.length) {
   console.error(`${failures.length} of ${count} WebAssembly checks failed:\n  ${failures.join("\n  ")}`);
   process.exit(1);

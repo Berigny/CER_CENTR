@@ -36,7 +36,7 @@ use evidence_core::time;
 use evidence_log::manifest::MANIFEST_FILE;
 use evidence_log::merkle::{self, Digest};
 use evidence_log::{
-    parse_line, verify_export, Genesis, Heads, Manifest, SubjectKey, Verifier, VerifyOptions,
+    parse_line, verify_export, Genesis, Heads, Kind, Manifest, SubjectKey, Verifier, VerifyOptions,
 };
 use evidence_store::{
     consistency, export, export_files, inclusion, read_export_dir, verify_log, CheckpointInfo,
@@ -288,12 +288,38 @@ impl LogRead for ExportLog {
             .collect())
     }
 
-    fn object(&self, _id: &str) -> Result<Option<StoredObject>, StoreError> {
-        unimplemented!("not used by proofs")
+    /// A proof reads the checkpoint objects it names: the object line with
+    /// this ref, if any.
+    fn object(&self, id: &str) -> Result<Option<StoredObject>, StoreError> {
+        Ok(self.lines.iter().find_map(|line| {
+            let line = parse_line(line.as_bytes()).unwrap();
+            (line.entry.kind == Kind::Object && line.entry.reference == id).then(|| StoredObject {
+                id: id.to_string(),
+                seq: line.entry.seq,
+                received_at: line.entry.received_at.clone(),
+                bytes: canon::canonicalize(line.body.value()),
+            })
+        }))
     }
 
-    fn attestations(&self, _object_id: &str) -> Result<Vec<StoredAttestation>, StoreError> {
-        unimplemented!("not used by proofs")
+    /// A proof reads the witnesses of the checkpoints it names: the
+    /// attestation lines whose `object` is this id, in seq order.
+    fn attestations(&self, object_id: &str) -> Result<Vec<StoredAttestation>, StoreError> {
+        Ok(self
+            .lines
+            .iter()
+            .filter_map(|line| {
+                let line = parse_line(line.as_bytes()).unwrap();
+                let value = line.body.value();
+                (line.entry.kind == Kind::Attestation
+                    && value.get("object").and_then(Value::as_str) == Some(object_id))
+                .then(|| StoredAttestation {
+                    hash: line.entry.reference.clone(),
+                    seq: line.entry.seq,
+                    line: canon::canonicalize(value),
+                })
+            })
+            .collect())
     }
 
     fn heads(&self, subject: &SubjectKey, lane: &str) -> Result<Vec<String>, StoreError> {

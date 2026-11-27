@@ -22,11 +22,13 @@
 //! It prints one canonical JSON line, for example:
 //!
 //! ```text
-//! {"append_seconds":…,"appends_per_second":…,"backend":"sqlite","batch":1,"checkpoint_seconds":…,"entries":10003,"objects":10000,"ok":true,"verify_seconds":…}
+//! {"append_seconds":…,"appends_per_second":…,"backend":"sqlite","batch":1,"checkpoint_seconds":…,"entries":10004,"objects":10000,"ok":true,"verify_seconds":…}
 //! ```
 //!
 //! and exits 0 when the log verifies, 1 when it does not or a store
-//! operation fails, and 2 for a usage error. The objects are synthetic.
+//! operation fails, and 2 for a usage error. `entries` is N + 4: the genesis
+//! and its attestation, the N objects, and the checkpoint and its witness
+//! attestation. The objects are synthetic.
 
 use std::path::Path;
 use std::process::ExitCode;

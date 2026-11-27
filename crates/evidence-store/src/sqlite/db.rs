@@ -307,13 +307,26 @@ pub(crate) fn schema_rows(conn: &Connection, triggers: bool) -> rusqlite::Result
     rows.collect()
 }
 
-/// The epoch of the last entry, or None if there is none.
+/// The epoch of the last entry, or None if there is none. `S_IO` unless
+/// its entry text parses and its `epoch` column is that text's epoch: a
+/// writer judges `meta.writer_epoch` by it, and an edited column would let
+/// it append an epoch that goes back.
 pub(crate) fn last_epoch(conn: &Connection) -> Result<Option<u64>, StoreError> {
-    let epoch = conn
-        .prepare("SELECT epoch FROM entries ORDER BY seq DESC LIMIT 1")?
-        .query_row([], |r| count(r, 0))
+    let row = conn
+        .prepare("SELECT seq, epoch, entry FROM entries ORDER BY seq DESC LIMIT 1")?
+        .query_row([], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, text(r, 2)?))
+        })
         .optional()?;
-    Ok(epoch)
+    let Some((seq, epoch, entry)) = row else {
+        return Ok(None);
+    };
+    match Entry::parse(entry.as_bytes()) {
+        Ok(e) if i64::try_from(e.epoch) == Ok(epoch) => Ok(Some(e.epoch)),
+        _ => Err(crate::api::damaged(format!(
+            "the entry row of seq {seq} does not match its entry text"
+        ))),
+    }
 }
 
 /// What [`derived`] finds.
@@ -362,6 +375,10 @@ struct Rows {
 ///    from its body.
 /// 3. An `objects` or `attestations` row is not at the seq of an entry of
 ///    its kind: a row that no line shows, which a lookup would still find.
+/// 4. A `checkpoints` row has a `seq` or `size` below 0, which no checkpoint
+///    has and [`checkpoints`] cannot read (it is `S_IO` there). The other
+///    rows of the projections are compared with the fold by `verify_store`
+///    only when nothing here differs.
 pub(crate) fn derived(conn: &Connection) -> Result<Derived, StoreError> {
     let integrity: String = conn.query_row("PRAGMA integrity_check(1)", [], |r| text(r, 0))?;
     if integrity != "ok" {
@@ -413,6 +430,12 @@ pub(crate) fn derived(conn: &Connection) -> Result<Derived, StoreError> {
         |r| r.get(0),
     )?;
     found.drift |= strays > 0;
+    let negative: i64 = conn.query_row(
+        "SELECT count(*) FROM checkpoints WHERE seq < 0 OR size < 0",
+        [],
+        |r| r.get(0),
+    )?;
+    found.drift |= negative > 0;
     Ok(found)
 }
 
@@ -474,26 +497,33 @@ pub(crate) struct State<'a>(pub(crate) &'a Connection);
 
 impl IntakeState for State<'_> {
     /// The last entry's `seq`, `entry_hash` and `received_at`, which the
-    /// next entry chains to and dates from. `S_IO` unless they are those of
-    /// the entry text stored beside them (its hash, and its own `seq` and
-    /// `received_at`): a damaged or edited row would otherwise be carried
-    /// into every later entry.
+    /// next entry chains to and dates from. `S_IO` unless they and its
+    /// `epoch` are those of the entry text stored beside them (its hash,
+    /// and its own `seq`, `received_at` and `epoch`): a damaged or edited
+    /// row would otherwise be carried into every later entry.
     fn tip(&self) -> Result<Tip, StoreError> {
         let tip = self
             .0
             .prepare(
-                "SELECT seq, entry_hash, received_at, entry FROM entries \
+                "SELECT seq, entry_hash, received_at, epoch, entry FROM entries \
                  ORDER BY seq DESC LIMIT 1",
             )?
             .query_row([], |r| {
-                Ok((count(r, 0)?, text(r, 1)?, text(r, 2)?, text(r, 3)?))
+                Ok((
+                    count(r, 0)?,
+                    text(r, 1)?,
+                    text(r, 2)?,
+                    count(r, 3)?,
+                    text(r, 4)?,
+                ))
             })
             .optional()?;
-        let (seq, entry_hash, received_at, entry) =
+        let (seq, entry_hash, received_at, epoch, entry) =
             tip.ok_or_else(|| StoreError::Io("the log has no entries".into()))?;
         let matches = Entry::parse(entry.as_bytes()).is_ok_and(|e| {
             e.seq == seq
                 && e.received_at == received_at
+                && e.epoch == epoch
                 && canon::sha256_hex(entry.as_bytes()) == entry_hash
         });
         if !matches {

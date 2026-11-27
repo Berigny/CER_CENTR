@@ -19,7 +19,23 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - name: Clippy for the Python extension (checked here, built by maturin below)
         run: cargo clippy -p evidence-py --all-targets --locked -- -D warnings
-      - run: cargo test --locked
+      - name: Tests, the CLI store tests and the crash test included
+        run: cargo test --locked
+        env:
+          EVIDENCE_CRASH_ITERS: 50
+      - name: Purity guards (T14)
+        run: |
+          for p in evidence-core evidence-log evidence-wasm evidence-py; do
+            out=$(cargo tree -p "$p" -e normal --prefix none --locked)
+            test -n "$out"
+            if echo "$out" | grep -qE '^(rusqlite|libsqlite3-sys|tokio|axum) '; then echo "$p is not pure"; exit 1; fi
+          done
+          # grep exits 1 when nothing matches: a match (0) or an error (2) fails the step.
+          s=0; grep -rnE 'std::(fs|net|process|thread)|SystemTime|Instant|UNIX_EPOCH' crates/evidence-log/src || s=$?
+          test "$s" -eq 1
+          # The same modules in a braced import, such as use std::{fs, io::Read};
+          s=0; grep -rlzP 'std::\{[^;]*\b(fs|net|process|thread)\b' crates/evidence-log/src || s=$?
+          test "$s" -eq 1
 
   wasm:
     runs-on: ubuntu-latest
@@ -34,6 +50,11 @@ jobs:
       - run: sh tools/build-wasm.sh
       - name: Every vector through the WebAssembly module
         run: node crates/evidence-wasm/js/test.mjs
+      - run: cargo build -p evidence-cli --locked
+      - name: The CLI's proofs through the WebAssembly module (T11)
+        run: node tools/check-proofs.mjs
+        env:
+          EVIDENCE_BIN: target/debug/evidence
       - uses: actions/upload-artifact@v4
         with:
           name: evidence-wasm-pkg
@@ -51,13 +72,21 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install ./crates/evidence-py
-      - name: Every vector through the Python package
+      - run: cargo build -p evidence-cli --locked
+      - name: Every vector, and the CLI's proofs (T11), through the Python package
         run: python -m unittest discover -s crates/evidence-py/tests -v
+        env:
+          EVIDENCE_BIN: ${{ github.workspace }}/target/debug/evidence
 
   vectors:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Object vectors are those on main (T13)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          git diff --exit-code FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -74,3 +103,22 @@ jobs:
         run: |
           pip install "jsonschema>=4.23,<5"
           python tools/check_schema_vectors.py
+
+  page:
+    needs: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: evidence-wasm-pkg
+          path: crates/evidence-wasm/pkg
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright and Chromium, installed outside the repository
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.63.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: The verify page over every export case
+        run: NODE_PATH="$RUNNER_TEMP/pw/node_modules" node tools/verify-page/smoke.mjs

@@ -449,6 +449,87 @@ fn t8_projection_drift_and_meta_mismatch() {
     conn.execute("DELETE FROM heads WHERE id = ?1", [&id_001])
         .unwrap();
 
+    // A negative seq or size, which no checkpoint has: a finding, like any
+    // other edit of the projection, not an error. (A seq that is no
+    // entry's needs foreign keys off.)
+    conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+    for sql in [
+        "UPDATE checkpoints SET size = -size",
+        "UPDATE checkpoints SET seq = -seq",
+    ] {
+        conn.execute(sql, []).unwrap();
+        assert_eq!(codes(&verify(&dir)), drift, "{sql}");
+        conn.execute(sql, []).unwrap();
+    }
+    conn.execute_batch("PRAGMA foreign_keys = ON").unwrap();
+    assert!(verify(&dir).ok());
+
+    // A row moved to the head, with the root the entries give there: the
+    // projection agrees with the entries, but the checkpoint signed size 5,
+    // so a proof that would name it is S_IO.
+    let reader = SqliteReader::open(&dir).unwrap();
+    let root7 = evidence_log::merkle::root(&reader.leaf_hashes(7).unwrap());
+    conn.execute(
+        "UPDATE checkpoints SET size = 7, root = ?1",
+        [evidence_log::merkle::to_text(&root7)],
+    )
+    .unwrap();
+    assert_eq!(codes(&verify(&dir)), drift);
+    assert_eq!(error_code(evidence_store::inclusion(&reader, 4, 7)), "S_IO");
+    assert_eq!(
+        error_code(evidence_store::consistency(&reader, 5, 7)),
+        "S_IO"
+    );
+    // At size 5 no row names it now: the proof names no checkpoint.
+    assert_eq!(
+        evidence_store::inclusion(&reader, 4, 5).unwrap().checkpoint,
+        None
+    );
+    // The checkpoint object's stored bytes edited too, behind a dropped and
+    // restored trigger, to claim size 7 and that root, with a matching
+    // content hash: its id no longer hashes from its bytes, so a proof that
+    // would name it is still S_IO.
+    let (id, bytes): (String, String) = conn
+        .query_row(
+            "SELECT id, bytes FROM objects WHERE id = (SELECT id FROM checkpoints)",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let value = evidence_core::json::parse(bytes.as_bytes()).unwrap();
+    let content = value.get("content").unwrap();
+    let inline = content
+        .get("inline")
+        .unwrap()
+        .with("size", Value::Number(7.0))
+        .with("root", Value::String(evidence_log::merkle::to_text(&root7)));
+    let content = content
+        .with("hash", Value::String(canon::digest(&inline)))
+        .with("inline", inline);
+    let edited = canon::canonicalize(&value.with("content", content));
+    let trigger: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE name = 'objects_no_update'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    for stored in [&edited, &bytes] {
+        conn.execute_batch("DROP TRIGGER objects_no_update")
+            .unwrap();
+        conn.execute("UPDATE objects SET bytes = ?1 WHERE id = ?2", [stored, &id])
+            .unwrap();
+        conn.execute_batch(&trigger).unwrap();
+        if stored == &edited {
+            assert_eq!(error_code(evidence_store::inclusion(&reader, 4, 7)), "S_IO");
+            assert_eq!(
+                error_code(evidence_store::consistency(&reader, 5, 7)),
+                "S_IO"
+            );
+        }
+    }
+    drop(reader);
+
     // A checkpoints row changed, then deleted: one finding each time.
     conn.execute("UPDATE checkpoints SET size = size + 1", [])
         .unwrap();
@@ -907,23 +988,30 @@ fn meta_is_checked_on_open() {
         restore(key);
         assert!(verify(&dir).ok(), "{key} restored");
     }
-    // Another key, consistent with its signer and name, or another name
-    // with its signer: valid on their own, so a reader opens, and
-    // verify_store finds them against the genesis line. The writer refuses
-    // them: it would sign checkpoints with that key, or under that name.
-    let others: [&[(&str, &str)]; 2] = [
+    // Another key, consistent with its signer and name, another name with
+    // its signer, or another log id: valid on their own, so a reader opens,
+    // and verify_store finds them against the genesis line. The writer
+    // refuses them: it would sign checkpoints with that key, or under that
+    // name, or put that log id into every entry and checkpoint it appends,
+    // which no later edit of meta would undo.
+    let other_log = format!("sha256:{}", "1".repeat(64));
+    let others: [&[(&str, &str)]; 3] = [
         &[("store_key", &other_key)],
         &[
             ("name", "other"),
             ("store_signer", "service:evidence-store/other"),
         ],
+        &[("log_id", &other_log)],
     ];
     for changes in others {
         for (key, value) in changes {
             set(key, Some(value));
         }
         let reader = SqliteReader::open(&dir).unwrap();
-        assert_ne!(reader.genesis(), &sample_genesis(), "{changes:?}");
+        assert!(
+            reader.genesis() != &sample_genesis() || reader.log_id() == other_log,
+            "{changes:?}"
+        );
         assert_eq!(codes(&verify(&dir)), [("S_META_MISMATCH", None)]);
         let writer = SqliteLog::open(&dir, Box::new(ScriptClock::default()));
         assert_eq!(error_code(writer), "S_IO", "{changes:?}");
@@ -953,6 +1041,41 @@ fn meta_is_checked_on_open() {
     raw(&dir).execute_batch("PRAGMA user_version = 1").unwrap();
     raw(&dir).execute_batch("DROP TABLE meta").unwrap();
     refused(&dir, "S_NOT_A_STORE");
+}
+
+/// The writer judges `meta.writer_epoch` by the epoch of the last entry's
+/// text, not by its `epoch` column: a column lowered behind the triggers,
+/// with `writer_epoch` lowered to match, would otherwise let it append an
+/// epoch that goes back. It refuses such a row, as it refuses any last row
+/// whose columns are not those of its entry text.
+#[test]
+fn the_writer_takes_the_last_epoch_from_the_entry_text() {
+    let tmp = tempfile::tempdir().unwrap();
+    for meta_too in [true, false] {
+        let dir = tmp.path().join(format!("store-{meta_too}"));
+        drop(sample(&dir));
+        let c = clock(&["2026-11-26T00:00:05Z"]);
+        let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+        assert_eq!(log.append(&object("004-external-content")).unwrap().seq, 8);
+        drop(log);
+        edit_behind_triggers(&dir, |conn| {
+            conn.execute("UPDATE entries SET epoch = 1 WHERE seq = 8", [])
+                .unwrap();
+            if meta_too {
+                conn.execute("UPDATE meta SET v = '1' WHERE k = 'writer_epoch'", [])
+                    .unwrap();
+            }
+        });
+        let found = codes(&verify(&dir));
+        assert!(found.contains(&("S_PROJECTION_DRIFT", None)), "{found:?}");
+        let writer = SqliteLog::open(&dir, Box::new(ScriptClock::default()));
+        assert_eq!(error_code(writer), "S_IO", "meta too: {meta_too}");
+        let reader = SqliteReader::open(&dir).unwrap();
+        assert_eq!(reader.head().unwrap().seq, 8, "nothing written");
+        let epochs = reader.lines(1, ALL).unwrap();
+        let last = parse_line(epochs[7].1.as_bytes()).unwrap().entry.epoch;
+        assert_eq!(last, 2);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1157,6 +1280,58 @@ fn a_reader_that_cannot_write_log_db_creates_nothing() {
     fs::set_permissions(&db, fs::Permissions::from_mode(0o644)).unwrap();
     drop(SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap());
     assert_eq!(names(&dir), [LOCK_FILE, DB_FILE]);
+}
+
+/// Give the file at `path` to a user and group other than its owner's:
+/// false when this process may not (it is not root).
+#[cfg(unix)]
+fn give_away(path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let other = match fs::metadata(path).unwrap().uid() {
+        65534 => 65533,
+        _ => 65534,
+    };
+    std::os::unix::fs::chown(path, Some(other), Some(other)).is_ok()
+}
+
+/// A reader whose user does not own `log.db` lets SQLite create nothing in
+/// the store, even when it can write `log.db` (a member of the store's
+/// group, or root): files it created would be of its own user or group,
+/// which the owner's writer may not be able to open, and root's are handed
+/// to the owner only after they are created. With no WAL content it reads
+/// `log.db` as an immutable file; while a writer is open it reads through
+/// the writer's files, the latest entries included. Shown as root, with a
+/// `log.db` given to another user; elsewhere a file cannot be given away,
+/// and the test checks nothing.
+#[cfg(unix)]
+#[test]
+fn a_reader_that_does_not_own_log_db_creates_nothing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("store");
+    drop(sample(&dir));
+    let want = evidence_store::export_files(&SqliteReader::open(&dir).unwrap(), 3).unwrap();
+    drop(SqliteLog::open(&dir, Box::new(ScriptClock::default())).unwrap());
+    if !give_away(&dir.join(DB_FILE)) {
+        return;
+    }
+    let before = names(&dir);
+    assert_eq!(before, [LOCK_FILE, DB_FILE]);
+    let reader = read_everything(&dir, &tmp.path().join("e1"), &want);
+    assert!(reader.is_immutable());
+    assert_eq!(names(&dir), before, "nothing created");
+    drop(reader);
+
+    let c = clock(&["2026-11-26T00:00:05Z"]);
+    let mut log = SqliteLog::open(&dir, Box::new(c)).unwrap();
+    let reader = SqliteReader::open(&dir).unwrap();
+    assert!(!reader.is_immutable(), "WAL content: read through the WAL");
+    log.append(&object("004-external-content")).unwrap();
+    assert_eq!(reader.head().unwrap().seq, 8);
+    drop(reader);
+    drop(log);
+    assert_eq!(names(&dir), before, "the writer removed its files");
+    assert!(verify(&dir).ok());
+    assert_eq!(names(&dir), before);
 }
 
 /// The usual case: a store directory this user cannot write. As root the

@@ -31,6 +31,8 @@ for (const f of storeReport.findings) console.log(f.code, f.seq);
 
 Methods: `canonicalize`, `contentHash`, `fileHash`, `computeId`, `seal`, `verify`, `sign`, `publicKey`, `version`, and for stores (`spec/store-0.md`) `entryHash(input)`, `merkleRoot(leaves)`, `verifyInclusion(leafHash, index, size, proof, root)`, `verifyConsistency(oldSize, newSize, oldRoot, newRoot, proof)` and `verifyExport(manifest, segments, { maxFindings })`. Inputs may be strings or bytes; `leaves`, `segments` and `store` are arrays of them, and anything else there (a lone string or byte array included) is `E_USAGE`. Pass bytes when reading files, so a file that is not valid UTF-8 fails with `E_PARSE` instead of being silently repaired by a text decoder. Errors throw `EvidenceError` with `.code` and `.detail`.
 
+Bytes go to the module as base64 inside one JSON request string, so the byte inputs of one call can hold at most about 400 MB in Chromium and Node, whose longest string is 2^29 − 24 characters. Larger inputs throw the engine's own error, such as `RangeError`: never `E_USAGE`, and never a result for other bytes. In browsers the wrapper encodes with `btoa` in chunks, because Chromium's `btoa` returns an empty string instead of throwing at that limit. The command-line tool has no such limit.
+
 ## The ABI, for other hosts
 
 Three exports plus `memory`:

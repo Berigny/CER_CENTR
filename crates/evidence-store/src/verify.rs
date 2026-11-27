@@ -46,21 +46,17 @@ const CHUNK: usize = 1024;
 /// An error from the log (`S_IO`) is returned as an error, not a finding:
 /// a report is only given for a log that could be read.
 pub fn verify_log(log: &dyn LogRead, opts: VerifyOptions) -> Result<StoreReport, StoreError> {
-    let (mut verifier, drift) = check_log(log, opts)?;
-    if drift {
+    let mut verifier = push_lines(log, opts)?;
+    if projections_drift(log, &verifier)? {
         verifier.add_finding(Finding::new(FindingCode::ProjectionDrift));
     }
     Ok(verifier.finish())
 }
 
-/// Steps 1 and 2 of [`verify_log`], and whether the projections drift
-/// (step 3), with the verifier given back before the finding is added and
-/// before `finish()`, so that [`verify_store`] can add the live-store
-/// findings in the same snapshot.
-pub(crate) fn check_log(
-    log: &dyn LogRead,
-    opts: VerifyOptions,
-) -> Result<(Verifier, bool), StoreError> {
+/// Steps 1 and 2 of [`verify_log`]: the verifier, every line pushed, before
+/// any finding is added and before `finish()`, so that [`verify_store`] can
+/// add the live-store findings in the same snapshot.
+fn push_lines(log: &dyn LogRead, opts: VerifyOptions) -> Result<Verifier, StoreError> {
     let mut verifier = Verifier::new(VerifyOptions {
         max_findings: opts.max_findings,
         source: Source::Store,
@@ -86,8 +82,7 @@ pub(crate) fn check_log(
             None => break,
         }
     }
-    let drift = projections_drift(log, &verifier)?;
-    Ok((verifier, drift))
+    Ok(verifier)
 }
 
 /// Whether the log's `heads` or `checkpoints` differ in any row from the
@@ -123,11 +118,14 @@ fn projections_drift(log: &dyn LogRead, verifier: &Verifier) -> Result<bool, Sto
 ///      texts differs from what the lines give: SQLite's integrity check
 ///      fails, a column of an `entries`, `objects` or `attestations` row
 ///      differs from its line (the stored `entry` must be the line's
-///      canonical entry), or an `objects` or `attestations` row is at no
-///      entry of its kind. These columns and rows are what lookups and the
-///      writer read (the tip's hash and time, an object's `at`, a ref), so
-///      a store whose lines verify while they differ could still answer
-///      wrongly, or lead its writer to append lines that never verify;
+///      canonical entry), an `objects` or `attestations` row is at no
+///      entry of its kind, or a `checkpoints` row has a negative `seq` or
+///      `size` (these are checked first, and the projections are compared
+///      only if none is found, so such a row is a finding, not an error).
+///      These columns and rows are what lookups and the writer read (the
+///      tip's hash and time, an object's `at`, a ref), so a store whose
+///      lines verify while they differ could still answer wrongly, or lead
+///      its writer to append lines that never verify;
 ///    - `S_TRIGGERS_MISSING` (no seq) unless `has_append_only_triggers()`:
 ///      the six triggers, as `schema.sql` creates them, and no others;
 ///    - `S_META_MISMATCH` (no seq, at most one) unless the lines have a log
@@ -146,9 +144,11 @@ fn projections_drift(log: &dyn LogRead, verifier: &Verifier) -> Result<bool, Sto
 pub fn verify_store(dir: &Path, opts: VerifyOptions) -> Result<StoreReport, StoreError> {
     let reader = SqliteReader::open(dir)?;
     reader.snapshot(|r| {
-        let (mut verifier, drift) = check_log(r, opts)?;
+        let mut verifier = push_lines(r, opts)?;
+        // First: a checkpoints row that cannot be read as one (a negative
+        // seq or size) is drift here, and the projections are not read.
         let derived = r.derived()?;
-        if drift || derived.drift {
+        if derived.drift || projections_drift(r, &verifier)? {
             verifier.add_finding(Finding::new(FindingCode::ProjectionDrift));
         }
         if !r.has_append_only_triggers()? {
