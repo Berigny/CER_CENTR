@@ -308,6 +308,22 @@ The edge track adds records about consumer energy resources devices: an installe
 
 The edge track is not yet sized; each step adds to the milestone it sits under.
 
+## Analytics track (proposed)
+
+The analytics track would add trends and anomaly flags computed from the log. The design is a draft in [analytics.md](analytics.md). Like the edge track, it sits under the milestones above, so this stays the only roadmap. Nothing in it is built, and it uses synthetic data only until M5.
+
+- **The log is the evidence base, not the engine.** Counts and baselines run in a projection rebuilt from the log behind a watermark, and every trend and flag names the log position and clocks it used, so anyone holding the log can recompute it.
+- **Flags are facts against published rules.** A flag states what was measured and the published threshold that fired. It is a prompt for review, not a finding, and it adds a review step only under the published approval rules ([approvals.md](approvals.md)). It never changes an approved object's status by itself, and the layer makes no automated decisions.
+- **No scores of people or households.** Trends are never grouped by person, installer, reviewer, gateway or household, and small counts are suppressed. Whether model scores about devices, product models or data quality should ever be allowed is open ([analytics.md section 3](analytics.md#3-the-scoring-question-open)).
+
+| Step | Content | When |
+|---|---|---|
+| AN1 | The detector rule set and flag shapes, a projection rebuilt from the log behind a watermark, and rule-based detectors with must-fire and must-not-fire vectors on the M2 simulator's workloads | With M4 |
+| AN2 | Trends with small-count suppression; record-level flags routed to review in the approval-status view; aggregate flags in advisory reports; outcomes recorded by people | After the assert intake (late M4 or early M6) |
+| AN3 | Real data, only after M5 and legal review, and with the agreement of each system's owner; model scores only if that open decision allows them | After M5 |
+
+The analytics track is not yet sized; each step adds to the milestone it sits under.
+
 ## Decisions (confirmed 26 November 2026)
 
 1. **Record D11 now: observe first, writes later only through explicit requests**

@@ -36,6 +36,7 @@ The first domain profile in view, as an example drawn from public information, i
 | [`docs/turn-reader.md`](docs/turn-reader.md) | Design note: a reader that tools and AI agents call before they rely on evidence, and when a read must be recorded (input to M4, M6 and M9; not built) |
 | [`docs/approvals.md`](docs/approvals.md) | Design note: approver lists and approval rules as published data, an approval-status view, disagreement resolved by a person, pseudonymous actor ids, and hooks that let any tool, AI agents included, act under a grant and keep continuity notes (input to M4, M5 and M6; not built) |
 | [`docs/cer-edge.md`](docs/cer-edge.md) | Draft profile for edge-device records in consumer energy resources, for the roadmap's edge track EG1-EG4 (synthetic data only; not built) |
+| [`docs/analytics.md`](docs/analytics.md) | Design note: trends and anomaly flags computed from the log as known at a stated position, with published detector rules, flags routed to a person for review, and no scores of people or households (input to M3, M4 and M5, and the roadmap's proposed analytics track AN1-AN3; not built) |
 
 ## Quick start
 
