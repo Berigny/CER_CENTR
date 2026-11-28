@@ -373,7 +373,170 @@ vector("115-attestation-bad-key", {
   expect: { ok: false, code: "E_ATTESTATION_SHAPE" },
 });
 
-console.log(`wrote ${canon.length} canon, ${numbers.length} number and 20 object vectors to ${ROOT}`);
+// --- Step-1 precedence (116 to 138) ---
+// Bytes with more than one step-1 fault. evidence/0 fixes the code whatever
+// the faults' byte positions: E_PARSE if the bytes have any fault other than
+// a number out of range or a repeated name, otherwise E_NUMBER_RANGE if a
+// number is out of range, otherwise E_DUPLICATE_KEY. Each case is object
+// 001's canonical text with its faults, and names them in byte order; the
+// expected code is derived from the faults, and the reference must give it.
+
+const STEP_1_ORDER = ["E_PARSE", "E_NUMBER_RANGE", "E_DUPLICATE_KEY"];
+const c001 = ev.canonicalize(obj001);
+// Replaces the one occurrence of `from` in `text`.
+const edit = (text, from, to) => {
+  if (text.split(from).length !== 2) throw new Error(`${from} is not in the text exactly once`);
+  return text.replace(from, () => to);
+};
+const big = "9007199254740993"; // 2^53 + 1
+// One fault of each kind early (in actor), in the middle (in content.inline)
+// and late (in subject), as edits of the canonical text.
+const ACTOR_ID = '"id":"service:rec-registry-cdc"';
+const KIND = '"kind":"service"';
+const CAPACITY = '"capacity_kw":6.6';
+const COMMISSIONED = '"commissioned_on":"2026-11-20"';
+const KEY = '"key":"INS-TEST-000001"';
+const FAULTS = {
+  early: {
+    E_DUPLICATE_KEY: [ACTOR_ID, `${ACTOR_ID},${ACTOR_ID}`, "actor.id repeated"],
+    E_NUMBER_RANGE: [ACTOR_ID, `"id":12345678901234567890`, "actor.id written as a number above 2^53 - 1"],
+    E_PARSE: [KIND, `"kind":service`, "actor.kind written as a bare word"],
+  },
+  middle: {
+    E_DUPLICATE_KEY: [CAPACITY, `${CAPACITY},${CAPACITY}`, "capacity_kw repeated in content.inline"],
+    E_NUMBER_RANGE: [CAPACITY, `"capacity_kw":${big}`, `capacity_kw ${big} in content.inline`],
+    E_PARSE: [COMMISSIONED, `"commissioned_on":2026-11-20`, "commissioned_on in content.inline written as 2026-11-20, which is not a JSON value"],
+  },
+  late: {
+    E_DUPLICATE_KEY: [KEY, `${KEY},${KEY}`, "subject.key repeated"],
+    E_NUMBER_RANGE: [KEY, `"key":100000000000000001`, "subject.key written as the number 100000000000000001"],
+    E_PARSE: [KEY, `"key":"INS-${esc("d800")}"`, "a lone surrogate in subject.key"],
+  },
+};
+const step1Codes = (faults) => STEP_1_ORDER.find((code) => faults.includes(code));
+const FAULT_WORD = { E_PARSE: "parse", E_NUMBER_RANGE: "number", E_DUPLICATE_KEY: "duplicate" };
+let step1Number = 116;
+function step1Vector(slug, { description, bytes, faults }) {
+  const code = step1Codes(faults);
+  for (const [what, check] of [
+    ["evidence.mjs", () => ev.parseStrict(bytes)],
+    ["log.mjs", () => log.checkObject(bytes)],
+  ]) {
+    let got = "no error";
+    try {
+      check();
+    } catch (e) {
+      got = e.code;
+    }
+    if (got !== code) throw new Error(`step1-precedence-${slug}: ${what} gives ${got}, want ${code}`);
+  }
+  vector(`${step1Number++}-step1-precedence-${slug}`, {
+    description: `${description} Step 1 reports ${code}: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.`,
+    text: bytes,
+    expect: { ok: false, code },
+  });
+}
+// Faults at the given positions, each [position, code], in byte order.
+function placed(...faults) {
+  let text = c001;
+  for (const [where, code] of faults) text = edit(text, FAULTS[where][code][0], FAULTS[where][code][1]);
+  const what = faults.map(([where, code]) => FAULTS[where][code][2]);
+  step1Vector(faults.map(([, code]) => FAULT_WORD[code]).join("-"), {
+    description: `In byte order: ${what.join("; then ")}.`,
+    bytes: Buffer.from(`${text}\n`),
+    faults: faults.map(([, code]) => code),
+  });
+}
+const [PARSE, RANGE, DUP] = STEP_1_ORDER;
+// Each pair of codes, in both byte orders.
+placed(["early", DUP], ["middle", RANGE]);
+placed(["middle", RANGE], ["late", DUP]);
+placed(["early", DUP], ["middle", PARSE]);
+placed(["early", PARSE], ["late", DUP]);
+placed(["early", RANGE], ["late", PARSE]);
+placed(["middle", PARSE], ["late", RANGE]);
+// All three, in each of the six byte orders.
+placed(["early", PARSE], ["middle", RANGE], ["late", DUP]);
+placed(["early", PARSE], ["middle", DUP], ["late", RANGE]);
+placed(["early", RANGE], ["middle", PARSE], ["late", DUP]);
+placed(["early", RANGE], ["middle", DUP], ["late", PARSE]);
+placed(["early", DUP], ["middle", PARSE], ["late", RANGE]);
+placed(["early", DUP], ["middle", RANGE], ["late", PARSE]);
+
+const dupOp = `{"op":"delete",${c001.slice(1)}`; // vector 106's text, without its LF
+step1Vector("nested-duplicate-number", {
+  description: 'content.inline gains "readings": an array holding an object that repeats "kw", then an array nested in an array holding 9007199254740993.',
+  bytes: Buffer.from(`${edit(c001, CAPACITY, `${CAPACITY},"readings":[{"kw":1.2,"kw":1.3},[[${big}]]]`)}\n`),
+  faults: [DUP, RANGE],
+});
+step1Vector("nested-duplicate-parse", {
+  description: 'content.inline gains "readings": an array holding an object that repeats "kw", then an array nested in an array with a trailing comma.',
+  bytes: Buffer.from(`${edit(c001, CAPACITY, `${CAPACITY},"readings":[{"kw":1.2,"kw":1.3},[[1.2,]]]`)}\n`),
+  faults: [DUP, PARSE],
+});
+step1Vector("duplicate-then-unclosed", {
+  description: "Two op members, as in 106, and the closing brace at the very end is missing.",
+  bytes: Buffer.from(`${dupOp.slice(0, -1)}\n`),
+  faults: [DUP, PARSE],
+});
+step1Vector("number-in-first-of-duplicate", {
+  description: `capacity_kw twice in content.inline, first ${big}, then 6.6. A last-one-wins parser keeps 6.6 and sees no number out of range.`,
+  bytes: Buffer.from(`${edit(c001, CAPACITY, `"capacity_kw":${big},${CAPACITY}`)}\n`),
+  faults: [RANGE, DUP],
+});
+step1Vector("number-in-second-of-duplicate", {
+  description: `capacity_kw twice in content.inline, first 6.6, then ${big}.`,
+  bytes: Buffer.from(`${edit(c001, CAPACITY, `${CAPACITY},"capacity_kw":${big}`)}\n`),
+  faults: [DUP, RANGE],
+});
+step1Vector("duplicate-then-trailing-bytes", {
+  description: "Two op members, as in 106, then a second JSON value, {}, on the next line. The first value is complete; the bytes after it are not strict JSON.",
+  bytes: Buffer.from(`${dupOp}\n{}\n`),
+  faults: [DUP, PARSE],
+});
+step1Vector("duplicate-then-not-utf-8", {
+  description: "Two op members, as in 106, then the byte 0xFF, which is not UTF-8, in subject.key.",
+  bytes: Buffer.concat([
+    Buffer.from(dupOp.slice(0, dupOp.indexOf('"key":"INS-TEST-') + '"key":"INS-TEST-'.length)),
+    Buffer.from([0xff]),
+    Buffer.from(`${dupOp.slice(dupOp.indexOf('"key":"INS-TEST-') + '"key":"INS-TEST-'.length)}\n`),
+  ]),
+  faults: [DUP, PARSE],
+});
+step1Vector("escaped-duplicate-then-number", {
+  description: `actor.id twice, the second spelled "${esc("0069")}d", then capacity_kw ${big} in content.inline. Names are compared after unescaping, so the repeat comes first in byte order.`,
+  bytes: Buffer.from(
+    `${edit(edit(c001, ACTOR_ID, `${ACTOR_ID},"${esc("0069")}d":"service:rec-registry-cdc"`), CAPACITY, `"capacity_kw":${big}`)}\n`,
+  ),
+  faults: [DUP, RANGE],
+});
+step1Vector("lone-surrogate-in-first-of-duplicate", {
+  description: "Two op members, the first a lone surrogate. A last-one-wins parser keeps the second and never sees the surrogate.",
+  bytes: Buffer.from(`{"op":"${esc("d800")}",${c001.slice(1)}\n`),
+  faults: [PARSE, DUP],
+});
+step1Vector("duplicate-number-then-unescaped-tab", {
+  description: `actor.id repeated, then capacity_kw ${big} in content.inline, then a tab written unescaped in subject.key. Strict JSON allows a control character in a string only when it is escaped.`,
+  bytes: Buffer.from(
+    `${edit(
+      edit(edit(c001, ACTOR_ID, `${ACTOR_ID},${ACTOR_ID}`), CAPACITY, `"capacity_kw":${big}`),
+      KEY,
+      `"key":"INS-TEST-\t000001"`,
+    )}\n`,
+  ),
+  faults: [DUP, RANGE, PARSE],
+});
+step1Vector("byte-order-mark-duplicate-number", {
+  description: `A UTF-8 byte order mark, then actor.id repeated, then capacity_kw ${big} in content.inline.`,
+  bytes: Buffer.concat([
+    Buffer.from([0xef, 0xbb, 0xbf]),
+    Buffer.from(`${edit(edit(c001, ACTOR_ID, `${ACTOR_ID},${ACTOR_ID}`), CAPACITY, `"capacity_kw":${big}`)}\n`),
+  ]),
+  faults: [PARSE, DUP, RANGE],
+});
+const objectCount = step1Number - 116 + 20;
+
+console.log(`wrote ${canon.length} canon, ${numbers.length} number and ${objectCount} object vectors to ${ROOT}`);
 
 // --- Store vectors (store/0) ------------------------------------------------------
 // Built with tools/reference/log.mjs: entries.json, merkle.json and the export

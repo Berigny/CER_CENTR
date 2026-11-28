@@ -1,0 +1,7 @@
+{
+  "description": "In byte order: actor.kind written as a bare word; then capacity_kw repeated in content.inline; then subject.key written as the number 100000000000000001. Step 1 reports E_PARSE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

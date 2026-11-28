@@ -6,10 +6,13 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Code {
     /// Not UTF-8, not JSON, a lone surrogate, or nesting deeper than the limit.
+    /// Step 1's three codes come in a fixed order: this one first.
     Parse,
-    /// The same member name appears twice in one object.
+    /// The same member name appears twice in one object. Step 1's last code:
+    /// only for bytes that are strict JSON with every number in range.
     DuplicateKey,
     /// A number whose magnitude exceeds 2^53 - 1 (includes overflow to infinity).
+    /// Only for bytes that are strict JSON, whatever their member names.
     NumberRange,
     /// The object does not match the evidence/0 JSON Schema.
     Shape,

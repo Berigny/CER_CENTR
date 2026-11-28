@@ -62,6 +62,8 @@ Objects are JSON, parsed under rules stricter than most libraries, because two p
 - strings must be valid Unicode: lone surrogates are an error;
 - numbers are IEEE 754 doubles, and any number with magnitude above 2^53 − 1 is an error (`E_NUMBER_RANGE`). Identifiers, big integers and money go in strings. Because of this rule, every canonical form parses again under the same rules.
 
+Every fault other than a repeated name or a number out of range is `E_PARSE`, such as bytes that are not UTF-8, a byte order mark, a syntax error, a lone surrogate or bytes after the value. When the bytes have more than one fault, the code is fixed, whatever the faults' byte positions: `E_PARSE` if the bytes have any such fault anywhere; otherwise `E_NUMBER_RANGE` if any number is out of range; otherwise `E_DUPLICATE_KEY` if any object names a member twice. So `{"a": 1, "a": 2, "b": 9007199254740993}` gives `E_NUMBER_RANGE`, and `{"a": 1, "a": 2, "b": }` gives `E_PARSE`. This order is a clarification made on 28 November 2026 ([D15](../docs/decisions.md#d15-step-1-faults-are-reported-in-a-fixed-order)). It changes no result for bytes with one fault and no existing vector; object vectors 116 to 138 test it.
+
 The canonical form is [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) (JSON Canonicalization Scheme): no whitespace, members sorted by UTF-16 code units, strings and numbers serialised as ECMAScript `JSON.stringify` does. Formatting in a file does not matter; only the canonical bytes are hashed.
 
 ## Attestations
@@ -81,11 +83,11 @@ An attestation proves that the holder of `key` signed. Whether `key` belongs to 
 
 ## Verification
 
-Checks run in this order and stop at the first failure. Every implementation reports the same code for the same input.
+Checks run in this order and stop at the first failure. Every implementation reports the same code for the same input. Within step 1, the codes also come in a fixed order ([Parsing and canonical form](#parsing-and-canonical-form)).
 
 | Step | Check | Code |
 |---|---|---|
-| 1 | Valid strict JSON | `E_PARSE`, `E_DUPLICATE_KEY`, `E_NUMBER_RANGE` |
+| 1 | Valid strict JSON | `E_PARSE`, then `E_NUMBER_RANGE`, then `E_DUPLICATE_KEY`: the first that applies anywhere in the bytes |
 | 2 | Matches the object schema | `E_SHAPE` |
 | 3 | `at` is a real calendar instant | `E_TIMESTAMP` |
 | 4 | `id` equals the computed id | `E_ID_MISMATCH` |

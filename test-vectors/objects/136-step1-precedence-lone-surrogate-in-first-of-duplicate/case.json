@@ -1,0 +1,7 @@
+{
+  "description": "Two op members, the first a lone surrogate. A last-one-wins parser keeps the second and never sees the surrogate. Step 1 reports E_PARSE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

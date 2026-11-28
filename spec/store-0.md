@@ -2,7 +2,7 @@
 
 Status: draft for discussion. Version tag `store/0`; breaking changes bump the number.
 
-store/0 is a companion to [evidence/0](evidence-0.md) and changes nothing in it. Objects and attestations are stored exactly as evidence/0 defines them; the store's own facts are kept beside them, never inside them.
+store/0 sits beside [evidence/0](evidence-0.md) and changes nothing in it. Objects and attestations are stored exactly as evidence/0 defines them; the store's own facts are kept beside them, never inside them.
 
 ## Purpose
 
@@ -33,7 +33,7 @@ The reference implementation keeps the log in one SQLite file ([D12](../docs/dec
 
 - `E_` codes are evidence/0 object and attestation results only. store/0 defines no new `E_` codes. At intake an `E_` code is returned unchanged; in a report it is carried in a finding's `core` member.
 - The store uses `S_` codes, listed under [Report and codes](#report-and-codes).
-- Profiles use `P_` codes.
+- Profiles use `P_` codes, and a store-report/0 never holds one. A profile verifier runs after the evidence/0 checks and reports in the shared profile report that [roadmap M2](../docs/roadmap.md#m2-read-only-capture-from-a-synthetic-register) plans: for each object, the first failure in the profile's fixed check order, with the findings sorted as store/0 sorts its own ([Collecting and ordering findings](#collecting-and-ordering-findings)).
 
 ## Genesis
 
@@ -490,6 +490,7 @@ The store keeps two clocks apart ([D13](../docs/decisions.md)).
 
 - **Rejected input is not stored anywhere.** There is no quarantine of rejected bytes, because a rejected object can hold personal data.
 - **An append-only log cannot forget.** Whatever is appended stays in every later export and copy. evidence/0's privacy rules apply in full: do not inline personal information, and remember that a bare hash of a guessable value does not hide it.
+- **Ids are not derived from personal information.** `actor.id`, `actor.on_behalf_of` and attestation signers, the store's own signer included, are never derived from personal information such as a name, an email address or a licence number, and never an unkeyed hash of one. Ids for people and agents are pseudonyms. This is guidance, with no check, code or vector in store/0 (a profile may check the form, as [approvals.md](../docs/approvals.md#3-parties-and-ids-proposed) proposes with `P_ACTOR_ID_FORM`), and a store keeps whatever id it is given in every later export.
 - **Synthetic or public data only, for now.** Until the real-data gate (M5 in the [roadmap](../docs/roadmap.md)), which adds trust, time, replication and privacy operations, only synthetic or public data goes into a store.
 - The store's own objects, the genesis and checkpoints, hold no personal data.
 

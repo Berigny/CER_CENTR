@@ -286,7 +286,7 @@ pub enum Item<'a> {
 /// Why intake refused an item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RejectCode {
-    /// An evidence/0 result: `E_PARSE`, `E_DUPLICATE_KEY`, `E_NUMBER_RANGE`,
+    /// An evidence/0 result: `E_PARSE`, `E_NUMBER_RANGE`, `E_DUPLICATE_KEY`,
     /// `E_SHAPE`, `E_TIMESTAMP`, `E_ID_MISMATCH`, `E_CONTENT_HASH_MISMATCH`,
     /// `E_PREV_MISSING`, `E_PREV_ORDER`, `E_ATTESTATION_SHAPE` or
     /// `E_SIGNATURE_INVALID`, returned unchanged.

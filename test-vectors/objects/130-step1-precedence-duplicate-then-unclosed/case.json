@@ -1,0 +1,7 @@
+{
+  "description": "Two op members, as in 106, and the closing brace at the very end is missing. Step 1 reports E_PARSE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

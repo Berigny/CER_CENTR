@@ -1,0 +1,7 @@
+{
+  "description": "capacity_kw twice in content.inline, first 9007199254740993, then 6.6. A last-one-wins parser keeps 6.6 and sees no number out of range. Step 1 reports E_NUMBER_RANGE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_NUMBER_RANGE"
+  }
+}

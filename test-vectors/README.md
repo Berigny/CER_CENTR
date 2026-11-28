@@ -10,7 +10,7 @@ All data here is synthetic. The keys in `keys/` are public test keys derived fro
 |---|---|
 | `canon.json` | `{name, input, expected}` or `{name, input, error}`. `input` is JSON text; `expected` is its canonical form; `error` is the code the parser must report. |
 | `numbers.json` | `{bits, expected}`: an IEEE 754 double as 16 hex digits and its ECMAScript string. Includes RFC 8785 Appendix B, 3,000 random doubles, 500 exact-tie cases and 500 large integers. |
-| `objects/<case>/object.json` | The object as stored. Valid cases are pretty-printed on purpose: ids are over canonical bytes. |
+| `objects/<case>/object.json` | The object as stored. Valid cases are pretty-printed on purpose: ids are over canonical bytes. Read it as raw bytes: case 134 is not UTF-8. |
 | `objects/<case>/attestations.jsonl` | Optional attestation lines. |
 | `objects/<case>/store/*.json` | Optional objects that `prev` may point at. When present, `case.json` has `"store": true`. |
 | `objects/<case>/case.json` | `description`, optional `require` (purposes), and `expect`: `ok`, and `id`, `code`, `content_checked` and `attestations` where relevant. |
@@ -19,9 +19,18 @@ All data here is synthetic. The keys in `keys/` are public test keys derived fro
 
 Cases `0xx` must verify; cases `1xx` must fail with the stated code. An implementation conforms if it matches every case.
 
+Cases 116 to 138, named `<n>-step1-precedence-<faults>`, have more than one step-1 fault each, and test evidence/0's fixed order for them: `E_PARSE` if they have any fault other than a repeated name or a number out of range, otherwise `E_NUMBER_RANGE`, otherwise `E_DUPLICATE_KEY`, whatever the byte positions ([evidence/0](../spec/evidence-0.md#parsing-and-canonical-form), [D15](../docs/decisions.md#d15-step-1-faults-are-reported-in-a-fixed-order)). Each is object 001's canonical text with its faults put in, and its description lists them in byte order.
+
+- 116 to 121: each pair of codes, in both byte orders. 122 to 127: all three, in each of the six byte orders. The faults sit in `actor`, in `content.inline` and in `subject`.
+- 128 and 129: a repeated name in an object inside an array, then a number out of range or a trailing comma in arrays nested in that array.
+- 130: two `op` members, as in 106, and the final closing brace missing. 133: the same two members, then a second JSON value after the first. 134: the same two members, then a byte that is not UTF-8.
+- 131 and 132: a number out of range as the value of a repeated name, first and second. A parser that keeps the last member drops the first.
+- 135: a repeated name spelled once with a `\u` escape, before a number out of range.
+- 136: a lone surrogate in the dropped value of a repeated name. 137: a repeated name and a number out of range, then a tab written unescaped in a later string. 138: a byte order mark before a repeated name and a number out of range.
+
 ## Store
 
-Vectors for [store/0](../spec/store-0.md), generated through the independent JavaScript implementation `tools/reference/log.mjs`. Besides the checks of each implementation, the command-line tests (`crates/evidence-cli/tests/store_cli.rs`) put all 20 object vectors through a store and run `evidence store verify` on every export case, and the browser page's smoke test (`tools/verify-page/smoke.mjs`) verifies every export case in Chromium.
+Vectors for [store/0](../spec/store-0.md), generated through the independent JavaScript implementation `tools/reference/log.mjs`. Besides the checks of each implementation, the command-line tests (`crates/evidence-cli/tests/store_cli.rs`) put object vectors 001 to 005 and 101 to 115 through a store, give every `step1-precedence` vector to `evidence verify` and `evidence store append`, and run `evidence store verify` on every export case, and the browser page's smoke test (`tools/verify-page/smoke.mjs`) verifies every export case in Chromium.
 
 | Path | Contents |
 |---|---|

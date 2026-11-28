@@ -93,7 +93,7 @@ An operation error (exit 2) has one of these codes:
 
 ## Tests
 
-- `tests/store_cli.rs`: the store commands and the rules of section 8 (stores damaged by hand and output that cannot be written included), all 20 object vectors through a store (T3), the lease (T7), export, import and every export case (T10), proofs (T11), and `verify --store` (T12).
+- `tests/store_cli.rs`: the store commands and the rules of section 8 (stores damaged by hand and output that cannot be written included), the 20 object vectors 001 to 005 and 101 to 115 through a store (T3), every `step1-precedence` object vector through `verify` and `store append`, the lease (T7), export, import and every export case (T10), proofs (T11), and `verify --store` (T12).
 - `tests/store_crash.rs` (Unix only): `store append` and `store import` killed at random moments; every receipt printed before the kill is in the store, and an import leaves no store or a complete one (T6). `EVIDENCE_CRASH_ITERS` sets the number of append iterations (10 by default; CI runs 50 and the nightly run 1,000), and `EVIDENCE_CRASH_SEED` repeats a run's random choices; each run prints its seed on standard error.
 
 ```sh

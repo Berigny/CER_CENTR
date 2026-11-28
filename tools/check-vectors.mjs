@@ -50,8 +50,12 @@ for (const name of readdirSync(join(ROOT, "objects")).sort()) {
     skipped.push(`objects/${name} (${c.expect.code})`);
     continue;
   }
+  // The object as bytes: some step-1 vectors are not UTF-8.
   const got = outcome(() =>
-    ev.verifyIntegrity(read("objects", name, "object.json"), { attestations, require: c.require ?? [] }),
+    ev.verifyIntegrity(readFileSync(join(ROOT, "objects", name, "object.json")), {
+      attestations,
+      require: c.require ?? [],
+    }),
   );
   if (c.expect.ok) {
     if (!got.ok || got.value.id !== c.expect.id) failures.push(`objects/${name}: got ${JSON.stringify(got)}`);
