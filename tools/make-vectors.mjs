@@ -1624,6 +1624,28 @@ const maxPrime = dictValue(
   ],
   [{ id: "big.p2147483647", prime: 2147483647 }],
 );
+// The positive side of the patterns: facet names that start with a digit,
+// family names with a hyphen or a digit, and a two-digit profile version. In
+// code point order "-" and digits sort before letters; a collation that ignores
+// punctuation would put zonea before zone-b.
+const patterns = dictValue(
+  "patterns-demo/10",
+  [
+    { name: "zone-b", values: "set" },
+    { name: "zone2", values: "multiset" },
+    { name: "zonea", values: "one" },
+  ],
+  [
+    { id: "zone-b.4777-3", prime: 2 },
+    { id: "zonea.0", prime: 3 },
+    { id: "zone-b.x-1", prime: 5 },
+    { id: "zone2.7", prime: 7 },
+  ],
+);
+assert(
+  JSON.stringify(patterns.families.map((f) => f.name)) === JSON.stringify(["zone-b", "zone2", "zonea"]),
+  "patterns-demo: families in code point order",
+);
 
 // The same dictionary as catalogue-demo, written differently: members in
 // another order, tabs and CRLF, \u escapes in some strings (one with upper-case
@@ -1664,6 +1686,7 @@ const validDictionaries = [
   ["kernel-2", pretty(kernel)],
   ["wide-demo", pretty(wide)],
   ["max-prime-demo", pretty(maxPrime)],
+  ["patterns-demo", pretty(patterns)],
 ];
 const D = {}; // name -> loaded dictionary
 const dictionaryCases = { valid: [], invalid: [] };
@@ -1715,16 +1738,42 @@ const invalidDictionaries = [
   ["member-missing", pretty({ v: DICT_V, profile: catalogue.profile, families: catalogue.families }), "shape"],
   ["member-unknown", pretty(setFacet(cat(), "record.installation", { label: "Installation" })), "shape"],
   ["prime-not-a-number", pretty(setFacet(cat(), "standard.as-nzs-4777-2", { prime: "7" })), "shape"],
+  ["v-not-a-string", pretty({ ...cat(), v: 0 }), "shape"],
+  ["profile-not-a-string", pretty({ ...cat(), profile: [catalogue.profile] }), "shape"],
+  ["family-member-unknown", pretty(setFamily(cat(), "product", { label: "Product" })), "shape"],
+  ["family-name-not-a-string", pretty(setFamily(cat(), "record", { name: ["record"] })), "shape"],
+  ["family-values-not-a-string", pretty(setFamily(cat(), "standard", { values: 1 })), "shape"],
+  ["id-not-a-string", pretty(setFacet(cat(), "jurisdiction.vic", { id: 11 })), "shape"],
   ["shape-before-version", pretty({ ...cat(), v: "coordinate-dictionary/1", note: "a member the format does not have" }), "shape"],
+  [
+    "shape-in-family-before-family-name",
+    pretty(setFamily(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), "standard", { label: "Standard" })),
+    "shape",
+  ],
+  [
+    "shape-in-facet-before-family",
+    pretty(setFacet(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), "standard.as-nzs-4777-1", { label: "x" })),
+    "shape",
+  ],
   ["version", pretty({ ...cat(), v: "coordinate-dictionary/1" }), "version"],
   ["version-before-profile", pretty({ ...cat(), v: "coordinate-dictionary/1", profile: "catalogue-demo" }), "version"],
   ["profile", pretty({ ...cat(), profile: "catalogue-demo" }), "profile"],
+  [
+    "profile-before-families",
+    pretty({ ...setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), profile: "catalogue-demo" }),
+    "profile",
+  ],
   ["profile-leading-zero", pretty({ ...cat(), profile: "catalogue-demo/00" }), "profile"],
   ["profile-trailing-newline", pretty({ ...cat(), profile: "catalogue-demo/0\n" }), "profile"],
   ["family-name", pretty(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" })), "family-name"],
   ["family-name-trailing-newline", pretty(setFamily(cat(), "jurisdiction", { name: "jurisdiction\n" })), "family-name"],
   ["name-before-values", pretty(setFamily(cat(), "standard", { name: "Standard", values: "many" })), "family-name"],
   ["values", pretty(setFamily(cat(), "standard", { values: "many" })), "values"],
+  [
+    "family-document-order",
+    pretty(setFamily(setFamily(cat(), "jurisdiction", { values: "many" }), "product", { name: "Product" })),
+    "values",
+  ],
   [
     "values-before-duplicate",
     pretty({ ...cat(), families: [...catalogue.families, { name: "product", values: "many" }] }),
@@ -1743,11 +1792,23 @@ const invalidDictionaries = [
     }),
     "too-many",
   ],
+  [
+    "families-before-too-many",
+    pretty({
+      ...setFamily(wide, "multi", { name: "Multi" }),
+      facets: [...wide.facets, { id: `flag.p${PRIMES[4096]}`, prime: PRIMES[4096] }],
+    }),
+    "family-name",
+  ],
   ["id-form", pretty(setFacet(cat(), "product.inverter", { id: "product.Inverter" })), "id-form"],
   ["id-form-trailing-newline", pretty(setFacet(cat(), "jurisdiction.vic", { id: "jurisdiction.vic\n" })), "id-form"],
   ["checks-within-a-facet", pretty(setFacet(cat(), "product.inverter", { id: "product.Inverter", prime: 5.5 })), "id-form"],
+  ["form-before-family", pretty({ ...cat(), facets: [...catalogue.facets, { id: "Phase.single", prime: 71 }] }), "id-form"],
   ["unknown-family", pretty({ ...cat(), facets: [...catalogue.facets, { id: "phase.single", prime: 71 }] }), "unknown-family"],
+  ["family-before-prime", pretty({ ...cat(), facets: [...catalogue.facets, { id: "phase.single", prime: 70 }] }), "unknown-family"],
   ["id-duplicate", pretty({ ...cat(), facets: [...catalogue.facets, { id: "jurisdiction.vic", prime: 71 }] }), "id-duplicate"],
+  // A repeated id at a repeated prime, out of order: 8c comes before 8g and 8h.
+  ["id-before-prime", pretty({ ...cat(), facets: [...catalogue.facets, { id: "jurisdiction.vic", prime: 11 }] }), "id-duplicate"],
   ["not-integer", pretty(setFacet(cat(), "jurisdiction.nt", { prime: 59.5 })), "not-integer"],
   ["integer-before-range", pretty({ ...cat(), facets: [...catalogue.facets, { id: "record.extra", prime: 2147483648.5 }] }), "not-integer"],
   ["prime-range-low", pretty(setFacet(cat(), "record.product-listing", { prime: 1 })), "prime-range"],
@@ -1980,6 +2041,7 @@ for (const [name, coordinate] of Object.entries(nearest)) {
   encodeCase(name, "wide-demo", facetsOf(cs.decode(D["wide-demo"], coordinate)), V(coordinate));
 }
 encodeCase("max-prime", "max-prime-demo", ["big.p2147483647"], V("2147483647"));
+encodeCase("patterns", "patterns-demo", ["zone2.7", "zone-b.x-1", "zone2.7", "zonea.0", "zone-b.4777-3"], V("1470"));
 
 // decode.json
 decodeCase("one", "catalogue-demo", "1", V([]));
@@ -1997,6 +2059,8 @@ for (const [name, coordinate] of [
   ["syntax-empty", ""],
   ["syntax-fullwidth-digit", String.fromCharCode(0xff15)], // FULLWIDTH DIGIT FIVE
   ["syntax-number", 5],
+  ["syntax-null", null],
+  ["syntax-array", ["5"]], // String(["5"]) is "5": a value that is not a string is never converted
   ["syntax-before-range", `0${"1".repeat(399)}`],
   ["syntax-late-in-long-string", `1${"0".repeat(400)}x`],
 ]) {
@@ -2058,6 +2122,18 @@ decodeCase("max-prime", "max-prime-demo", "2147483647", V(ones(["big.p2147483647
 assert((2147483647n ** 2n).toString() === "4611686014132420609", "(2^31 - 1)^2");
 decodeCase("max-prime-squared", "max-prime-demo", "4611686014132420609", V(facetList(maxPrime, [["big.p2147483647", 2]])));
 decodeCase("unknown-small-factor", "max-prime-demo", "2", E("UNKNOWN_FACTOR"));
+assert(2 * 3 * 5 * 7 * 7 === 1470, "1470 is 2 x 3 x 5 x 7^2");
+decodeCase(
+  "patterns",
+  "patterns-demo",
+  "1470",
+  V(facetList(patterns, [
+    ["zone-b.4777-3", 1],
+    ["zonea.0", 1],
+    ["zone-b.x-1", 1],
+    ["zone2.7", 2],
+  ])),
+);
 {
   const one = decodeCases.cases.find((c) => c.name === "unclassified-as-a-whole").expect;
   const five = decodeCases.cases.find((c) => c.name === "universal-unclassified").expect;
@@ -2076,14 +2152,22 @@ dividesCase("query-cardinality", "catalogue-demo", "341", "1155", E("CARDINALITY
 dividesCase("query-syntax", "catalogue-demo", "01", "1155", E("SYNTAX"));
 dividesCase("query-trailing-newline", "catalogue-demo", "231\n", "1155", E("SYNTAX"));
 dividesCase("coordinate-unknown-factor", "catalogue-demo", "1", "97", E("UNKNOWN_FACTOR"));
+dividesCase("coordinate-cardinality", "catalogue-demo", "1", "341", E("CARDINALITY", { family: "jurisdiction" }));
 dividesCase("coordinate-syntax", "catalogue-demo", "231", 1155, E("SYNTAX"));
 dividesCase("coordinate-syntax-late", "catalogue-demo", "1", `1${"0".repeat(400)}x`, E("SYNTAX"));
 dividesCase("query-error-first", "catalogue-demo", "-5", big400, E("SYNTAX"));
-// The SQLite cases must divide: 53 is the 16th prime, a factor of p16 and p20.
+// The SQLite cases: 53 is the 16th prime, a factor of p16 and p20. SQLite turns
+// both into a double and takes the remainder of 2^63 - 1 = 7^2 x 73 x 127 x 337 x
+// 92737 x 649657 instead, so it misses 53 and finds 73 in p16 and 127 in p20,
+// which hold neither.
 dividesCase("sqlite-65-bit", "kernel-2", "53", P16, V(true));
 dividesCase("sqlite-89-bit", "kernel-2", "53", P20, V(true));
-assert(BigInt(P16) % 53n === 0n && BigInt(P20) % 53n === 0n && BigInt(P16) % 59n !== 0n, "53 divides p16 and p20");
-dividesCase("sqlite-65-bit-absent", "kernel-2", "59", P16, V(false));
+assert(BigInt(P16) % 53n === 0n && BigInt(P20) % 53n === 0n, "53 divides p16 and p20");
+const MAX_I64 = (1n << 63n) - 1n;
+assert(MAX_I64 === 7n * 7n * 73n * 127n * 337n * 92737n * 649657n, "2^63 - 1 = 7^2 x 73 x 127 x 337 x 92737 x 649657");
+assert(BigInt(P16) % 73n !== 0n && BigInt(P20) % 127n !== 0n, "73 does not divide p16, nor 127 p20");
+dividesCase("sqlite-65-bit-absent", "kernel-2", "73", P16, V(false));
+dividesCase("sqlite-89-bit-absent", "kernel-2", "127", P20, V(false));
 dividesCase("exponent-short", "kernel-2", "4", "2", V(false));
 dividesCase("exponent-enough", "kernel-2", "4", "8", V(true));
 dividesCase("past-2^63", "wide-demo", pow2(63), pow2(64), V(true));

@@ -15,7 +15,7 @@ Third parties can reproduce both the evidence and the exact results of faceted q
 - **Chain of custody** for records that may later be relied on, showing each version in order and who signed it.
 - **Records of AI-assisted checks:** what the model was given, what it returned, and who approved or overrode it.
 - **Public registers as views:** a published list is an evidence object recording a query result, so "what did the list show on date X?" has a provable answer.
-- **Reproducible catalogue queries:** a faceted query such as "every installation record in Victoria under AS/NZS 4777.2" has one exact meaning, so anyone holding the records, the dictionary and the watermark gets the same rows ([prime coordinates](#prime-coordinates-for-faceted-queries)).
+- **Reproducible catalogue queries:** a faceted query such as "every installation record in Victoria under AS/NZS 4777.2" has one exact meaning, so anyone holding the records, the profile's rules for which facets a record has, the dictionary and the watermark gets the same rows ([prime coordinates](#prime-coordinates-for-faceted-queries)).
 
 The first domain profile in view, as an example drawn from public information, is CENTR, the proposed Consumer Energy National Technical Regulator ([public description](https://cer.gov.au/national-technical-regulator); [notes](docs/centr-profile-notes.md)). The core is deliberately domain-neutral.
 
@@ -24,8 +24,8 @@ The first domain profile in view, as an example drawn from public information, i
 | Path | What |
 |---|---|
 | [`spec/evidence-0.md`](spec/evidence-0.md) | The one-page spec: object, canonical form, attestations, verification order and error codes |
-| [`spec/schema/`](spec/schema/) | JSON Schemas for the object and for attestations |
-| [`test-vectors/`](test-vectors/) | The conformance contract: canonicalisation, number formatting and object cases with expected results |
+| [`spec/schema/`](spec/schema/) | JSON Schemas for the object, attestations, the store/0 formats and coordinate/0 dictionaries |
+| [`test-vectors/`](test-vectors/) | The conformance contract: canonicalisation, number formatting, object, store and coordinate cases with expected results |
 | [`crates/evidence-core/`](crates/evidence-core/) | Rust core: strict JSON parser, RFC 8785 canonicalisation, ids, Ed25519 attestations, verifier |
 | [`crates/evidence-cli/`](crates/evidence-cli/) | `evidence` command-line tool: objects, and `evidence store` to create, append to, verify, export, import and prove stores |
 | [`crates/evidence-wasm/`](crates/evidence-wasm/) | The core as one WebAssembly module, with a JavaScript wrapper for browsers and Node, and a small ABI for other hosts |
@@ -119,7 +119,7 @@ Then open `http://127.0.0.1:8000/tools/verify-page/` and choose that folder. The
 
 ## From JavaScript and Python
 
-The WebAssembly module and the Python package are the same Rust core, so they return byte-for-byte the same results as the command-line tool. Both run every test vector in CI.
+The WebAssembly module and the Python package are the same Rust core, so they return byte-for-byte the same results as the command-line tool. Both run the canonicalisation, object and store/0 vectors in CI. coordinate/0 is not in the bindings yet: its vectors, like the number-formatting ones, are checked by the Rust crates and the JavaScript reference.
 
 ```js
 // sh tools/build-wasm.sh   (needs: rustup target add wasm32-unknown-unknown)
@@ -147,7 +147,7 @@ EVIDENCE_BIN=target/debug/evidence node tools/check-proofs.mjs        # the CLI'
 pip install ./crates/evidence-py && EVIDENCE_BIN=$PWD/target/debug/evidence python -m unittest discover -s crates/evidence-py/tests   # Python, the CLI's proofs included
 node tools/check-vectors.mjs                    # JS reference against the vectors
 python tools/check_schema_vectors.py            # JSON Schemas against the vectors (needs jsonschema)
-node tools/make-vectors.mjs && git diff --exit-code test-vectors   # vectors are reproducible
+node tools/make-vectors.mjs && git diff --exit-code test-vectors && test -z "$(git status --porcelain -- test-vectors)"   # vectors are reproducible, none added
 node tools/verify-page/smoke.mjs                # the browser page over every export case (needs Playwright)
 ```
 
@@ -183,9 +183,9 @@ Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short
 **Why.**
 - **Lossless.** By unique factorisation, a coordinate decodes back to exactly its facets, with the number of times each occurs.
 - **One exact meaning for every query.** An object has a facet if that facet's prime divides its coordinate, and all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" is the query 231 (3 × 7 × 11), and a record matches when 231 divides its coordinate. Divisibility is the reference meaning of a query, the same in every implementation.
-- **Databases answer from factor rows.** The coordinate defines what a query means; a database answers it from a table of factors, one row (profile, object, prime, exponent) for each prime of each object, indexed on (profile, prime): "has all these primes, each with at least these exponents". SQL integers stop at 64 bits, and coordinates pass that quickly. SQLite silently gives wrong remainders on larger values stored as text: on SQLite 3.53, the product of the first 16 primes, a 65-bit number, gave 33 for `% 53` instead of 0, and no error was raised. PostgreSQL's `numeric` takes `mod` exactly. M4b's acceptance test checks that the factor rows return exactly the rows that divisibility gives, including coordinates past 2^63.
+- **Databases answer from factor rows.** The coordinate defines what a query means; a database answers it from a table of factors, one row (profile, object, prime, exponent) for each prime of each object, indexed on (profile, prime): "has all these primes, each with at least these exponents". SQL integers stop at 64 bits, and coordinates pass that quickly. SQLite silently gives wrong remainders on larger values stored as text: on SQLite 3.53, the product of the first 16 primes, a 65-bit number, gave 33 for `% 53` instead of 0, and no error was raised. PostgreSQL's `numeric` takes `mod` exactly at any size coordinate/0 allows. M4b's acceptance test will check that the factor rows return exactly the rows that divisibility gives, including coordinates past 2^63.
 - **Not a speed device.** Testing the divisibility of every stored coordinate reads every row, so it does not make retrieval faster. Speed comes from the indexed factor rows; divisibility is the check on them.
-- **Namespaces stay apart by tag.** Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), so dictionaries that reuse the same primes cannot be confused ([Kernel/2](docs/kernel-2.md)). Namespaces that also choose disjoint prime ranges get a further guarantee: no product of one range's primes can equal a product of another's.
+- **Namespaces stay apart by tag.** Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), so dictionaries that reuse the same primes cannot be confused ([Kernel/2](docs/kernel-2.md)). Namespaces that also choose disjoint prime ranges get a further guarantee: no product of one or more of one range's primes can equal a product of one or more of another's.
 - **Portable.** Coordinates are plain integers, written as canonical decimal strings so they stay exact in JSON, JavaScript and SQL text columns at any size coordinate/0 allows (below 2^1024). A product of a handful of primes soon passes 2^53, where JSON numbers stop being exact.
 
 **Boundary.** A coordinate decides which records a query returns, not whether a record was classified correctly or captured completely. Which facets a record has is the profile's rule. There is no ranking or similarity: a record matches a query or it does not.

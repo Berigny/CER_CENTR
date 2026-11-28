@@ -81,6 +81,16 @@
     }
   },
   {
+    "name": "coordinate-cardinality",
+    "dictionary": "catalogue-demo",
+    "query": "1",
+    "coordinate": "341",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "jurisdiction"
+    }
+  },
+  {
     "name": "coordinate-syntax",
     "dictionary": "catalogue-demo",
     "query": "231",
@@ -124,8 +134,15 @@
   {
     "name": "sqlite-65-bit-absent",
     "dictionary": "kernel-2",
-    "query": "59",
+    "query": "73",
     "coordinate": "32589158477190044730",
+    "expect": false
+  },
+  {
+    "name": "sqlite-89-bit-absent",
+    "dictionary": "kernel-2",
+    "query": "127",
+    "coordinate": "557940830126698960967415390",
     "expect": false
   },
   {

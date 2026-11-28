@@ -67,15 +67,15 @@ Vectors for [coordinate/0](../spec/coordinate-0.md), generated through the indep
 | `coordinate/check.json` | A list of `{name, dictionary, facets, coordinate, expect}` or `{name, dictionary, facets, coordinate, error}`. `coordinate` is the claimed one, and `expect` is `true`. |
 | `coordinate/extends.json` | A list of `{name, old, new, expect}` or `{name, old, new, error}`. `expect` is `true`. |
 
-- `dictionary`, `old` and `new` name valid dictionaries. `coordinate` and `query` are passed to the operation as they are: strings, except in the cases that test that a coordinate must be a string, where they are JSON numbers.
+- `dictionary`, `old` and `new` name valid dictionaries. `coordinate` and `query` are passed to the operation as they are: strings, except in the cases that test that a coordinate must be a string, where they are JSON numbers, `null` or an array.
 - A case passes when the canonical form of the result, or of the error, equals the canonical form of `expect` or `error`, byte for byte. Errors hold no free text.
 - Every file is written with two-space indentation and a final LF, except the invalid dictionaries and `catalogue-demo-reordered`. Dictionary ids are over the canonical form, never the file's bytes.
 
 `dictionaries/`:
 
 - `catalogue-demo` is the spec's example. `catalogue-demo-reordered` is the same dictionary written differently, with the same id: members in another order, tabs and CRLF line ends, `\u` escapes in some strings, and the primes 7 and 59 written `7.0` and `58.99999999999999999`. `catalogue-demo-v2` extends `catalogue-demo`; `-values-changed`, `-prime-changed` and `-facet-removed` do not.
-- `kernel-2` is built from Kernel/2's allocation rule, with the identifiers of [Kernel/2](../docs/kernel-2.md) section 2.2, and the generator checks it against the table of section 2.3. `wide-demo` holds the first 4,096 primes, exactly the facet limit. `max-prime-demo` holds one facet at 2^31 − 1, the largest prime allowed, and a family with no facets.
-- The invalid dictionaries are those the spec lists, at least one for every `detail`, and four more for step 1: `not-utf-8`, `byte-order-mark`, `lone-surrogate` and `nesting-too-deep` (1,000 levels), each `shape` with `core` `E_PARSE`. The cases named `<a>-before-<b>` break two checks and expect the earlier one.
+- `kernel-2` is built from Kernel/2's allocation rule, with the identifiers of [Kernel/2](../docs/kernel-2.md) section 2.2, and the generator checks it against the table of section 2.3. `wide-demo` holds the first 4,096 primes, exactly the facet limit. `max-prime-demo` holds one facet at 2^31 − 1, the largest prime allowed, and a family with no facets. `patterns-demo` holds what the patterns allow and the others do not use: facet names that start with a digit, family names with a hyphen or a digit, sorted in code point order, and the profile version 10.
+- The invalid dictionaries are those the spec lists, at least one for every `detail`, and four more for step 1: `not-utf-8`, `byte-order-mark`, `lone-surrogate` and `nesting-too-deep` (1,000 levels), each `shape` with `core` `E_PARSE`. The cases named `<a>-before-<b>` break two or more checks and expect the earliest.
 
 Operations:
 

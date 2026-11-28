@@ -436,6 +436,47 @@ if (dictionaries["catalogue-demo"]) {
     const got = outcome(fn);
     if (got.code !== "E_USAGE") failures.push(`coordinate/usage ${i}: got ${JSON.stringify(got)}`);
   }
+
+  // A value that is already parsed starts at step 2. Values built in code can
+  // hold what JSON cannot: a NaN or an infinity fails step 8d, a number above
+  // 2^53 - 1 step 8e, and a hole in an array step 2.
+  const parsed = cs.validateDictionary(JSON.parse(readFileSync(join(COORDINATE_DIR, "dictionaries", "valid", "catalogue-demo.json"), "utf8")));
+  if (parsed.id !== d.id) failures.push(`coordinate/validateDictionary: catalogue-demo has id ${parsed.id}`);
+  const oneFacet = (prime) => ({
+    v: cs.DICTIONARY_V,
+    profile: "m-demo/0",
+    families: [{ name: "m", values: "one" }],
+    facets: [{ id: "m.a", prime }],
+  });
+  const withHole = (array, i) => {
+    delete array[i];
+    return array;
+  };
+  const built = [
+    ["NaN", oneFacet(NaN), "not-integer"],
+    ["+infinity", oneFacet(Infinity), "not-integer"],
+    ["-infinity", oneFacet(-Infinity), "not-integer"],
+    ["-0", oneFacet(-0), "prime-range"],
+    ["2.5", oneFacet(2.5), "not-integer"],
+    ["2^53", oneFacet(2 ** 53), "prime-range"],
+    ["1e300", oneFacet(1e300), "prime-range"],
+    ["a hole in facets", { ...oneFacet(2), facets: new Array(1) }, "shape"],
+    ["a hole between facets", { ...oneFacet(2), facets: withHole([{ id: "m.a", prime: 2 }, null, { id: "m.b", prime: 5 }], 1) }, "shape"],
+    ["a hole in families", { ...oneFacet(2), families: withHole([null, { name: "m", values: "one" }], 0) }, "shape"],
+    ["5,000 holes", { ...oneFacet(2), facets: new Array(5000) }, "shape"],
+  ];
+  for (const [what, value, detail] of built) {
+    let got;
+    try {
+      got = coordinateOutcome(() => cs.validateDictionary(value));
+    } catch (e) {
+      got = { thrown: `${e.name}: ${e.message}` }; // never a coordinate/0 result
+    }
+    if (!got.error || got.error.code !== cs.CODES.DICTIONARY || got.error.detail !== detail) {
+      failures.push(`coordinate/validateDictionary ${what}: want ${detail}, got ${JSON.stringify(got.error ?? got.thrown ?? "a dictionary")}`);
+    }
+  }
+  if (!coordinateOutcome(() => cs.validateDictionary(oneFacet(2))).expect) failures.push("coordinate/validateDictionary: prime 2 is rejected");
 }
 
 console.log(`skipped by evidence.mjs (not implemented there): ${skipped.join(", ") || "none"}`);

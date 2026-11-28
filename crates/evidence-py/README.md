@@ -46,7 +46,7 @@ Byte inputs are `bytes` or `str` (encoded as UTF-8). Hashes are `str`, `"sha256:
 
 Errors raise `EvidenceError` with `.code` (for example `E_ID_MISMATCH`, or `E_USAGE` for invalid arguments, including an invalid entry given to `entry_hash`, whose detail begins with `S_ENTRY_INVALID`) and `.detail`. One abi3 wheel covers CPython 3.10 and later.
 
-Tests run every vector in `test-vectors/`, the store vectors included (`tests/test_store_vectors.py`):
+Tests run the canonicalisation, object and store/0 vectors in `test-vectors/` (the store vectors in `tests/test_store_vectors.py`); coordinate/0 is not in the package yet:
 
 ```sh
 python -m unittest discover -s crates/evidence-py/tests

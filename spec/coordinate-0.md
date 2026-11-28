@@ -129,7 +129,7 @@ Loading takes a dictionary's bytes and gives either a valid dictionary and its i
 | 8g | Its `prime` differs from every earlier facet's. | `prime-duplicate` |
 | 8h | Its `prime` is greater than the previous facet's. | `prime-order` |
 
-- Step 2 covers the whole value before any later step, as evidence/0's `E_SHAPE` does. So a dictionary with an unknown member and a wrong `v` gives `shape`.
+- Step 2 covers the whole value before any later step, as evidence/0's `E_SHAPE` does. So a dictionary with an unknown member and a wrong `v` gives `shape`, and so does one with an unknown member in its last facet and a first family whose name breaks its pattern.
 - The number of facets (steps 6 and 7) is checked before any facet, so 5,000 facets give `too-many` whatever they hold.
 - A repeated name, id or prime is a duplicate even where it also breaks the order: families `a`, `b`, `a` give `family-duplicate`, not `family-order`.
 - The range is checked before primality, so 1 and 2^31 give `prime-range`, and primality is only ever tested below 2^31, where trial division up to 46,340 is enough.
@@ -263,6 +263,8 @@ A reader decodes the coordinate with the dictionary that `dictionary` names, and
 
 A tagged form is invalid if its `profile` is not the named dictionary's `profile`, or if its coordinate does not decode under the named dictionary. A reader rejects it, with the decode error in the second case.
 
+Reading a tagged form is not one of coordinate/0's five operations. coordinate/0 gives no codes for a tagged form that is not three string members, whose `profile` does not match, or whose dictionary the reader does not hold, and there are no tagged-form vectors yet. The first export or index format that reads tagged forms (M4's bundles, or the coordinate column of [M4b](../docs/roadmap.md#m4b-coordinate-column-and-factor-table)) defines those codes and adds the vectors.
+
 **Several coordinates per object.** The tagged form says which dictionary a coordinate belongs to, not which of an object's coordinates it is. A profile that derives more than one coordinate for an object names each one. Kernel/2 derives `S` and `H` for every event, both under `kernel/2` and its one dictionary, so an export carries each tagged form under its coordinate name. For a unit after Kernel/2's event E4:
 
 ```json
@@ -280,7 +282,7 @@ In this section the key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are use
 
 The coordinate defines what a query means. A database answers the query from a table of factors, not by arithmetic on one integer column: SQL integers are 64-bit, and coordinates pass 2^64 quickly.
 
-- **Exact arithmetic or none.** An index MUST NOT take a remainder of a coordinate, or convert or compare one, with fixed-width integer or floating-point arithmetic. The failure is silent. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave the floating-point value 33.0 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33.0 too. SQLite converted the text to a floating-point number that does not fit a 64-bit integer, and 33 is the remainder of 2^63 − 1, the largest signed 64-bit integer, divided by 53. No error was raised. PostgreSQL's `numeric` type computes `mod` exactly at these sizes.
+- **Exact arithmetic or none.** An index MUST NOT take a remainder of a coordinate, or convert or compare one, with fixed-width integer or floating-point arithmetic. The failure is silent. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave the floating-point value 33.0 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33.0 too. SQLite converted the text to a floating-point number that does not fit a 64-bit integer, and 33 is the remainder of 2^63 − 1, the largest signed 64-bit integer, divided by 53. No error was raised. The same arithmetic also returns rows that do not match: it gave 0 for the 65-bit product `% 73`, though 73 does not divide it ([`divides.json`](#operation-cases)). PostgreSQL's `numeric` type computes `mod` exactly at these sizes.
 - **Store the text.** A stored coordinate MUST be its canonical decimal string, in a text column, never in an integer or floating-point one.
 - **Store the factors.** An index SHOULD store each object's factorisation as rows (profile, object, prime, exponent), one row per prime, with an index on (profile, prime), and one row per object with its profile and coordinate. An object whose coordinate is `"1"` has no factor rows; its per-object row is how the query `"1"` finds it. An exponent vector, one column per prime as Kernel/2 allows for its 70, is equivalent. Primes are below 2^31 and exponents at most 1,023, so both fit 32-bit integers. Where a profile derives more than one coordinate per object, every row also holds the coordinate name, and the index is on (profile, name, prime).
 - **Valid rows only.** Every coordinate an index stores MUST decode without error under the dictionary it records. An object whose facets do not encode gets no rows, and the index reports it with encode's error; it is never indexed under a partial coordinate.
@@ -346,7 +348,7 @@ An implementation conforms to coordinate/0 if it gives the expected result for e
 
 - Every case has a `name`, unique within its file, and exactly one of `expect` and `error`. Cases have no other members.
 - `dictionary`, `old` and `new` are names of `valid` dictionaries.
-- `facets` is an array of strings. `coordinate` and `query` are JSON values passed to the operation as they are: a string in almost every case, and a JSON number in the cases that test that a coordinate must be a string.
+- `facets` is an array of strings. `coordinate` and `query` are JSON values passed to the operation as they are: a string in almost every case, and a JSON number, `null` or an array in the cases that test that a coordinate must be a string.
 - Strings are JSON strings and may hold any character: `"5\n"` is the digit 5 followed by a line feed.
 - `expect` is the result: for encode, a coordinate string; for decode, an array of `{"id", "exponent"}`; for divides, `true` or `false`; for check and extends, `true`, meaning ok.
 - `error` is the error object ([Errors](#errors)).
@@ -369,8 +371,9 @@ Valid:
 | `kernel-2` | Kernel/2's dictionary: profile `kernel/2`; its seven blocks as families, each `multiset`; its 70 facets, with the identifiers of its section 2.2, at the primes its [allocation rule](../docs/kernel-2.md#21-allocation-rule-declared) gives, 2 to 349. Loading it checks REQ-KRN-001 and 002. The generator builds it from the rule and asserts that it equals the table in Kernel/2 section 2.3, which checks REQ-KRN-003 to 005. Its id is `sha256:28ec5d10ee5e6e5fd8effc7515e9adec7f049f75beeccce5064d738d922cac71`. |
 | `wide-demo` | Profile `wide-demo/0`; families `flag` (`set`) and `multi` (`multiset`); the first 4,096 primes, 2 to 38,873, as `multi.p<prime>` for the 16 primes up to 53 and `flag.p<prime>` for the rest. Exactly the limit of 4,096 facets. |
 | `max-prime-demo` | Profile `max-prime-demo/0`; families `big` (`multiset`) and `unused` (`one`), which has no facets; one facet, `big.p2147483647`, at 2^31 − 1, the largest prime allowed. |
+| `patterns-demo` | Profile `patterns-demo/10`; families `zone-b` (`set`), `zone2` (`multiset`) and `zonea` (`one`); facets `zone-b.4777-3` (2), `zonea.0` (3), `zone-b.x-1` (5) and `zone2.7` (7). It holds what the patterns allow and the other dictionaries do not use: facet names that start with a digit, family names with a hyphen or a digit, and a profile version of two digits. In code point order `-` and digits sort before letters, so `zone-b` comes first; a collation that ignores punctuation would put `zonea` before it. |
 
-Invalid. Each is `catalogue-demo` with one change, unless it says otherwise. "Appended" means added as the last facet. The cases named `<a>-before-<b>` break two checks and expect the earlier one.
+Invalid. Each is `catalogue-demo` with one change, unless it says otherwise. "Appended" means added as the last facet. The cases named `<a>-before-<b>` break two or more checks and expect the earliest.
 
 | Name | Change | `detail` |
 |---|---|---|
@@ -381,16 +384,26 @@ Invalid. Each is `catalogue-demo` with one change, unless it says otherwise. "Ap
 | `member-missing` | No `facets`. | `shape` |
 | `member-unknown` | A facet with a `label` member. | `shape` |
 | `prime-not-a-number` | `"prime": "7"`. | `shape` |
+| `v-not-a-string` | `v` is the number 0. | `shape` |
+| `profile-not-a-string` | `profile` is the array `["catalogue-demo/0"]`. | `shape` |
+| `family-member-unknown` | The family `product` with a `label` member. | `shape` |
+| `family-name-not-a-string` | The family `record` with the `name` `["record"]`. | `shape` |
+| `family-values-not-a-string` | `standard` has `values` 1. | `shape` |
+| `id-not-a-string` | The id of `jurisdiction.vic` is the number 11. | `shape` |
 | `shape-before-version` | `v` is `"coordinate-dictionary/1"` and the dictionary has a `note` member. | `shape` |
+| `shape-in-family-before-family-name` | The family `jurisdiction` named `Jurisdiction`, and the family `standard` with a `label` member. | `shape` |
+| `shape-in-facet-before-family` | The family `jurisdiction` named `Jurisdiction`, and the last facet with a `label` member. | `shape` |
 | `version` | `v` is `"coordinate-dictionary/1"`. | `version` |
 | `version-before-profile` | `v` is `"coordinate-dictionary/1"` and `profile` is `"catalogue-demo"`. | `version` |
 | `profile` | `profile` is `"catalogue-demo"`. | `profile` |
+| `profile-before-families` | `profile` is `"catalogue-demo"`, and the family `jurisdiction` named `Jurisdiction`. | `profile` |
 | `profile-leading-zero` | `profile` is `"catalogue-demo/00"`. | `profile` |
 | `profile-trailing-newline` | `profile` is `"catalogue-demo/0\n"`. | `profile` |
 | `family-name` | The family `jurisdiction` named `Jurisdiction`. | `family-name` |
 | `family-name-trailing-newline` | The family `jurisdiction` named `"jurisdiction\n"`. | `family-name` |
 | `name-before-values` | The family `standard` named `Standard`, with `values` `"many"`. | `family-name` |
 | `values` | `standard` has `values` `"many"`. | `values` |
+| `family-document-order` | `jurisdiction` has `values` `"many"`, and `product`, the next family, is named `Product`. | `values` |
 | `values-before-duplicate` | A second `product` family after `standard`, with `values` `"many"`. | `values` |
 | `family-duplicate` | A second `product` family after `standard`. | `family-duplicate` |
 | `family-order` | `product` before `jurisdiction`. | `family-order` |
@@ -398,11 +411,15 @@ Invalid. Each is `catalogue-demo` with one change, unless it says otherwise. "Ap
 | `families-before-empty` | `product` before `jurisdiction`, and `facets` is `[]`. | `family-order` |
 | `empty` | `facets` is `[]`. | `empty` |
 | `too-many` | `wide-demo` with `flag.p38891` appended (4,097 facets), and its first facet's id changed to `multi.P2`: the count is checked before any facet. | `too-many` |
+| `families-before-too-many` | `wide-demo` with `flag.p38891` appended (4,097 facets), and the family `multi` named `Multi`: the families are checked before the count. | `family-name` |
 | `id-form` | `product.inverter` written `product.Inverter`. | `id-form` |
 | `id-form-trailing-newline` | `jurisdiction.vic` written `"jurisdiction.vic\n"`. | `id-form` |
 | `checks-within-a-facet` | `product.inverter` written `product.Inverter`, at 5.5. | `id-form` |
+| `form-before-family` | `Phase.single` at 71 appended. | `id-form` |
 | `unknown-family` | `phase.single` at 71 appended. | `unknown-family` |
+| `family-before-prime` | `phase.single` at 70 appended. | `unknown-family` |
 | `id-duplicate` | `jurisdiction.vic` at 71 appended. | `id-duplicate` |
+| `id-before-prime` | `jurisdiction.vic` at 11 appended: its id and its prime repeat, and the prime is out of order. | `id-duplicate` |
 | `not-integer` | `jurisdiction.nt` at 59.5. | `not-integer` |
 | `integer-before-range` | `record.extra` at 2147483648.5 appended. | `not-integer` |
 | `prime-range-low` | `record.product-listing` at 1. | `prime-range` |
@@ -451,6 +468,7 @@ In these tables, 2^k stands for its decimal string, p16 for the product of the f
 | `cardinality-before-range` | `wide-demo` | `multi.p2` 1,024 times and `flag.p59` twice | `P_COORDINATE_CARDINALITY` (`flag`) |
 | `below-2^53` to `above-2^64` | `wide-demo` | The facets of the six decode cases of those names | Their coordinates |
 | `max-prime` | `max-prime-demo` | `big.p2147483647` | `"2147483647"` |
+| `patterns` | `patterns-demo` | `zone2.7`, `zone-b.x-1`, `zone2.7`, `zonea.0`, `zone-b.4777-3` | `"1470"` |
 
 In `first-family-in-families-order`, a walk over the facets in prime order or in list order finds `record` broken first, and in `two-kinds-broken` it finds `standard`. Only the order of `families` gives the expected family.
 
@@ -462,6 +480,7 @@ In `first-family-in-families-order`, a walk over the facets in prime order or in
 | `catalogue-example` | `catalogue-demo` | `"1155"` | The four facets of the worked example, each with exponent 1 |
 | `syntax-zero`, `syntax-leading-zero`, `syntax-plus`, `syntax-minus`, `syntax-leading-space`, `syntax-trailing-space`, `syntax-trailing-newline`, `syntax-fraction`, `syntax-exponent`, `syntax-empty`, `syntax-fullwidth-digit` | `catalogue-demo` | `"0"`, `"01"`, `"+5"`, `"-5"`, `" 5"`, `"5 "`, `"5\n"`, `"5.0"`, `"1e3"`, `""`, `"５"` (U+FF15) | `P_COORDINATE_SYNTAX` |
 | `syntax-number` | `catalogue-demo` | The JSON number `5` | `P_COORDINATE_SYNTAX` |
+| `syntax-null`, `syntax-array` | `catalogue-demo` | `null`; the array `["5"]`, which a conversion to a string would turn into `"5"` | `P_COORDINATE_SYNTAX` |
 | `syntax-before-range` | `catalogue-demo` | 400 digits with a leading zero | `P_COORDINATE_SYNTAX` |
 | `syntax-late-in-long-string` | `catalogue-demo` | `1`, 400 zeros and `x` (402 characters) | `P_COORDINATE_SYNTAX` |
 | `unknown-factor` | `catalogue-demo` | `"97"` | `P_COORDINATE_UNKNOWN_FACTOR` |
@@ -494,6 +513,7 @@ In `first-family-in-families-order`, a walk over the facets in prime order or in
 | `max-prime` | `max-prime-demo` | `"2147483647"` | `big.p2147483647`, exponent 1 |
 | `max-prime-squared` | `max-prime-demo` | `"4611686014132420609"` | `big.p2147483647`, exponent 2 |
 | `unknown-small-factor` | `max-prime-demo` | `"2"` | `P_COORDINATE_UNKNOWN_FACTOR` |
+| `patterns` | `patterns-demo` | `"1470"` (2 × 3 × 5 × 7²) | `zone-b.4777-3`, `zonea.0` and `zone-b.x-1`, each with exponent 1, and `zone2.7` with exponent 2 |
 
 The nearest coordinates in the `below-` and `above-` cases are found by testing 2^k − 1, 2^k − 2, … and 2^k + 1, 2^k + 2, … in turn. The 2^k ± 1 cases catch an implementation that rounds to a double (2^53 + 1 becomes 2^53, which decodes) or wraps at 64 bits (2^64 + 1 becomes 1, which decodes to no facets). `syntax-late-in-long-string` catches an implementation that rejects a long string on its length before it has checked every character.
 
@@ -511,17 +531,21 @@ The nearest coordinates in the `below-` and `above-` cases are found by testing 
 | `query-syntax` | `catalogue-demo` | `"01"` | `"1155"` | `P_COORDINATE_SYNTAX` |
 | `query-trailing-newline` | `catalogue-demo` | `"231\n"` | `"1155"` | `P_COORDINATE_SYNTAX` |
 | `coordinate-unknown-factor` | `catalogue-demo` | `"1"` | `"97"` | `P_COORDINATE_UNKNOWN_FACTOR` |
+| `coordinate-cardinality` | `catalogue-demo` | `"1"` | `"341"` | `P_COORDINATE_CARDINALITY` (`jurisdiction`) |
 | `coordinate-syntax` | `catalogue-demo` | `"231"` | The JSON number `1155` | `P_COORDINATE_SYNTAX` |
 | `coordinate-syntax-late` | `catalogue-demo` | `"1"` | `1`, 400 zeros and `x` | `P_COORDINATE_SYNTAX` |
 | `query-error-first` | `catalogue-demo` | `"-5"` | 1 followed by 400 zeros | `P_COORDINATE_SYNTAX` |
 | `sqlite-65-bit` | `kernel-2` | `"53"` | p16 | `true` |
 | `sqlite-89-bit` | `kernel-2` | `"53"` | p20 | `true` |
-| `sqlite-65-bit-absent` | `kernel-2` | `"59"` | p16 | `false` |
+| `sqlite-65-bit-absent` | `kernel-2` | `"73"` | p16 | `false` |
+| `sqlite-89-bit-absent` | `kernel-2` | `"127"` | p20 | `false` |
 | `exponent-short` | `kernel-2` | `"4"` | `"2"` | `false` |
 | `exponent-enough` | `kernel-2` | `"4"` | `"8"` | `true` |
 | `past-2^63` | `wide-demo` | 2^63 | 2^64 | `true` |
 | `past-2^63-reversed` | `wide-demo` | 2^64 | 2^63 | `false` |
 | `largest` | `wide-demo` | `"2"` | 2^1023 | `true` |
+
+SQLite turns p16 and p20 into a floating-point number and takes the remainder of 2^63 − 1 instead, which is 7² × 73 × 127 × 337 × 92737 × 649657. So it misses 53, which divides both (`sqlite-65-bit` and `sqlite-89-bit`), and finds 73 (`emissions.entry`) in p16 and 127 (`reporting.entry`) in p20, which hold neither (the `-absent` cases).
 
 **`check.json`**
 

@@ -223,6 +223,104 @@ fn valid_dictionaries() {
     assert_eq!(max.families()[1].name(), "unused");
 }
 
+/// `patterns-demo`: facet names that start with a digit, family names with
+/// a hyphen or a digit, families in code point order, and a two-digit
+/// profile version.
+#[test]
+fn patterns_demo() {
+    let text = r#"{"v": "coordinate-dictionary/0", "profile": "patterns-demo/10",
+ "families": [{"name": "zone-b", "values": "set"}, {"name": "zone2", "values": "multiset"},
+   {"name": "zonea", "values": "one"}],
+ "facets": [{"id": "zone-b.4777-3", "prime": 2}, {"id": "zonea.0", "prime": 3},
+   {"id": "zone-b.x-1", "prime": 5}, {"id": "zone2.7", "prime": 7}]}"#;
+    let patterns = Dictionary::parse(text.as_bytes()).unwrap();
+    assert_eq!(
+        patterns.encode([
+            "zone2.7",
+            "zone-b.x-1",
+            "zone2.7",
+            "zonea.0",
+            "zone-b.4777-3"
+        ]),
+        Ok("1470".to_string())
+    );
+    assert_eq!(
+        ids(&patterns, "1470"),
+        [
+            ("zone-b.4777-3", 1),
+            ("zonea.0", 1),
+            ("zone-b.x-1", 1),
+            ("zone2.7", 2)
+        ]
+        .map(|(id, e)| (id.to_string(), e))
+    );
+    // Ignoring the hyphen would sort zonea before zone-b.
+    let reordered = with(
+        text,
+        r#"{"name": "zone-b", "values": "set"}, {"name": "zone2", "values": "multiset"},
+   {"name": "zonea", "values": "one"}"#,
+        r#"{"name": "zone2", "values": "multiset"}, {"name": "zonea", "values": "one"},
+   {"name": "zone-b", "values": "set"}"#,
+    );
+    assert_eq!(
+        detail(reordered.as_bytes()),
+        d(DictionaryDetail::FamilyOrder)
+    );
+}
+
+/// An implementation that takes an already parsed value starts at step 2.
+/// A NaN or an infinity, which only a value built in code can hold, fails
+/// step 8d (`not-integer`), and a number above 2^53 - 1 fails step 8e
+/// (`prime-range`).
+#[test]
+fn parsed_values() {
+    use DictionaryDetail::*;
+
+    let parsed = evidence_core::json::parse(CATALOGUE_DEMO.as_bytes()).unwrap();
+    assert_eq!(
+        Dictionary::from_value(&parsed).unwrap().id(),
+        catalogue_demo().id()
+    );
+    let one_facet = |prime: f64| {
+        let s = |x: &str| Value::String(x.to_string());
+        Value::Object(vec![
+            ("v".to_string(), s("coordinate-dictionary/0")),
+            ("profile".to_string(), s("m-demo/0")),
+            (
+                "families".to_string(),
+                Value::Array(vec![Value::Object(vec![
+                    ("name".to_string(), s("m")),
+                    ("values".to_string(), s("one")),
+                ])]),
+            ),
+            (
+                "facets".to_string(),
+                Value::Array(vec![Value::Object(vec![
+                    ("id".to_string(), s("m.a")),
+                    ("prime".to_string(), Value::Number(prime)),
+                ])]),
+            ),
+        ])
+    };
+    let cases = [
+        (f64::NAN, NotInteger),
+        (f64::INFINITY, NotInteger),
+        (f64::NEG_INFINITY, NotInteger),
+        (-0.0, PrimeRange),
+        (2.5, NotInteger),
+        (9_007_199_254_740_992.0, PrimeRange),
+        (1e300, PrimeRange),
+    ];
+    for (prime, want) in cases {
+        assert_eq!(
+            Dictionary::from_value(&one_facet(prime)),
+            Err(d(want)),
+            "{prime}"
+        );
+    }
+    assert!(Dictionary::from_value(&one_facet(2.0)).is_ok());
+}
+
 #[test]
 fn invalid_dictionaries() {
     use evidence_core::Code;
@@ -265,6 +363,35 @@ fn invalid_dictionaries() {
         }
     }
     let too_many = canonicalize(&wide);
+
+    // wide-demo with the family `multi` named `Multi` and flag.p38891
+    // appended: the families are checked before the count.
+    let mut wide = wide_demo_value();
+    if let Value::Object(members) = &mut wide {
+        for (key, value) in members.iter_mut() {
+            match (key.as_str(), value) {
+                ("families", Value::Array(list)) => {
+                    list[1] = Value::Object(vec![
+                        ("name".to_string(), Value::String("Multi".to_string())),
+                        ("values".to_string(), Value::String("multiset".to_string())),
+                    ]);
+                }
+                ("facets", Value::Array(list)) => list.push(Value::Object(vec![
+                    ("id".to_string(), Value::String("flag.p38891".to_string())),
+                    ("prime".to_string(), Value::Number(38_891.0)),
+                ])),
+                _ => {}
+            }
+        }
+    }
+    let families_before_too_many = canonicalize(&wide);
+    let big_j = |text: &str| {
+        with(
+            text,
+            r#""name": "jurisdiction""#,
+            r#""name": "Jurisdiction""#,
+        )
+    };
 
     let start = base.find(r#""facets": "#).unwrap() + r#""facets": "#.len();
     let facets_alone = &base[start..base.len() - 1];
@@ -310,6 +437,62 @@ fn invalid_dictionaries() {
             d(Shape),
         ),
         (
+            "v-not-a-string",
+            with(base, r#""coordinate-dictionary/0""#, "0"),
+            d(Shape),
+        ),
+        (
+            "profile-not-a-string",
+            with(base, r#""catalogue-demo/0""#, r#"["catalogue-demo/0"]"#),
+            d(Shape),
+        ),
+        (
+            "family-member-unknown",
+            with(
+                base,
+                r#"{"name": "product", "values": "one"}"#,
+                r#"{"name": "product", "values": "one", "label": "Product"}"#,
+            ),
+            d(Shape),
+        ),
+        (
+            "family-name-not-a-string",
+            with(base, r#""name": "record""#, r#""name": ["record"]"#),
+            d(Shape),
+        ),
+        (
+            "family-values-not-a-string",
+            with(
+                base,
+                r#"{"name": "standard", "values": "set"}"#,
+                r#"{"name": "standard", "values": 1}"#,
+            ),
+            d(Shape),
+        ),
+        (
+            "id-not-a-string",
+            with(base, r#""id": "jurisdiction.vic""#, r#""id": 11"#),
+            d(Shape),
+        ),
+        (
+            "shape-in-family-before-family-name",
+            with(
+                &big_j(base),
+                r#"{"name": "standard", "values": "set"}"#,
+                r#"{"name": "standard", "values": "set", "label": "Standard"}"#,
+            ),
+            d(Shape),
+        ),
+        (
+            "shape-in-facet-before-family",
+            with(
+                &big_j(base),
+                r#"{"id": "standard.as-nzs-4777-1", "prime": 67}"#,
+                r#"{"id": "standard.as-nzs-4777-1", "prime": 67, "label": "x"}"#,
+            ),
+            d(Shape),
+        ),
+        (
             "shape-before-version",
             with(
                 &with(base, "coordinate-dictionary/0", "coordinate-dictionary/1"),
@@ -335,6 +518,11 @@ fn invalid_dictionaries() {
         (
             "profile",
             with(base, r#""catalogue-demo/0""#, r#""catalogue-demo""#),
+            d(Profile),
+        ),
+        (
+            "profile-before-families",
+            big_j(&with(base, r#""catalogue-demo/0""#, r#""catalogue-demo""#)),
             d(Profile),
         ),
         (
@@ -383,6 +571,19 @@ fn invalid_dictionaries() {
             ),
             d(Values),
         ),
+        (
+            "family-document-order",
+            with(
+                &with(
+                    base,
+                    r#"{"name": "jurisdiction", "values": "one"}"#,
+                    r#"{"name": "jurisdiction", "values": "many"}"#,
+                ),
+                r#""name": "product""#,
+                r#""name": "Product""#,
+            ),
+            d(Values),
+        ),
         ("values-before-duplicate", second_product("many"), d(Values)),
         (
             "family-duplicate",
@@ -403,6 +604,11 @@ fn invalid_dictionaries() {
         ("empty", no_facets(base), d(Empty)),
         ("too-many", too_many, d(TooMany)),
         (
+            "families-before-too-many",
+            families_before_too_many,
+            d(FamilyName),
+        ),
+        (
             "id-form",
             with(base, "product.inverter", "product.Inverter"),
             d(IdForm),
@@ -422,13 +628,28 @@ fn invalid_dictionaries() {
             d(IdForm),
         ),
         (
+            "form-before-family",
+            appended(r#"{"id": "Phase.single", "prime": 71}"#),
+            d(IdForm),
+        ),
+        (
             "unknown-family",
             appended(r#"{"id": "phase.single", "prime": 71}"#),
             d(UnknownFamily),
         ),
         (
+            "family-before-prime",
+            appended(r#"{"id": "phase.single", "prime": 70}"#),
+            d(UnknownFamily),
+        ),
+        (
             "id-duplicate",
             appended(r#"{"id": "jurisdiction.vic", "prime": 71}"#),
+            d(IdDuplicate),
+        ),
+        (
+            "id-before-prime",
+            appended(r#"{"id": "jurisdiction.vic", "prime": 11}"#),
             d(IdDuplicate),
         ),
         (
@@ -512,7 +733,7 @@ fn invalid_dictionaries() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    assert_eq!(cases.len(), 40);
+    assert_eq!(cases.len(), 54);
 }
 
 /// `catalogue-demo-v2`: `product.heat-pump` (71) and a family `phase` with
@@ -664,7 +885,14 @@ fn decode_cases() {
     ] {
         assert_eq!(demo.decode(bad), Err(Error::Syntax), "{bad:?}");
     }
-    assert_eq!(demo.decode_value(&Value::Number(5.0)), Err(Error::Syntax));
+    // A value that is not a string is never converted to one: ["5"] is not "5".
+    for not_a_string in [
+        Value::Number(5.0),
+        Value::Null,
+        Value::Array(vec![Value::String("5".to_string())]),
+    ] {
+        assert_eq!(demo.decode_value(&not_a_string), Err(Error::Syntax));
+    }
     assert_eq!(
         demo.decode(&format!("0{}", "1".repeat(399))),
         Err(Error::Syntax)
@@ -787,6 +1015,7 @@ fn divides_cases() {
     assert_eq!(demo.divides("01", "1155"), Err(Error::Syntax));
     assert_eq!(demo.divides("231\n", "1155"), Err(Error::Syntax));
     assert_eq!(demo.divides("1", "97"), Err(Error::UnknownFactor));
+    assert_eq!(demo.divides("1", "341"), Err(cardinality("jurisdiction")));
     assert_eq!(
         demo.divides_value(&s("231"), &n(1155.0)),
         Err(Error::Syntax)
@@ -804,7 +1033,12 @@ fn divides_cases() {
         kernel.divides("53", "557940830126698960967415390"),
         Ok(true)
     );
-    assert_eq!(kernel.divides("59", "32589158477190044730"), Ok(false));
+    // SQLite finds 73 in p16 and 127 in p20, which hold neither.
+    assert_eq!(kernel.divides("73", "32589158477190044730"), Ok(false));
+    assert_eq!(
+        kernel.divides("127", "557940830126698960967415390"),
+        Ok(false)
+    );
     assert_eq!(kernel.divides("4", "2"), Ok(false));
     assert_eq!(kernel.divides("4", "8"), Ok(true));
     assert_eq!(wide.divides(&pow2(63), &pow2(64)), Ok(true));

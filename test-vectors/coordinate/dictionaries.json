@@ -35,6 +35,10 @@
     {
       "name": "max-prime-demo",
       "id": "sha256:9f998a41162f8420e2d375ca7b3f34ceae1e7e938bdeed3d9f010389d7402183"
+    },
+    {
+      "name": "patterns-demo",
+      "id": "sha256:bbc873f7b76e550a6a4d6ed027d86b9020f9f0229e43dff3344c12d402b984d2"
     }
   ],
   "invalid": [
@@ -123,7 +127,63 @@
       }
     },
     {
+      "name": "v-not-a-string",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "profile-not-a-string",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "family-member-unknown",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "family-name-not-a-string",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "family-values-not-a-string",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "id-not-a-string",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
       "name": "shape-before-version",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "shape-in-family-before-family-name",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "shape-in-facet-before-family",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
         "detail": "shape"
@@ -145,6 +205,13 @@
     },
     {
       "name": "profile",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "profile"
+      }
+    },
+    {
+      "name": "profile-before-families",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
         "detail": "profile"
@@ -187,6 +254,13 @@
     },
     {
       "name": "values",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "values"
+      }
+    },
+    {
+      "name": "family-document-order",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
         "detail": "values"
@@ -242,6 +316,13 @@
       }
     },
     {
+      "name": "families-before-too-many",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-name"
+      }
+    },
+    {
       "name": "id-form",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
@@ -263,6 +344,13 @@
       }
     },
     {
+      "name": "form-before-family",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-form"
+      }
+    },
+    {
       "name": "unknown-family",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
@@ -270,7 +358,21 @@
       }
     },
     {
+      "name": "family-before-prime",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "unknown-family"
+      }
+    },
+    {
       "name": "id-duplicate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-duplicate"
+      }
+    },
+    {
+      "name": "id-before-prime",
       "error": {
         "code": "P_COORDINATE_DICTIONARY",
         "detail": "id-duplicate"

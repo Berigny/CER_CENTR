@@ -118,4 +118,4 @@ Deliberately left out so v0 stays small:
 
 ## Conformance
 
-An implementation conforms to evidence/0 if it gives the expected result for every vector in [`../test-vectors/`](../test-vectors/). The vectors are the contract; the Rust and JavaScript code in this repository are two implementations of it.
+An implementation conforms to evidence/0 if it gives the expected result for every case in `canon.json`, `numbers.json` and `objects/` in [`../test-vectors/`](../test-vectors/). The vectors are the contract; the Rust and JavaScript code in this repository are two implementations of it. [store/0](store-0.md#conformance) and [coordinate/0](coordinate-0.md#conformance) state their own conformance.

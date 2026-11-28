@@ -1,8 +1,9 @@
 //! Property tests with a fixed seed, so every run draws the same cases and
 //! no dependency is needed. Each property is checked against an oracle that
 //! does not use the crate's arithmetic: the multiset that built a
-//! coordinate, u128 arithmetic where it fits, trial division, and a table of
-//! factor rows queried the way an index would.
+//! coordinate, u128 arithmetic where it fits, and trial division. The
+//! factor-table test also builds its rows from those multisets, not from
+//! decode, so a wrong decode cannot give the same wrong rows on both sides.
 
 mod common;
 
@@ -17,11 +18,22 @@ type Exponents = BTreeMap<usize, u32>;
 /// A random list of facets, as ids, that meets every family rule, and its
 /// exponents. `max` is the most facets drawn.
 fn valid_list(rng: &mut Rng, d: &Dictionary, max: usize) -> (Vec<String>, Exponents) {
+    let facets = d.facets().len();
+    valid_list_from(rng, d, max, |rng| rng.below(facets))
+}
+
+/// As [`valid_list`], with `pick` choosing each facet drawn.
+fn valid_list_from(
+    rng: &mut Rng,
+    d: &Dictionary,
+    max: usize,
+    mut pick: impl FnMut(&mut Rng) -> usize,
+) -> (Vec<String>, Exponents) {
     let mut exponents = Exponents::new();
     let mut used_one = BTreeSet::new();
     let count = rng.below(max + 1);
     for _ in 0..count {
-        let i = rng.below(d.facets().len());
+        let i = pick(rng);
         let family = d.facets()[i].family();
         let allowed = match d.families()[family].values() {
             Values::One => !used_one.contains(&family),
@@ -117,9 +129,27 @@ fn round_trip_with_family_rules() {
     }
     // Near the 1,024-bit limit: a product whose log2 is clearly below 1024
     // encodes and round-trips; one clearly above is P_COORDINATE_RANGE.
-    let (mut below, mut above) = (0, 0);
+    // About half the draws come from the 16 `multi` facets, so that repeated
+    // facets are common; drawn uniformly, 16 of 4,096 facets rarely repeat.
+    let multi = wide
+        .facets()
+        .iter()
+        .take_while(|f| f.id().starts_with("multi."))
+        .count();
+    assert_eq!(multi, 16);
+    let facets = wide.facets().len();
+    let (mut below, mut above, mut repeated) = (0, 0, 0);
     for _ in 0..300 {
-        let (list, want) = valid_list(&mut rng, &wide, 160);
+        let (list, want) = valid_list_from(&mut rng, &wide, 160, |rng| {
+            if rng.chance(2) {
+                rng.below(multi)
+            } else {
+                rng.below(facets)
+            }
+        });
+        if want.values().any(|&e| e > 1) {
+            repeated += 1;
+        }
         let log2: f64 = primes_of(&wide, &want)
             .iter()
             .map(|&p| f64::from(p).log2())
@@ -137,7 +167,10 @@ fn round_trip_with_family_rules() {
             Err(e) => panic!("{e}"),
         }
     }
-    assert!(below > 20 && above > 20, "below {below}, above {above}");
+    assert!(
+        below > 20 && above > 20 && repeated > 200,
+        "below {below}, above {above}, {repeated} with a repeated facet"
+    );
 }
 
 /// Decode against trial division on random 64-bit numbers, smooth ones
@@ -263,30 +296,39 @@ fn divides_agrees_with_exponents() {
 
 /// An index of factor rows (object, prime, exponent) and a per-object row,
 /// queried as "has every prime of the query with at least its exponent",
-/// returns the same objects as testing `divides` on every stored coordinate,
-/// and the same error for a query that does not decode.
+/// returns the objects that the meaning of divisibility gives, the same as
+/// testing `divides` on every stored coordinate; and the same error for a
+/// query that does not decode.
+///
+/// The rows come from the multisets that built each coordinate, and the
+/// reference answer from those multisets alone, with u128 remainders where
+/// both numbers fit. The index decodes each query first, as spec section
+/// Indexing requires, so a decode that loses exponents gives rows that no
+/// longer match.
 #[test]
 fn factor_rows_agree_with_divides() {
     let k = load(&kernel_2_value());
     let mut rng = Rng(16);
-    let objects: Vec<String> = (0..400)
+    // Each object: its coordinate and the exponents that built it.
+    let objects: Vec<(String, Exponents)> = (0..400)
         .map(|_| {
             let max = if rng.chance(10) { 0 } else { 40 };
-            let (list, _) = valid_list(&mut rng, &k, max);
-            k.encode(&list).unwrap()
+            let (list, exponents) = valid_list(&mut rng, &k, max);
+            (k.encode(&list).unwrap(), exponents)
         })
         .collect();
-    assert!(objects.iter().any(|c| c == "1"));
+    assert!(objects.iter().any(|(c, _)| c == "1"));
     assert!(
-        objects.iter().any(|c| c.len() > 19),
+        objects.iter().any(|(c, _)| c.len() > 19),
         "no coordinate past 2^63"
     );
 
-    // The index: one row per (object, prime), and one per object.
+    // The index: one row per (object, prime), from the generating multiset,
+    // and one per object.
     let mut rows: Vec<(usize, u32, u32)> = Vec::new();
-    for (object, coordinate) in objects.iter().enumerate() {
-        for f in k.decode(coordinate).unwrap() {
-            rows.push((object, f.prime, f.exponent));
+    for (object, (_, exponents)) in objects.iter().enumerate() {
+        for (&i, &e) in exponents {
+            rows.push((object, k.facets()[i].prime(), e));
         }
     }
     let index_answer = |query: &str| -> Result<BTreeSet<usize>, Error> {
@@ -309,56 +351,91 @@ fn factor_rows_agree_with_divides() {
     };
     let scan_answer = |query: &str| -> Result<BTreeSet<usize>, Error> {
         let mut out = BTreeSet::new();
-        for (object, coordinate) in objects.iter().enumerate() {
+        for (object, (coordinate, _)) in objects.iter().enumerate() {
             if k.divides(query, coordinate)? {
                 out.insert(object);
             }
         }
         Ok(out)
     };
+    // The meaning of divisibility, from the multisets alone.
+    let reference = |q: &Exponents| -> BTreeSet<usize> {
+        objects
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, c))| q.iter().all(|(i, e)| c.get(i).is_some_and(|ce| ce >= e)))
+            .map(|(o, _)| o)
+            .collect()
+    };
 
-    let mut queries: Vec<String> = vec![
-        "1".to_string(),
-        "353".to_string(),
-        "01".to_string(),
-        "2".to_string(),
+    // Each query with the multiset that built it, or None for one that does
+    // not decode.
+    assert_eq!(k.facets()[0].prime(), 2);
+    let mut queries: Vec<(String, Option<Exponents>)> = vec![
+        ("1".to_string(), Some(Exponents::new())),
+        ("2".to_string(), Some(Exponents::from([(0, 1)]))),
+        ("353".to_string(), None),
+        ("01".to_string(), None),
     ];
-    // Part of a stored coordinate, which that object matches; and, one time
-    // in four, with one exponent raised by one, which it may not.
+    // Part of a stored object's multiset, which that object matches; and,
+    // one time in four, with one exponent raised by one, which it may not.
     while queries.len() < 304 {
-        let base = &objects[rng.below(objects.len())];
-        let facets = k.decode(base).unwrap();
-        if facets.is_empty() {
+        let (_, base) = &objects[rng.below(objects.len())];
+        if base.is_empty() {
             continue;
         }
-        let mut list = Vec::new();
-        for (n, f) in facets.iter().enumerate() {
+        let mut q = Exponents::new();
+        for (n, (&i, &e)) in base.iter().enumerate() {
             if n == 0 || rng.chance(3) {
-                for _ in 0..1 + rng.below(f.exponent as usize) {
-                    list.push(f.id.clone());
-                }
+                q.insert(i, 1 + rng.below(e as usize) as u32);
             }
         }
         if rng.chance(4) {
-            list.push(list[0].clone());
+            let n = rng.below(q.len());
+            if let Some(e) = q.values_mut().nth(n) {
+                *e += 1;
+            }
         }
-        queries.push(k.encode(&list).unwrap());
+        let list: Vec<String> = q
+            .iter()
+            .flat_map(|(&i, &e)| std::iter::repeat_n(k.facets()[i].id().to_string(), e as usize))
+            .collect();
+        queries.push((k.encode(&list).unwrap(), Some(q)));
     }
-    let mut nonempty = 0;
-    for query in &queries {
+
+    let (mut some_not_all, mut exponents_matter, mut by_remainder) = (0, 0, 0);
+    for (query, q) in &queries {
         let index = index_answer(query);
-        let scan = scan_answer(query);
-        assert_eq!(index, scan, "{query}");
-        if index
-            .as_ref()
-            .is_ok_and(|s| !s.is_empty() && s.len() < objects.len())
-        {
-            nonempty += 1;
+        assert_eq!(index, scan_answer(query), "{query}");
+        let Some(q) = q else {
+            assert!(index.is_err(), "{query}");
+            continue;
+        };
+        let want = reference(q);
+        assert_eq!(index, Ok(want.clone()), "{query}");
+        if !want.is_empty() && want.len() < objects.len() {
+            some_not_all += 1;
+        }
+        // A query whose answer changes when its exponents are ignored.
+        let once: Exponents = q.keys().map(|&i| (i, 1)).collect();
+        if reference(&once) != want {
+            exponents_matter += 1;
+        }
+        // Exact integer divisibility, where both numbers fit u128.
+        if let Some(qn) = product_u128(&primes_of(&k, q)) {
+            assert_eq!(*query, qn.to_string());
+            for (object, (_, c)) in objects.iter().enumerate() {
+                if let Some(cn) = product_u128(&primes_of(&k, c)) {
+                    assert_eq!(cn % qn == 0, want.contains(&object), "{query} | {cn}");
+                    by_remainder += 1;
+                }
+            }
         }
     }
     assert!(
-        nonempty > 200,
-        "{nonempty} of {} queries match some objects but not all",
+        some_not_all > 200 && exponents_matter > 20 && by_remainder > 10_000,
+        "of {} queries, {some_not_all} match some objects but not all and \
+         {exponents_matter} depend on their exponents; {by_remainder} remainders",
         queries.len()
     );
     assert_eq!(index_answer("353"), Err(Error::UnknownFactor));

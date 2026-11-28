@@ -110,7 +110,16 @@ export function parseDictionary(input) {
   return validateDictionary(value);
 }
 
-// Steps 2 to 8 on an already parsed value (a value as JSON.parse gives it).
+// Every item of an array, holes included: Array.prototype.every skips holes,
+// which a value built in code can hold, and a hole is not a family or a facet.
+const everyItem = (array, test) => {
+  for (let i = 0; i < array.length; i++) if (!test(array[i])) return false;
+  return true;
+};
+
+// Steps 2 to 8 on an already parsed value: a value as JSON.parse gives it, or
+// one built in code. A NaN or an infinity fails step 8d, and a number above
+// 2^53 - 1 step 8e.
 export function validateDictionary(value) {
   // Step 2: the whole shape, before any later step.
   const familyShape = (f) =>
@@ -123,9 +132,9 @@ export function validateDictionary(value) {
     typeof value.v === "string" &&
     typeof value.profile === "string" &&
     Array.isArray(value.families) &&
-    value.families.every(familyShape) &&
+    everyItem(value.families, familyShape) &&
     Array.isArray(value.facets) &&
-    value.facets.every(facetShape);
+    everyItem(value.facets, facetShape);
   if (!shapeOk) dictionaryError("shape");
 
   if (value.v !== DICTIONARY_V) dictionaryError("version"); // step 3

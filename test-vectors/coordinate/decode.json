@@ -125,6 +125,24 @@
     }
   },
   {
+    "name": "syntax-null",
+    "dictionary": "catalogue-demo",
+    "coordinate": null,
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-array",
+    "dictionary": "catalogue-demo",
+    "coordinate": [
+      "5"
+    ],
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
     "name": "syntax-before-range",
     "dictionary": "catalogue-demo",
     "coordinate": "0111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
@@ -8287,5 +8305,28 @@
     "error": {
       "code": "P_COORDINATE_UNKNOWN_FACTOR"
     }
+  },
+  {
+    "name": "patterns",
+    "dictionary": "patterns-demo",
+    "coordinate": "1470",
+    "expect": [
+      {
+        "id": "zone-b.4777-3",
+        "exponent": 1
+      },
+      {
+        "id": "zonea.0",
+        "exponent": 1
+      },
+      {
+        "id": "zone-b.x-1",
+        "exponent": 1
+      },
+      {
+        "id": "zone2.7",
+        "exponent": 2
+      }
+    ]
   }
 ]

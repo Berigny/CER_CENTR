@@ -1,6 +1,6 @@
 # Kernel/2: prime-coordinate facets (profile `kernel/2`)
 
-**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Its encoding (the dictionary format, and the arithmetic of encoding, decoding and divisibility) is [coordinate/0](../spec/coordinate-0.md), which is built. Kernel/2 itself (its events, its two coordinates and its gates) is still planned for roadmap milestone M9 ([roadmap](roadmap.md)) and not implemented. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
+**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Its encoding (the dictionary format, and the arithmetic of encoding, decoding and divisibility) is [coordinate/0](../spec/coordinate-0.md), which is built. Kernel/2 itself (its events, its two coordinates and its gates) is not implemented. It targets roadmap milestone [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-a-published-dictionary), which does not yet list it as a deliverable. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 **Labels.** **[derived]** means mechanically checked by a test. **[declared]** means a design decision. **[open]** means a decision still to be made.
 
@@ -155,7 +155,7 @@ Five events for one unit, each pointing at the previous one with `prev`. The val
 
 As for evidence/0 (decision D7), the vectors are the contract. coordinate/0's vectors already cover the dictionary (REQ-KRN-001 to 005) and the arithmetic Kernel/2 shares with it (section 3.3). At M9 this profile ships with:
 
-- dictionary and decode vectors for REQ-KRN-001 to 008, 011 and 012;
+- dictionary and decode vectors for REQ-KRN-006 to 008, 011 and 012;
 - event-chain vectors (valid and invalid) for REQ-KRN-009, 010, 013 and 020, including merges, exits and re-entries;
 - an independent JavaScript reference, alongside the Rust verifier, for coordinate derivation and the gates.
 

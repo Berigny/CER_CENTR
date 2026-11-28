@@ -22,9 +22,9 @@ JSON Schema accepts and rejects the same vectors, so the two cannot drift:
   coordinate-dictionary schema, and every invalid one whose `detail` comes from
   a step the schema covers (2, 3, 4, 5a, 5b, 6, 7, 8a, 8d and 8e of
   spec/coordinate-0.md) must fail it. So must catalogue-demo with a newline
-  appended to one of its strings, or with an unknown member at the top level
-  or in a family, and wide-demo with a 4,097th facet. Step 1 cases (`core`
-  set) are skipped, as above.
+  appended to one of its strings, or with an unknown member at the top level,
+  and wide-demo with a 4,097th facet. Step 1 cases (`core` set) are skipped,
+  as above.
 
 Missing store and coordinate vectors are a failure, not a skip.
 
@@ -132,7 +132,7 @@ def main() -> int:
     print(f"The log-entry schema agrees with all {entries_checked} store entry vectors.")
     summary = ", ".join(f"{n} {what}" for what, n in exports_checked.items())
     print(f"The store schemas agree with the export vectors: {summary}.")
-    print(f"The coordinate-dictionary schema agrees with all {dictionaries_checked} dictionary vectors.")
+    print(f"The coordinate-dictionary schema agrees with all {dictionaries_checked} dictionary cases (the vectors and variants built from them).")
     return 0
 
 
@@ -302,13 +302,11 @@ def check_dictionaries(failures: list[str]) -> int:
         if not list(schema.iter_errors(variant)):
             failures.append("coordinate/dictionaries/valid/catalogue-demo: schema accepts a trailing newline")
     # Rules that the vectors test only together with another: an unknown member
-    # at the top level or in a family, and 4,097 facets that are each valid.
+    # at the top level, and 4,097 facets that are each valid. (An unknown member
+    # in a family has a vector of its own, family-member-unknown.)
     wide = load("valid", "wide-demo")
-    families = [dict(f) for f in base["families"]]
-    families[0]["label"] = "a member the format does not have"
     others = [
         ("an unknown member", {**base, "note": "a member the format does not have"}),
-        ("a family with an unknown member", {**base, "families": families}),
         ("4,097 facets", {**wide, "facets": wide["facets"] + [{"id": "flag.p38891", "prime": 38891}]}),
     ]
     for what, variant in others:

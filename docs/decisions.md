@@ -82,12 +82,12 @@ Confirmed 28 November 2026 ([roadmap](roadmap.md#decisions-confirmed-28-november
 
 - The canonical coordinate is a decimal string: in JSON, in exports and in index columns. Never a JSON number, and never an SQL integer or floating-point value.
 - An index stores each object's factorisation as rows (profile, object, prime, exponent), with an index on (profile, prime), and answers a faceted query as "has all these primes, each with at least these exponents".
-- Divisibility is the reference meaning of a query. An acceptance test (roadmap M4b) shows that the factor rows give the same rows, including coordinates past 2^63.
+- Divisibility is the reference meaning of a query. An acceptance test (roadmap M4b) is to show that the factor rows give the same rows, including coordinates past 2^63.
 - No posting list is stored as one value that is rewritten on every add.
 
 Why:
 
 - evidence/0 rejects JSON numbers above 2^53 − 1, where they stop being exact. A product of a handful of primes passes that quickly.
-- SQL integers are 64-bit. SQLite turns a decimal-text coordinate that does not fit into a floating-point number and returns a wrong remainder, with no error. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave 33 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33 too. PostgreSQL's `numeric` takes `mod` exactly at any size. Because the failure in one engine is silent, indexes answer from factor rows, whose primes and exponents fit 32-bit integers in any database, and keep divisibility as the check.
+- SQL integers are 64-bit. SQLite turns a decimal-text coordinate that does not fit into a floating-point number and returns a wrong remainder, with no error. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave 33 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33 too. PostgreSQL's `numeric` takes `mod` exactly at any size coordinate/0 allows. Because the failure in one engine is silent, indexes answer from factor rows, whose primes and exponents fit 32-bit integers in any database, and keep divisibility as the check.
 - A divisibility scan reads every row of the profile. It is the reference and the check on the index, not the fast path; speed comes from the indexed factor rows.
 - A posting list kept as one value is rewritten on every add, so each add costs more as the list grows.

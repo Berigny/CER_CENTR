@@ -6560,5 +6560,17 @@
       "big.p2147483647"
     ],
     "expect": "2147483647"
+  },
+  {
+    "name": "patterns",
+    "dictionary": "patterns-demo",
+    "facets": [
+      "zone2.7",
+      "zone-b.x-1",
+      "zone2.7",
+      "zonea.0",
+      "zone-b.4777-3"
+    ],
+    "expect": "1470"
   }
 ]
