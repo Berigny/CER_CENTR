@@ -1,6 +1,6 @@
 # Kernel/2: prime-coordinate facets (profile `kernel/2`)
 
-**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Built at roadmap milestone M9 ([roadmap](roadmap.md)); nothing here is implemented yet. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
+**Status:** draft for review. Revised 26 November 2026; the main design choices are listed in the [appendix](#appendix-design-choices-and-why). Its encoding (the dictionary format, and the arithmetic of encoding, decoding and divisibility) is [coordinate/0](../spec/coordinate-0.md), which is built. Kernel/2 itself (its events, its two coordinates and its gates) is not implemented. It targets roadmap milestone [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-a-published-dictionary), which does not yet list it as a deliverable. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 **Labels.** **[derived]** means mechanically checked by a test. **[declared]** means a design decision. **[open]** means a decision still to be made.
 
@@ -10,7 +10,7 @@ Kernel/2 gives every attribution facet of a regulated unit (for example a certif
 
 - It is a **profile** of evidence/0, carried under `ext["kernel/2"]` ([spec](../spec/evidence-0.md#profiles)). The core verifier hashes it but does not interpret it.
 - It is designed with certificate lifecycles in mind (for example ACCUs, LGCs and STCs); it is a draft profile, not part of any scheme's rules. It complements CENTR, which concerns products, installers and installations: an STC arising from a small-scale installation can reference that installation's evidence.
-- **The evidence chain holds the path; the coordinate is an index.** Order, timing, who acted and why come from the chain of evidence objects (`prev` links, `at`, attestations). The coordinate summarises which facets hold, for fast filtering. It never replaces the chain and is never part of an object's id.
+- **The evidence chain holds the path; the coordinate is an index.** Order, timing, who acted and why come from the chain of evidence objects (`prev` links, `at`, attestations). The coordinate summarises which facets hold, for exact filtering. It never replaces the chain and is never part of an object's id.
 
 ## 2. The dictionary
 
@@ -91,6 +91,7 @@ One product cannot be both "everything that ever happened" and "what is true now
 - `1` means **unclassified as a whole** (no facets). It is distinct from `universal.unclassified` (5), which is an explicit assertion. [REQ-KRN-011]
 - Indexes may store the coordinate as a vector of 70 exponents instead of a number. Both decode to the same facets.
 - Every coordinate is tagged with its profile id, `kernel/2`. Indexes key on (profile, coordinate). Kernel/2 shares primes 2 to 349 with other prime-based schemes, so the tag, not the primes, keeps namespaces apart.
+- Encoding, decoding and divisibility are those of [coordinate/0](../spec/coordinate-0.md#operations). Kernel/2's dictionary is a coordinate/0 dictionary: profile `kernel/2`, its seven blocks as `multiset` families, and its 70 facets at the primes of section 2.3, with id `sha256:28ec5d10ee5e6e5fd8effc7515e9adec7f049f75beeccce5064d738d922cac71`. The vector generator builds it from the rule in section 2.1 and checks it against the table in section 2.3, and every coordinate/0 implementation loads it from the vectors, so REQ-KRN-001 to 005 are now tested mechanically ([dictionary cases](../spec/coordinate-0.md#dictionary-cases)). Indexes answer queries from factor rows or exponent vectors, never by arithmetic on SQL integers ([coordinate/0 Indexing](../spec/coordinate-0.md#indexing)).
 
 ## 4. Rules (verifier gates)
 
@@ -152,9 +153,9 @@ Five events for one unit, each pointing at the previous one with `prev`. The val
 
 ## 7. Conformance
 
-As for evidence/0 (decision D7), the vectors are the contract. At M9 this profile ships with:
+As for evidence/0 (decision D7), the vectors are the contract. coordinate/0's vectors already cover the dictionary (REQ-KRN-001 to 005) and the arithmetic Kernel/2 shares with it (section 3.3). At M9 this profile ships with:
 
-- dictionary and decode vectors for REQ-KRN-001 to 008, 011 and 012;
+- dictionary and decode vectors for REQ-KRN-006 to 008, 011 and 012;
 - event-chain vectors (valid and invalid) for REQ-KRN-009, 010, 013 and 020, including merges, exits and re-entries;
 - an independent JavaScript reference, alongside the Rust verifier, for coordinate derivation and the gates.
 
@@ -171,11 +172,11 @@ As for evidence/0 (decision D7), the vectors are the contract. At M9 this profil
 
 | Choice | Instead of | Why |
 |---|---|---|
-| Coordinates as decimal strings (or exponent vectors); REQ-KRN-007 up to 1,024 bits; REQ-KRN-012 | Assuming a coordinate fits 64 bits | The example in section 5 reaches 100 bits, and all seventy primes once would be 467 bits. evidence/0 numbers stop at 2^53. |
+| Coordinates as decimal strings (or exponent vectors); REQ-KRN-007 up to 1,024 bits; REQ-KRN-012 | Assuming a coordinate fits 64 bits | The example in section 5 reaches 100 bits, and all seventy primes once would be 467 bits. evidence/0 numbers stop at 2^53. SQL integers stop at 64 bits, and SQLite gives a wrong remainder silently for a larger coordinate stored as text (on SQLite 3.53, the 65-bit product of the first 16 primes gave 33 for `% 53` instead of 0), so indexes answer from factor rows ([coordinate/0](../spec/coordinate-0.md#indexing)). |
 | The chain holds the path; the coordinate is an index | A coordinate that encodes the full path | Multiplication ignores order: entering then leaving two blocks in either order gives the same number. |
 | Two coordinates: history `H` (accumulates, never gated) and state `S` (can shrink, gated) | One coordinate whose factors only accumulate, with REQ-KRN-010 rejecting contradictory states | A unit whose state changes would otherwise fail the coexistence gate. |
 | A proposed contradiction table, marked [open] | A single contradictory pair (`quantified` × `transfer`) | One pair leaves the gate untestable beyond that pair, and leaves cases such as `unclassified` with `quantified` unclear. |
 | Retirement adds `registry.executed`; `universal.exit` is an open question | Retirement adding a second `universal.entry` | An entry at retirement reads as re-entering the scheme. |
 | Gates are [declared]; [derived] only for mechanically checked arithmetic | Labelling the gates [derived], including the coexistence of `universal` and block states | A data-validity rule is a design decision; only arithmetic can be checked mechanically. |
 | Every coordinate tagged `kernel/2`; indexes key on (profile, coordinate) | Treating primes 2 to 349 as a namespace of their own | The range overlaps other prime-based schemes, so separation must come from the tag. |
-| Coordinates derived, never in an id (REQ-KRN-013) | Storing the coordinate as the certificate's fingerprint | Same rule as the prime-coordinate conditions in the [README](../README.md#proposed-prime-coordinates-for-faceted-queries). |
+| Coordinates derived, never in an id (REQ-KRN-013) | Storing the coordinate as the certificate's fingerprint | Same rule as the prime-coordinate conditions in the [README](../README.md#prime-coordinates-for-faceted-queries). |

@@ -7,7 +7,7 @@ The evidence/0 core and the store/0 verifier compiled to one WebAssembly module,
 ```sh
 rustup target add wasm32-unknown-unknown   # once
 sh tools/build-wasm.sh                      # writes crates/evidence-wasm/pkg/
-node crates/evidence-wasm/js/test.mjs       # every test vector through the module, store vectors included
+node crates/evidence-wasm/js/test.mjs       # the canonicalisation, object and store/0 vectors through the module
 ```
 
 `pkg/` holds `evidence_wasm.wasm` (about 400 KB), `evidence.mjs`, `evidence.d.ts`, `package.json` and `LICENSE`. CI uploads it as the `evidence-wasm-pkg` artifact.

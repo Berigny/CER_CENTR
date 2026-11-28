@@ -4,6 +4,8 @@ A small, portable **evidence object** that sits beside an existing system of rec
 
 It does not replace any database, schema or register. It reads from them and never writes back. Each object points at the system of record's own schema by hash, so people and AI tools can interpret a record exactly, and anyone with the object can check it without access to the source database.
 
+Third parties can reproduce both the evidence and the exact results of faceted queries over it: the same dictionary version, watermark and query give the same rows in any implementation. A coordinate decides which records a query returns, not whether a record was classified correctly or captured completely.
+
 > Not an official publication of, or endorsed by, the Clean Energy Regulator or any other government body. It draws only on publicly available information about the programs it mentions, and all data in this repository is synthetic.
 
 ## What it is for
@@ -13,6 +15,7 @@ It does not replace any database, schema or register. It reads from them and nev
 - **Chain of custody** for records that may later be relied on, showing each version in order and who signed it.
 - **Records of AI-assisted checks:** what the model was given, what it returned, and who approved or overrode it.
 - **Public registers as views:** a published list is an evidence object recording a query result, so "what did the list show on date X?" has a provable answer.
+- **Reproducible catalogue queries:** a faceted query such as "every installation record in Victoria under AS/NZS 4777.2" has one exact meaning, so anyone holding the records, the profile's rules for which facets a record has, the dictionary and the watermark gets the same rows ([prime coordinates](#prime-coordinates-for-faceted-queries)).
 
 The first domain profile in view, as an example drawn from public information, is CENTR, the proposed Consumer Energy National Technical Regulator ([public description](https://cer.gov.au/national-technical-regulator); [notes](docs/centr-profile-notes.md)). The core is deliberately domain-neutral.
 
@@ -21,17 +24,19 @@ The first domain profile in view, as an example drawn from public information, i
 | Path | What |
 |---|---|
 | [`spec/evidence-0.md`](spec/evidence-0.md) | The one-page spec: object, canonical form, attestations, verification order and error codes |
-| [`spec/schema/`](spec/schema/) | JSON Schemas for the object and for attestations |
-| [`test-vectors/`](test-vectors/) | The conformance contract: canonicalisation, number formatting and object cases with expected results |
+| [`spec/schema/`](spec/schema/) | JSON Schemas for the object, attestations, the store/0 formats and coordinate/0 dictionaries |
+| [`test-vectors/`](test-vectors/) | The conformance contract: canonicalisation, number formatting, object, store and coordinate cases with expected results |
 | [`crates/evidence-core/`](crates/evidence-core/) | Rust core: strict JSON parser, RFC 8785 canonicalisation, ids, Ed25519 attestations, verifier |
 | [`crates/evidence-cli/`](crates/evidence-cli/) | `evidence` command-line tool: objects, and `evidence store` to create, append to, verify, export, import and prove stores |
 | [`crates/evidence-wasm/`](crates/evidence-wasm/) | The core as one WebAssembly module, with a JavaScript wrapper for browsers and Node, and a small ABI for other hosts |
 | [`crates/evidence-py/`](crates/evidence-py/) | Python package `evidence_layer`, built from the same core |
-| [`tools/reference/`](tools/reference/) | Independent JavaScript reference for objects and stores, used to generate and cross-check the vectors |
+| [`tools/reference/`](tools/reference/) | Independent JavaScript reference for objects, stores and coordinates, used to generate and cross-check the vectors |
 | [`spec/store-0.md`](spec/store-0.md) | Store spec: log entries, checkpoints, exports and their verification (milestone M1) |
 | [`crates/evidence-log/`](crates/evidence-log/) | Pure store formats and the export verifier: log entries, RFC 9162 tree and proofs, genesis, checkpoints, store reports (M1) |
 | [`crates/evidence-store/`](crates/evidence-store/) | The store: an append-only log in one SQLite file (and an in-memory reference), writer lease, signed checkpoints, export, import, live verification and Merkle proofs (M1) |
 | [`tools/verify-page/`](tools/verify-page/) | A static page that verifies a store export in the browser, offline (M1) |
+| [`spec/coordinate-0.md`](spec/coordinate-0.md) | Facet coordinates spec (coordinate/0): dictionaries and their ids, the coordinate as a decimal string, encode, decode, divides, check and extends, their error codes, and rules for indexes. A separate format outside the core |
+| [`crates/evidence-coordinate/`](crates/evidence-coordinate/) | Rust implementation of coordinate/0: dictionaries, the five operations, and coordinates up to 1,024 bits. Pure: no I/O |
 | [`docs/decisions.md`](docs/decisions.md) | Design decisions and why |
 | [`docs/turn-reader.md`](docs/turn-reader.md) | Design note: a reader that tools and AI agents call before they rely on evidence, and when a read must be recorded (input to M4, M6 and M9; not built) |
 | [`docs/approvals.md`](docs/approvals.md) | Design note: approver lists and approval rules as published data, an approval-status view, disagreement resolved by a person, pseudonymous actor ids, and hooks that let any tool, AI agents included, act under a grant and keep continuity notes (input to M4, M5 and M6; not built) |
@@ -114,7 +119,7 @@ Then open `http://127.0.0.1:8000/tools/verify-page/` and choose that folder. The
 
 ## From JavaScript and Python
 
-The WebAssembly module and the Python package are the same Rust core, so they return byte-for-byte the same results as the command-line tool. Both run every test vector in CI.
+The WebAssembly module and the Python package are the same Rust core, so they return byte-for-byte the same results as the command-line tool. Both run the canonicalisation, object and store/0 vectors in CI. coordinate/0 is not in the bindings yet: its vectors, like the number-formatting ones, are checked by the Rust crates and the JavaScript reference.
 
 ```js
 // sh tools/build-wasm.sh   (needs: rustup target add wasm32-unknown-unknown)
@@ -142,7 +147,7 @@ EVIDENCE_BIN=target/debug/evidence node tools/check-proofs.mjs        # the CLI'
 pip install ./crates/evidence-py && EVIDENCE_BIN=$PWD/target/debug/evidence python -m unittest discover -s crates/evidence-py/tests   # Python, the CLI's proofs included
 node tools/check-vectors.mjs                    # JS reference against the vectors
 python tools/check_schema_vectors.py            # JSON Schemas against the vectors (needs jsonschema)
-node tools/make-vectors.mjs && git diff --exit-code test-vectors   # vectors are reproducible
+node tools/make-vectors.mjs && git diff --exit-code test-vectors && test -z "$(git status --porcelain -- test-vectors)"   # vectors are reproducible, none added
 node tools/verify-page/smoke.mjs                # the browser page over every export case (needs Playwright)
 ```
 
@@ -152,7 +157,7 @@ CI runs all of these ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). A
 
 ## Status
 
-Scaffold. Milestone M1, the verifiable store, is complete: its acceptance tests pass in CI. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the specs and the vectors work and are tested. The store is a Rust library (a SQLite store, with an in-memory reference), and the command-line tool runs it: init, append, attest, checkpoint, get, heads, log, verify, export, import and prove. Rust, the WebAssembly module, Python, the independent JavaScript reference and a static browser page give the same report, byte for byte, on all 42 export cases. A crash test kills appends and imports at random and checks that every receipt printed is kept and no half-written store is left. Read-only capture (M2) comes next.
+Scaffold. Milestone M1, the verifiable store, is complete: its acceptance tests pass in CI. The core, the command-line tool, the WebAssembly module and JavaScript wrapper, the Python package, the specs and the vectors work and are tested. The store is a Rust library (a SQLite store, with an in-memory reference), and the command-line tool runs it: init, append, attest, checkpoint, get, heads, log, verify, export, import and prove. Rust, the WebAssembly module, Python, the independent JavaScript reference and a static browser page give the same report, byte for byte, on all 42 export cases. A crash test kills appends and imports at random and checks that every receipt printed is kept and no half-written store is left. Ahead of M4, facet coordinates ([coordinate/0](spec/coordinate-0.md)) are specified and built, in Rust and in the independent JavaScript reference, with vectors on synthetic dictionaries. Read-only capture (M2) comes next.
 
 ## Next steps
 
@@ -161,35 +166,42 @@ The aim is for the layer to become an organisation's memory: a durable, verifiab
 1. **Verifiable store (M1), built.** An append-only log with its own position and received time for every entry, signed checkpoints over a Merkle tree, and exports that anyone can verify offline, including in a browser.
 2. **Read-only capture (M2).** Turn every change in an existing database into evidence, using read access only and no schema change. Capture refuses to start until every column is classified for privacy.
 3. **Two-way reconciliation (M3).** Compare the store and the database on a schedule, in both directions, and record every difference as evidence, including edits made outside the normal process. Report only; nothing is repaired automatically.
-4. **Memory reads (M4).** Ask what a record said on any date, under which schema, who changed it and why, through a query API whose answers can be verified.
+4. **Memory reads (M4).** Ask what a record said on any date, under which schema, who changed it and why, through a query API whose answers can be verified. M4b, planned, adds a coordinate column and a factor table on [coordinate/0](spec/coordinate-0.md), which is already built, so that faceted queries give the same rows in any implementation (below).
 5. **Real-data gate (M5).** Keys bound to people and organisations, trusted timestamps (RFC 3161), copies held off the machine, privacy operations, and legal and security review before any real data.
 6. **Change requests in shadow mode (M6).** Applications hand over requests instead of changing the database; requests and their outcomes are recorded as evidence and compared with what staff actually did. No write code.
 7. **Write-through to a test database (M7).** Requests are delivered through the database's own interface, and a change counts as done only when it is read back. Off by default; writing to any real system is a separate decision for its owner.
-8. **Optional:** Postgres and vendor-platform capture; the `centr/0` profile ([notes](docs/centr-profile-notes.md)), public registers as views, and prime coordinates (below).
+8. **Optional:** Postgres and vendor-platform capture; the `centr/0` profile ([notes](docs/centr-profile-notes.md)), public registers as views, and a real published dictionary for coordinates.
 
 Alongside: Python wheels for Windows and macOS, npm and PyPI releases, and short .NET (Wasmtime), Java (Chicory) and Go (wazero) host examples for the WebAssembly module.
 
-### Proposed: prime coordinates for faceted queries
+### Prime coordinates for faceted queries
 
-**What.** A derived index number for each object. Each categorical facet gets its own prime number from one published dictionary: record type, product class, standard family, actor role, jurisdiction and so on. An object's coordinate is the product of the primes for the facets it has. For example, if installation record = 3, inverter = 5, AS/NZS 4777.2 = 7 and Victoria = 11, an installation record for an inverter under AS/NZS 4777.2 in Victoria has coordinate 3 × 5 × 7 × 11 = 1155.
+**What.** A derived index number for each object. Each categorical facet gets its own prime number from one published dictionary: record type, product class, standard family, actor role, jurisdiction and so on. An object's coordinate is the product of the primes for the facets it has. For example, if installation record = 3, inverter = 5, AS/NZS 4777.2 = 7 and Victoria = 11, an installation record for an inverter under AS/NZS 4777.2 in Victoria has coordinate 3 × 5 × 7 × 11 = 1155. The arithmetic is long established: it is the idea behind Gödel numbering.
+
+**Status.** [coordinate/0](spec/coordinate-0.md) specifies how a list of facets becomes a coordinate and back, and it is built: a Rust crate ([`crates/evidence-coordinate/`](crates/evidence-coordinate/)), an independent JavaScript implementation ([`tools/reference/coordinate.mjs`](tools/reference/coordinate.mjs)) and vectors ([`test-vectors/coordinate/`](test-vectors/coordinate/)) on synthetic dictionaries. The primes in the example are those of the spec's synthetic `catalogue-demo` dictionary, which is not a published dictionary. coordinate/0 is a separate format outside the core, with its own vectors ([D6](docs/decisions.md#d6-one-small-core-many-profiles)), and changes nothing in evidence/0 or store/0. The coordinate column and factor table in M4's index are planned as M4b ([roadmap](docs/roadmap.md#m4b-coordinate-column-and-factor-table)); a real published dictionary waits for M9.
 
 **Why.**
-- **Lossless.** By unique factorisation, a coordinate decodes back to exactly one set of facets.
-- **Queries become arithmetic.** An object has a facet if that facet's prime divides its coordinate. It has all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" becomes a divisibility test on one integer field, which any database or language can run.
-- **Namespaces stay apart by tag.** Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), so dictionaries that reuse the same primes cannot be confused ([Kernel/2](docs/kernel-2.md)). Namespaces that also choose disjoint prime ranges get a further guarantee: no product of one range's primes can equal a product of another's.
-- **Portable.** Coordinates are plain integers, written as decimal strings so they stay exact in JSON and JavaScript at any size. A product of a handful of primes soon passes 2^53, where JSON numbers stop being exact.
+- **Lossless.** By unique factorisation, a coordinate decodes back to exactly its facets, with the number of times each occurs.
+- **One exact meaning for every query.** An object has a facet if that facet's prime divides its coordinate, and all of a set of facets if their product divides it. "Every installation record in Victoria under AS/NZS 4777.2" is the query 231 (3 × 7 × 11), and a record matches when 231 divides its coordinate. Divisibility is the reference meaning of a query, the same in every implementation.
+- **Databases answer from factor rows.** The coordinate defines what a query means; a database answers it from a table of factors, one row (profile, object, prime, exponent) for each prime of each object, indexed on (profile, prime): "has all these primes, each with at least these exponents". SQL integers stop at 64 bits, and coordinates pass that quickly. SQLite silently gives wrong remainders on larger values stored as text: on SQLite 3.53, the product of the first 16 primes, a 65-bit number, gave 33 for `% 53` instead of 0, and no error was raised. PostgreSQL's `numeric` takes `mod` exactly at any size coordinate/0 allows. M4b's acceptance test will check that the factor rows return exactly the rows that divisibility gives, including coordinates past 2^63.
+- **Not a speed device.** Testing the divisibility of every stored coordinate reads every row, so it does not make retrieval faster. Speed comes from the indexed factor rows; divisibility is the check on them.
+- **Namespaces stay apart by tag.** Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), so dictionaries that reuse the same primes cannot be confused ([Kernel/2](docs/kernel-2.md)). Namespaces that also choose disjoint prime ranges get a further guarantee: no product of one or more of one range's primes can equal a product of one or more of another's.
+- **Portable.** Coordinates are plain integers, written as canonical decimal strings so they stay exact in JSON, JavaScript and SQL text columns at any size coordinate/0 allows (below 2^1024). A product of a handful of primes soon passes 2^53, where JSON numbers stop being exact.
 
-A draft profile that applies this to certificate lifecycles is in [`docs/kernel-2.md`](docs/kernel-2.md).
+**Boundary.** A coordinate decides which records a query returns, not whether a record was classified correctly or captured completely. Which facets a record has is the profile's rule. There is no ranking or similarity: a record matches a query or it does not.
 
-**Proposed use** (roadmap M9). Public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on one field rather than a join across schemas.
+A draft profile that applies this to certificate lifecycles, using coordinate/0's encoding, is in [`docs/kernel-2.md`](docs/kernel-2.md).
 
-**Conditions:**
-- **Derived, never authoritative.** The verifier computes the coordinate from the object and the profile's dictionary. It is never part of the id, and readers recompute it rather than trust a stored value.
-- **One dictionary per namespace.** Published, versioned, and the only source; schemas and code are generated from it, not hand-copied.
-- **Unknown facets are errors,** never silently skipped.
-- **At most one prime per single-valued facet.** Multi-valued facets need an explicit rule.
-- **Tagged with their profile id,** with indexes keyed on (profile, coordinate). A shared registry of prime ranges is optional, for namespaces that also want disjoint ranges.
-- **Carried as decimal strings,** never as JSON numbers, so coordinates of any size survive JSON.
+**Use** (roadmap M4b, then M9). Faceted filters in M4's index, first on a synthetic dictionary, then public registers and cross-agency indexes. The certified product list, the installer register, or a search across several systems of record becomes a filter on facets rather than a join across schemas.
+
+**Conditions** (the full rules are in [coordinate/0](spec/coordinate-0.md)):
+- **Derived, never authoritative.** A coordinate is computed from the object, the profile's rules for which facets it has, and the profile's dictionary. It is never part of the id, and readers recompute it rather than trust a stored value.
+- **One dictionary per namespace.** Published, versioned by content (its id names each version), and the only source; schemas and code are generated from it, not hand-copied. A later version may only add families and facets ([versioning](spec/coordinate-0.md#versioning)).
+- **Unknown facets are errors,** never silently skipped, and so is a coordinate with a factor outside the dictionary.
+- **Every family has an explicit rule:** at most one of its facets (`one`), distinct facets (`set`), or facets that may repeat (`multiset`).
+- **Tagged with their profile id and dictionary id,** with indexes keyed on (profile, coordinate) ([tagged form](spec/coordinate-0.md#tagged-form)). A shared registry of prime ranges is optional, for namespaces that also want disjoint ranges.
+- **Carried as decimal strings,** never as JSON numbers or SQL integers, and answered from factor rows ([indexing](spec/coordinate-0.md#indexing)).
+- **Never personal.** A facet never identifies a person, and actor ids and approval status are never facets. A coordinate hides nothing: anyone holding the dictionary decodes it ([privacy](spec/coordinate-0.md#privacy)).
 
 ## Licence
 

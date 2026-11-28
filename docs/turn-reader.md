@@ -1,6 +1,6 @@
 # The turn-by-turn reader (design note)
 
-**Status:** design note, 27 November 2026, revised after review. Design input for [M4](roadmap.md#m4-memory-reads-index-query-api-bundles-read-only-service) (memory reads), [M6](roadmap.md#m6-requests-and-the-outbox-as-evidence-in-shadow-mode-no-write-code) (requests) and [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-prime-coordinates) (prime coordinates). Open decisions 8, 12 and 13 have a recommended design in [approvals.md](approvals.md). Nothing here is built. The examples are synthetic, and each evidence object in them verifies with the `evidence` command-line tool. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
+**Status:** design note, 27 November 2026, revised after review. Design input for [M4](roadmap.md#m4-memory-reads-index-query-api-bundles-read-only-service) (memory reads, and the coordinate column in M4b), [M6](roadmap.md#m6-requests-and-the-outbox-as-evidence-in-shadow-mode-no-write-code) (requests) and [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-a-published-dictionary) (a published dictionary; the Kernel/2 draft also targets M9, though it is not yet an M9 deliverable). Open decisions 8, 12 and 13 have a recommended design in [approvals.md](approvals.md). Nothing here is built. The examples are synthetic, and each evidence object in them verifies with the `evidence` command-line tool. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 ## In short
 
@@ -22,7 +22,7 @@ The sections below fill in the store mechanics: where the basis goes, who approv
 - **Every time is in UTC with `Z`,** and labelled with whose clock it is.
 - **Approval is a signature, not a content field.** Content is the writer's claim. Approval is an `approve` attestation by the accountable person ([evidence/0 Attestations](../spec/evidence-0.md#attestations), [D4](decisions.md#d4-signatures-outside-the-object)).
 - **Tools do not decide.** A tool's output authorises nothing by itself. It counts only once the accountable person signs `approve` on it ([open decision 8](#8-who-may-approve), [approvals.md](approvals.md)).
-- **Derived values are never authoritative.** They are recomputed from the chain, never trusted from an index ([README](../README.md#proposed-prime-coordinates-for-faceted-queries): "derived, never authoritative").
+- **Derived values are never authoritative.** They are recomputed from the chain, never trusted from an index ([README](../README.md#prime-coordinates-for-faceted-queries): "derived, never authoritative").
 
 ## What the reader does
 
@@ -168,7 +168,7 @@ The reader cannot be specified fully for a Kernel/2 lane until Kernel/2 settles 
 - **Which lane its events use.** Kernel/2 names no `op`. As record changes, its events share the record lane, as above. As asserts, they land in `assert:<schema>` lanes. A chain that alternates between the two shows up in store/0 as a record-lane fork, and a fork inside an assert lane is not counted at all.
 - **Order within one event.** Whether exits apply before entries changes S when one event exits and re-enters a block, which is how [Kernel/2 section 4](kernel-2.md#4-rules-verifier-gates) suggests changing a state.
 - **Scope.** Kernel/2 is designed with certificate lifecycles in mind. Whether it, or a separate dictionary, applies to installations and devices is undecided.
-- **Size.** Decided (27 November 2026): coordinates are decimal strings, and M9's acceptance test and the README now say so.
+- **Size.** Decided (27 November 2026): coordinates are decimal strings, and M4b's acceptance test (M9's until 28 November 2026) and the README now say so.
 - **Draft status.** Kernel/2's own open questions (a `remove` list, `universal.exit` at retirement) change S. Until it ships at M9, coordinates are computed against a draft, and a receipt or basis that keeps them should say which.
 
 ## Reads that become evidence
@@ -451,7 +451,7 @@ These belong in [Kernel/2's open questions](kernel-2.md#8-open-questions).
 - **Order at a merge.** Options: log order (`seq`); `at` order; a topological order with ties broken by (`at`, id); S defined only on linear chains, with a merge event restating the state. Recommended: topological order with (`at`, id) ties, because it depends on the objects alone and not on one store's positions. Run the gates per event over that event's own ancestors, and add merge vectors.
 - **Order within an event.** Options: exits first; exits last; forbid an exit and an entry of the same block in one event. Recommended: exits first, which is the only reading under which exiting and re-entering a block in one event changes a state.
 - **Scope.** Options: Kernel/2 also covers installations and devices; they get their own dictionary and profile tag at M9. Recommended: their own, with Kernel/2 kept for certificate lifecycles. The edge profile ([cer-edge.md](cer-edge.md)) leaves this open and defines no device index.
-- **Size.** Decided (27 November 2026): decimal strings. M9's acceptance test and the README were amended to match.
+- **Size.** Decided (27 November 2026): decimal strings. The acceptance test, now M4b's (M9's until 28 November 2026), and the README were amended to match.
 - **Not coordinates.** Recorded here for any derived index: actor ids and approval status are never coordinates. A coordinate is decodable by design, so an actor id in one would publish who acted on what. An approval arrives after the object it approves, so approval status is a view at a log position ([approvals.md](approvals.md)), not a facet of the object.
 
 ### 10. Proving completeness to a remote reader

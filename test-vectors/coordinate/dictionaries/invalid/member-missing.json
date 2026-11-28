@@ -1,0 +1,22 @@
+{
+  "v": "coordinate-dictionary/0",
+  "profile": "catalogue-demo/0",
+  "families": [
+    {
+      "name": "jurisdiction",
+      "values": "one"
+    },
+    {
+      "name": "product",
+      "values": "one"
+    },
+    {
+      "name": "record",
+      "values": "one"
+    },
+    {
+      "name": "standard",
+      "values": "set"
+    }
+  ]
+}

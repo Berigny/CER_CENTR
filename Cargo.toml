@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/evidence-core",
     "crates/evidence-log",
+    "crates/evidence-coordinate",
     "crates/evidence-store",
     "crates/evidence-cli",
     "crates/evidence-wasm",
@@ -13,6 +14,7 @@ members = [
 default-members = [
     "crates/evidence-core",
     "crates/evidence-log",
+    "crates/evidence-coordinate",
     "crates/evidence-store",
     "crates/evidence-cli",
     "crates/evidence-wasm",

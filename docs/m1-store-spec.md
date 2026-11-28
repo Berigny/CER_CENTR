@@ -1017,6 +1017,8 @@ Each case is built so that its golden report contains the named code, and the ge
   ```
   The two `grep`s read text, so they miss a use written another way, such as `use std as s;` then `s::fs::read`. The item-level guard is `crates/evidence-log/clippy.toml`: it lists, as `disallowed-types` and `disallowed-methods`, the items that reach the file system (`std::fs`, and the `std::path::Path` methods that read it), the network, processes, threads and the clock (`SystemTime` and `Instant`, their `now` and `elapsed` included, so `UNIX_EPOCH.elapsed()` is found too). `crates/evidence-log/Cargo.toml` denies both lints, so the `cargo clippy --all-targets` step of the `rust` job fails on any use in the library or its unit tests. `crates/evidence-log/tests/vectors.rs` reads the vectors from disk and allows the two lints for itself only.
 
+  Since 28 November 2026 the step also covers `evidence-coordinate`, built after M1 ([coordinate/0](../spec/coordinate-0.md)): `cargo tree` for the crate, and both `grep`s over `crates/evidence-coordinate/src`. Its `clippy.toml` holds the same lists, and its `Cargo.toml` denies the same two lints.
+
 **CI changes** (`.github/workflows/ci.yml`; on push and pull request, `permissions: contents: read`; jobs run as a user that is not root):
 - `rust`: as now, with `EVIDENCE_CRASH_ITERS: 50` on the `cargo test --locked` step (T3, T6, T7, T10, T11, T12 run there), then the T14 step.
 - `wasm`: as now, then `cargo build -p evidence-cli --locked` and `node tools/check-proofs.mjs` with `EVIDENCE_BIN: target/debug/evidence` (T11). It still uploads `crates/evidence-wasm/pkg/` as the artefact `evidence-wasm-pkg`.

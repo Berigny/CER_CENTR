@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createHash, createPublicKey, verify as nodeVerify } from "node:crypto";
 import * as ev from "./reference/evidence.mjs";
 import * as log from "./reference/log.mjs";
+import * as cs from "./reference/coordinate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "test-vectors");
 const write = (rel, text) => {
@@ -1437,3 +1438,804 @@ tamperedCase(
 );
 
 console.log(`wrote ${exportCount} export cases to ${join(ROOT, "store", "exports")}`);
+
+// --- Coordinate vectors (coordinate/0) ----------------------------------------------
+// Built with tools/reference/coordinate.mjs: the cases of spec/coordinate-0.md,
+// section Conformance, in its order. Every `expect` and `error` is what the
+// reference gives. The generator also asserts the results the spec states, and
+// builds the kernel-2 dictionary from Kernel/2's allocation rule and checks it
+// against the tables of docs/kernel-2.md.
+
+const CO = "coordinate";
+rmSync(join(ROOT, CO), { recursive: true, force: true });
+const canonOf = (v) => ev.canonicalize(v);
+const outcomeOf = (fn) => {
+  try {
+    return { expect: fn() };
+  } catch (e) {
+    if (!(e instanceof cs.CoordinateError)) throw e;
+    return { error: e.error };
+  }
+};
+const E = (code, members = {}) => ({ error: { code: `P_COORDINATE_${code}`, ...members } });
+const V = (value) => ({ expect: value });
+const sameResult = (got, want) => canonOf(got) === canonOf(want);
+const times = (n, id) => Array(n).fill(id);
+const pow2 = (k) => (1n << BigInt(k)).toString();
+
+// Primes by a sieve, independent of the reference's trial division.
+const PRIMES = (() => {
+  const n = 46341; // above the square root of 2^31 + 11
+  const composite = new Uint8Array(n);
+  const out = [];
+  for (let i = 2; i < n; i++) {
+    if (composite[i]) continue;
+    out.push(i);
+    for (let j = i * i; j < n; j += i) composite[j] = 1;
+  }
+  return out;
+})();
+const primeByDivision = (n) => n >= 2 && PRIMES.every((p) => p * p > n || n % p !== 0);
+const productOf = (primes) => primes.reduce((a, p) => a * BigInt(p), 1n);
+assert(PRIMES[4095] === 38873 && PRIMES[4096] === 38891, "the 4,096th prime is 38,873 and the 4,097th 38,891");
+assert(primeByDivision(2147483647) && primeByDivision(2147483659), "2^31 - 1 and 2147483659 are prime");
+const P16 = "32589158477190044730";
+const P20 = "557940830126698960967415390";
+assert(productOf(PRIMES.slice(0, 16)).toString() === P16, "p16 is the product of the first 16 primes");
+assert(productOf(PRIMES.slice(0, 20)).toString() === P20, "p20 is the product of the first 20 primes");
+assert(BigInt(P16).toString(2).length === 65 && BigInt(P20).toString(2).length === 89, "p16 has 65 bits, p20 89");
+
+// --- Dictionaries
+
+const DICT_V = cs.DICTIONARY_V;
+const sortFamilies = (families) => [...families].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+const sortFacets = (facets) => [...facets].sort((a, b) => a.prime - b.prime);
+const dictValue = (profile, families, facets) => ({
+  v: DICT_V,
+  profile,
+  families: sortFamilies(families),
+  facets: sortFacets(facets),
+});
+
+// The dictionary of spec/coordinate-0.md, section Dictionary, as printed there.
+const catalogue = {
+  v: DICT_V,
+  profile: "catalogue-demo/0",
+  families: [
+    { name: "jurisdiction", values: "one" },
+    { name: "product", values: "one" },
+    { name: "record", values: "one" },
+    { name: "standard", values: "set" },
+  ],
+  facets: [
+    ["record.product-listing", 2],
+    ["record.installation", 3],
+    ["product.inverter", 5],
+    ["standard.as-nzs-4777-2", 7],
+    ["jurisdiction.vic", 11],
+    ["product.battery", 13],
+    ["product.pv-module", 17],
+    ["standard.as-nzs-5033", 19],
+    ["standard.as-nzs-3000", 23],
+    ["standard.as-nzs-5139", 29],
+    ["jurisdiction.nsw", 31],
+    ["jurisdiction.qld", 37],
+    ["jurisdiction.sa", 41],
+    ["jurisdiction.wa", 43],
+    ["jurisdiction.tas", 47],
+    ["jurisdiction.act", 53],
+    ["jurisdiction.nt", 59],
+    ["record.inspection", 61],
+    ["standard.as-nzs-4777-1", 67],
+  ].map(([id, prime]) => ({ id, prime })),
+};
+const CATALOGUE_ID = "sha256:005aad78a1aaae4ef493f0f8b20facec76f5dadddefc8de05903754998ca6278";
+const KERNEL_ID = "sha256:28ec5d10ee5e6e5fd8effc7515e9adec7f049f75beeccce5064d738d922cac71";
+const cat = () => structuredClone(catalogue);
+const withFacets = (value, ...facets) => ({ ...value, facets: sortFacets([...value.facets, ...facets]) });
+const withoutFacet = (value, id) => ({ ...value, facets: value.facets.filter((f) => f.id !== id) });
+const setFacet = (value, id, change) => ({
+  ...value,
+  facets: value.facets.map((f) => (f.id === id ? { ...f, ...change } : f)),
+});
+const setFamily = (value, name, change) => ({
+  ...value,
+  families: value.families.map((f) => (f.name === name ? { ...f, ...change } : f)),
+});
+
+// Kernel/2's dictionary, from its allocation rule (docs/kernel-2.md section
+// 2.1): block b, position i gets the prime P[10b + i]. The identifiers are
+// those of its section 2.2, read from the document, and the result must equal
+// the table of its section 2.3 (REQ-KRN-003 to 005).
+const kernelDoc = readFileSync(join(ROOT, "..", "docs", "kernel-2.md"), "utf8");
+const docSection = (start, end) => {
+  const a = kernelDoc.indexOf(start);
+  const b = kernelDoc.indexOf(end, a + 1);
+  assert(a >= 0 && b > a, `docs/kernel-2.md has a section from "${start}" to "${end}"`);
+  return kernelDoc.slice(a, b);
+};
+// The rows of the Markdown table whose first line starts with `header`, as
+// arrays of trimmed cells; rows 0 and 1 are the header and the delimiter.
+const docTable = (text, header) => {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(header));
+  assert(start >= 0, `docs/kernel-2.md has a table starting "${header}"`);
+  const rows = [];
+  for (let i = start; i < lines.length && lines[i].startsWith("|"); i++) rows.push(lines[i]);
+  return rows.map((l) => l.slice(1, -1).split("|").map((c) => c.trim()));
+};
+const unquote = (cell) => {
+  const m = /^`([^`]+)`$/.exec(cell);
+  assert(m, `a cell in backticks: ${cell}`);
+  return m[1];
+};
+const section22 = docSection("### 2.2 ", "### 2.3 ");
+const blockRows = docTable(section22, "| Block (`b`) |").slice(2);
+const positionRows = docTable(section22, "| Position |").slice(2);
+assert(blockRows.every((r, b) => r[0] === String(b)) && blockRows.length === 7, "Kernel/2 has blocks 0 to 6");
+assert(positionRows.every((r, i) => r[0] === String(i)) && positionRows.length === 10, "Kernel/2 has positions 0 to 9");
+const BLOCKS = blockRows.map((r) => unquote(r[1]));
+const POSITIONS = positionRows.map((r) => unquote(r[1]));
+const kernelFacets = BLOCKS.flatMap((block, b) =>
+  POSITIONS.map((position, i) => ({ id: `${block}.${position}`, prime: PRIMES[10 * b + i] })),
+);
+const kernel = dictValue(
+  "kernel/2",
+  BLOCKS.map((name) => ({ name, values: "multiset" })),
+  kernelFacets,
+);
+{
+  const table = docTable(docSection("### 2.3 ", "## 3. "), "| Block |");
+  assert(JSON.stringify(table[0].slice(1)) === JSON.stringify(POSITIONS), "Kernel/2 2.3: columns in position order");
+  const rows = table.slice(2);
+  assert(rows.length === 7, "Kernel/2 2.3: seven blocks");
+  for (const [b, row] of rows.entries()) {
+    assert(row[0] === BLOCKS[b], `Kernel/2 2.3: row ${b} is ${BLOCKS[b]}`);
+    const want = PRIMES.slice(10 * b, 10 * b + 10);
+    assert(JSON.stringify(row.slice(1).map(Number)) === JSON.stringify(want), `Kernel/2 2.3: the primes of ${row[0]}`);
+  }
+  const primes = kernel.facets.map((f) => f.prime);
+  assert(JSON.stringify(primes) === JSON.stringify(PRIMES.slice(0, 70)) && primes.at(-1) === 349, "REQ-KRN-003");
+  assert(JSON.stringify(kernel.facets) === JSON.stringify(kernelFacets), "the allocation rule gives ascending primes");
+  for (const block of BLOCKS) {
+    const p = (position) => kernel.facets.find((f) => f.id === `${block}.${position}`).prime;
+    const states = POSITIONS.slice(2).map(p);
+    assert(POSITIONS[0] === "entry" && POSITIONS[1] === "exit", "REQ-KRN-004: entry, exit, then the states");
+    assert(p("entry") < p("exit") && states.every((s) => p("exit") < s), `REQ-KRN-005 in ${block}`);
+  }
+}
+const KERNEL_IDS = kernel.facets.map((f) => f.id);
+
+// The first 4,096 primes: multi.p<prime> up to 53, flag.p<prime> after.
+const wide = dictValue(
+  "wide-demo/0",
+  [
+    { name: "flag", values: "set" },
+    { name: "multi", values: "multiset" },
+  ],
+  PRIMES.slice(0, 4096).map((p) => ({ id: `${p <= 53 ? "multi" : "flag"}.p${p}`, prime: p })),
+);
+assert(wide.facets.filter((f) => f.id.startsWith("multi.")).length === 16, "wide-demo: 16 multi facets");
+const maxPrime = dictValue(
+  "max-prime-demo/0",
+  [
+    { name: "big", values: "multiset" },
+    { name: "unused", values: "one" },
+  ],
+  [{ id: "big.p2147483647", prime: 2147483647 }],
+);
+// The positive side of the patterns: facet names that start with a digit,
+// family names with a hyphen or a digit, and a two-digit profile version. In
+// code point order "-" and digits sort before letters; a collation that ignores
+// punctuation would put zonea before zone-b.
+const patterns = dictValue(
+  "patterns-demo/10",
+  [
+    { name: "zone-b", values: "set" },
+    { name: "zone2", values: "multiset" },
+    { name: "zonea", values: "one" },
+  ],
+  [
+    { id: "zone-b.4777-3", prime: 2 },
+    { id: "zonea.0", prime: 3 },
+    { id: "zone-b.x-1", prime: 5 },
+    { id: "zone2.7", prime: 7 },
+  ],
+);
+assert(
+  JSON.stringify(patterns.families.map((f) => f.name)) === JSON.stringify(["zone-b", "zone2", "zonea"]),
+  "patterns-demo: families in code point order",
+);
+
+// The same dictionary as catalogue-demo, written differently: members in
+// another order, tabs and CRLF, \u escapes in some strings (one with upper-case
+// hex), 7 written 7.0 and 59 written 58.99999999999999999.
+const escapeFirst = (s) => `"\\u${s.charCodeAt(0).toString(16).padStart(4, "0")}${JSON.stringify(s).slice(2)}`;
+const reorderedText = (() => {
+  const str = (s, i) => (i % 3 === 0 ? escapeFirst(s) : JSON.stringify(s));
+  const num = (p) => ({ 7: "7.0", 59: "58.99999999999999999" })[p] ?? String(p);
+  const facets = catalogue.facets.map((f, i) => `{\t"prime" :${num(f.prime)} ,"id":${str(f.id, i)}}`);
+  const families = catalogue.families.map((f, i) => `{ "values":${JSON.stringify(f.values)},  "name" : ${str(f.name, i)} }`);
+  return [
+    "{",
+    `\t"facets" : [\t${facets.join(",\r\n\t\t")}`,
+    "\t],",
+    '\t"profile":"catalogue\\u002Ddemo/0",',
+    `\t"families":[ ${families.join(",")} ],`,
+    '\t"v" : "coordinate-dictionary\\u002f0"',
+    "}",
+    "",
+  ].join("\r\n");
+})();
+assert(reorderedText.includes(":7.0 ") && reorderedText.includes(":58.99999999999999999 "), "reordered: 7.0 and 58.99999999999999999");
+assert(JSON.parse(reorderedText).facets[16].prime === 59, "58.99999999999999999 parses to 59");
+
+const v2 = withFacets(
+  { ...cat(), families: sortFamilies([...catalogue.families, { name: "phase", values: "one" }]) },
+  { id: "product.heat-pump", prime: 71 },
+  { id: "phase.single", prime: 73 },
+  { id: "phase.three", prime: 79 },
+);
+const validDictionaries = [
+  ["catalogue-demo", pretty(catalogue)],
+  ["catalogue-demo-reordered", reorderedText],
+  ["catalogue-demo-v2", pretty(v2)],
+  ["catalogue-demo-values-changed", pretty(setFamily(cat(), "standard", { values: "multiset" }))],
+  ["catalogue-demo-prime-changed", pretty({ ...cat(), facets: sortFacets(setFacet(cat(), "jurisdiction.nt", { prime: 71 }).facets) })],
+  ["catalogue-demo-facet-removed", pretty(withoutFacet(cat(), "record.inspection"))],
+  ["kernel-2", pretty(kernel)],
+  ["wide-demo", pretty(wide)],
+  ["max-prime-demo", pretty(maxPrime)],
+  ["patterns-demo", pretty(patterns)],
+];
+const D = {}; // name -> loaded dictionary
+const dictionaryCases = { valid: [], invalid: [] };
+for (const [name, text] of validDictionaries) {
+  const rel = `${CO}/dictionaries/valid/${name}.json`;
+  write(rel, text);
+  const got = outcomeOf(() => cs.parseDictionary(readFileSync(join(ROOT, rel))));
+  assert(got.expect, `${rel} loads: ${JSON.stringify(got.error)}`);
+  D[name] = got.expect;
+  dictionaryCases.valid.push({ name, id: got.expect.id });
+}
+assert(D["catalogue-demo"].id === CATALOGUE_ID, "catalogue-demo has the id the spec states");
+assert(D["catalogue-demo-reordered"].id === CATALOGUE_ID, "catalogue-demo-reordered has catalogue-demo's id");
+assert(D["kernel-2"].id === KERNEL_ID, "kernel-2 has the id the spec states");
+assert(D["wide-demo"].facets.length === cs.MAX_FACETS && D["wide-demo"].facets.at(-1).prime === 38873, "wide-demo");
+
+// Invalid dictionaries: catalogue-demo with one change, unless the name says
+// otherwise. A case is [name, bytes or text or value, the detail the spec
+// states (and the core code for step 1)].
+const pc = pretty(catalogue);
+const replaceOnce = (text, from, to) => {
+  assert(text.split(from).length === 2, `"${from}" occurs once`);
+  return text.replace(from, to);
+};
+const vicAt = pc.indexOf('"jurisdiction.vic"') + 1; // not-utf-8: a byte 0xff starts that id
+const extra = (prime) => withFacets(cat(), { id: "record.extra", prime });
+const familiesSwapped = () => ({ ...cat(), families: [catalogue.families[1], catalogue.families[0], ...catalogue.families.slice(2)] });
+const invalidDictionaries = [
+  ["not-json", replaceOnce(pc, '    }\n  ]\n}\n', '    },\n  ]\n}\n'), "shape", "E_PARSE"],
+  [
+    "duplicate-member",
+    replaceOnce(pc, '  "profile": "catalogue-demo/0",\n', '  "profile": "catalogue-demo/0",\n  "profile": "catalogue-demo/0",\n'),
+    "shape",
+    "E_DUPLICATE_KEY",
+  ],
+  ["number-range", pretty({ ...cat(), facets: [...catalogue.facets, { id: "record.extra", prime: 2 ** 53 }] }), "shape", "E_NUMBER_RANGE"],
+  // More step 1 cases, beyond those the spec lists: the bytes are not UTF-8,
+  // start with a byte order mark, hold a lone surrogate, or nest too deep.
+  [
+    "not-utf-8",
+    Buffer.concat([Buffer.from(pc.slice(0, vicAt)), Buffer.from([0xff]), Buffer.from(pc.slice(vicAt))]),
+    "shape",
+    "E_PARSE",
+  ],
+  ["byte-order-mark", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(pc)]), "shape", "E_PARSE"],
+  ["lone-surrogate", replaceOnce(pc, '"jurisdiction.vic"', '"jurisdiction.vic\\ud800"'), "shape", "E_PARSE"],
+  ["nesting-too-deep", replaceOnce(pc, '  "v": ', `  "note": ${"[".repeat(1000)}${"]".repeat(1000)},\n  "v": `), "shape", "E_PARSE"],
+  ["not-an-object", pretty(catalogue.facets), "shape"],
+  ["member-missing", pretty({ v: DICT_V, profile: catalogue.profile, families: catalogue.families }), "shape"],
+  ["member-unknown", pretty(setFacet(cat(), "record.installation", { label: "Installation" })), "shape"],
+  ["prime-not-a-number", pretty(setFacet(cat(), "standard.as-nzs-4777-2", { prime: "7" })), "shape"],
+  ["v-not-a-string", pretty({ ...cat(), v: 0 }), "shape"],
+  ["profile-not-a-string", pretty({ ...cat(), profile: [catalogue.profile] }), "shape"],
+  ["family-member-unknown", pretty(setFamily(cat(), "product", { label: "Product" })), "shape"],
+  ["family-name-not-a-string", pretty(setFamily(cat(), "record", { name: ["record"] })), "shape"],
+  ["family-values-not-a-string", pretty(setFamily(cat(), "standard", { values: 1 })), "shape"],
+  ["id-not-a-string", pretty(setFacet(cat(), "jurisdiction.vic", { id: 11 })), "shape"],
+  ["shape-before-version", pretty({ ...cat(), v: "coordinate-dictionary/1", note: "a member the format does not have" }), "shape"],
+  [
+    "shape-in-family-before-family-name",
+    pretty(setFamily(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), "standard", { label: "Standard" })),
+    "shape",
+  ],
+  [
+    "shape-in-facet-before-family",
+    pretty(setFacet(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), "standard.as-nzs-4777-1", { label: "x" })),
+    "shape",
+  ],
+  ["version", pretty({ ...cat(), v: "coordinate-dictionary/1" }), "version"],
+  ["version-before-profile", pretty({ ...cat(), v: "coordinate-dictionary/1", profile: "catalogue-demo" }), "version"],
+  ["profile", pretty({ ...cat(), profile: "catalogue-demo" }), "profile"],
+  [
+    "profile-before-families",
+    pretty({ ...setFamily(cat(), "jurisdiction", { name: "Jurisdiction" }), profile: "catalogue-demo" }),
+    "profile",
+  ],
+  ["profile-leading-zero", pretty({ ...cat(), profile: "catalogue-demo/00" }), "profile"],
+  ["profile-trailing-newline", pretty({ ...cat(), profile: "catalogue-demo/0\n" }), "profile"],
+  ["family-name", pretty(setFamily(cat(), "jurisdiction", { name: "Jurisdiction" })), "family-name"],
+  ["family-name-trailing-newline", pretty(setFamily(cat(), "jurisdiction", { name: "jurisdiction\n" })), "family-name"],
+  ["name-before-values", pretty(setFamily(cat(), "standard", { name: "Standard", values: "many" })), "family-name"],
+  ["values", pretty(setFamily(cat(), "standard", { values: "many" })), "values"],
+  [
+    "family-document-order",
+    pretty(setFamily(setFamily(cat(), "jurisdiction", { values: "many" }), "product", { name: "Product" })),
+    "values",
+  ],
+  [
+    "values-before-duplicate",
+    pretty({ ...cat(), families: [...catalogue.families, { name: "product", values: "many" }] }),
+    "values",
+  ],
+  ["family-duplicate", pretty({ ...cat(), families: [...catalogue.families, { name: "product", values: "one" }] }), "family-duplicate"],
+  ["family-order", pretty(familiesSwapped()), "family-order"],
+  ["families-before-facets", pretty(setFacet(familiesSwapped(), "jurisdiction.nt", { prime: 57 })), "family-order"],
+  ["families-before-empty", pretty({ ...familiesSwapped(), facets: [] }), "family-order"],
+  ["empty", pretty({ ...cat(), facets: [] }), "empty"],
+  [
+    "too-many",
+    pretty({
+      ...wide,
+      facets: [{ id: "multi.P2", prime: 2 }, ...wide.facets.slice(1), { id: `flag.p${PRIMES[4096]}`, prime: PRIMES[4096] }],
+    }),
+    "too-many",
+  ],
+  [
+    "families-before-too-many",
+    pretty({
+      ...setFamily(wide, "multi", { name: "Multi" }),
+      facets: [...wide.facets, { id: `flag.p${PRIMES[4096]}`, prime: PRIMES[4096] }],
+    }),
+    "family-name",
+  ],
+  ["id-form", pretty(setFacet(cat(), "product.inverter", { id: "product.Inverter" })), "id-form"],
+  ["id-form-trailing-newline", pretty(setFacet(cat(), "jurisdiction.vic", { id: "jurisdiction.vic\n" })), "id-form"],
+  ["checks-within-a-facet", pretty(setFacet(cat(), "product.inverter", { id: "product.Inverter", prime: 5.5 })), "id-form"],
+  ["form-before-family", pretty({ ...cat(), facets: [...catalogue.facets, { id: "Phase.single", prime: 71 }] }), "id-form"],
+  ["unknown-family", pretty({ ...cat(), facets: [...catalogue.facets, { id: "phase.single", prime: 71 }] }), "unknown-family"],
+  ["family-before-prime", pretty({ ...cat(), facets: [...catalogue.facets, { id: "phase.single", prime: 70 }] }), "unknown-family"],
+  ["id-duplicate", pretty({ ...cat(), facets: [...catalogue.facets, { id: "jurisdiction.vic", prime: 71 }] }), "id-duplicate"],
+  // A repeated id at a repeated prime, out of order: 8c comes before 8g and 8h.
+  ["id-before-prime", pretty({ ...cat(), facets: [...catalogue.facets, { id: "jurisdiction.vic", prime: 11 }] }), "id-duplicate"],
+  ["not-integer", pretty(setFacet(cat(), "jurisdiction.nt", { prime: 59.5 })), "not-integer"],
+  ["integer-before-range", pretty({ ...cat(), facets: [...catalogue.facets, { id: "record.extra", prime: 2147483648.5 }] }), "not-integer"],
+  ["prime-range-low", pretty(setFacet(cat(), "record.product-listing", { prime: 1 })), "prime-range"],
+  ["prime-range-high", pretty(extra(2147483659)), "prime-range"],
+  ["range-before-primality", pretty(extra(2 ** 31)), "prime-range"],
+  ["range-before-order", pretty({ ...cat(), facets: [...catalogue.facets, { id: "record.extra", prime: 1 }] }), "prime-range"],
+  ["not-prime", pretty(setFacet(cat(), "jurisdiction.nt", { prime: 57 })), "not-prime"],
+  ["primality-before-order", pretty({ ...cat(), facets: [...catalogue.facets, { id: "record.extra", prime: 9 }] }), "not-prime"],
+  [
+    "document-order",
+    pretty(setFacet(setFacet(cat(), "jurisdiction.nt", { prime: 57 }), "record.inspection", { id: "record.Inspection" })),
+    "not-prime",
+  ],
+  ["prime-duplicate", pretty(setFacet(cat(), "record.inspection", { prime: 59 })), "prime-duplicate"],
+  [
+    "prime-order",
+    pretty({ ...cat(), facets: catalogue.facets.map((f) => ({ 11: catalogue.facets[5], 13: catalogue.facets[4] })[f.prime] ?? f) }),
+    "prime-order",
+  ],
+];
+// Appended facets go last, as the spec says; extra() sorts, which these primes
+// above 67 keep last as well.
+assert(extra(2147483659).facets.at(-1).prime === 2147483659 && extra(2 ** 31).facets.at(-1).prime === 2 ** 31, "appended last");
+const seenDetails = new Set();
+for (const [name, content, detail, core] of invalidDictionaries) {
+  const rel = `${CO}/dictionaries/invalid/${name}.json`;
+  write(rel, content);
+  const got = outcomeOf(() => cs.parseDictionary(readFileSync(join(ROOT, rel))));
+  const want = { code: cs.CODES.DICTIONARY, detail, ...(core ? { core } : {}) };
+  assert(got.error && sameResult(got.error, want), `${rel}: want ${canonOf(want)}, got ${JSON.stringify(got.error ?? "ok")}`);
+  seenDetails.add(core ? `${detail}/${core}` : detail);
+  dictionaryCases.invalid.push({ name, error: got.error });
+}
+{
+  const details = ["shape/E_PARSE", "shape/E_DUPLICATE_KEY", "shape/E_NUMBER_RANGE", "shape", "version", "profile"];
+  details.push("family-name", "values", "family-duplicate", "family-order", "empty", "too-many", "id-form");
+  details.push("unknown-family", "id-duplicate", "not-integer", "prime-range", "not-prime", "prime-duplicate", "prime-order");
+  assert(details.every((d) => seenDetails.has(d)) && seenDetails.size === details.length, "an invalid case for every detail");
+}
+write(`${CO}/dictionaries.json`, pretty(dictionaryCases));
+
+// --- Operation cases
+
+// Records a case: `fields` in file order, then the reference's `expect` or
+// `error`. `want`, where given, is the result the spec states.
+const opFile = (file) => {
+  const cases = [];
+  const names = new Set();
+  return {
+    cases,
+    add(name, fields, run, want) {
+      assert(!names.has(name), `${file}: one case named ${name}`);
+      names.add(name);
+      const got = outcomeOf(run);
+      if (want !== undefined) {
+        assert(sameResult(got, want), `${file} ${name}: want ${canonOf(want)}, got ${canonOf(got)}`);
+      }
+      cases.push({ name, ...fields, ...got });
+      return got;
+    },
+  };
+};
+const facetsOf = (decoded) => cs.expand(decoded);
+const multiset = (ids) => canonOf([...ids].sort());
+const facetList = (dictionary, entries) => entries.map(([id, exponent]) => ({ id, exponent }));
+
+const encodeCases = opFile("encode.json");
+const encodeCase = (name, dictionary, facets, want) =>
+  encodeCases.add(name, { dictionary, facets }, () => cs.encode(D[dictionary], facets), want);
+const decodeCases = opFile("decode.json");
+const decodeCase = (name, dictionary, coordinate, want) =>
+  decodeCases.add(name, { dictionary, coordinate }, () => cs.decode(D[dictionary], coordinate), want);
+const dividesCases = opFile("divides.json");
+const dividesCase = (name, dictionary, query, coordinate, want) =>
+  dividesCases.add(name, { dictionary, query, coordinate }, () => cs.divides(D[dictionary], query, coordinate), want);
+const checkCases = opFile("check.json");
+const checkCase = (name, dictionary, facets, coordinate, want) =>
+  checkCases.add(name, { dictionary, facets, coordinate }, () => cs.check(D[dictionary], facets, coordinate), want);
+const extendsCases = opFile("extends.json");
+const extendsCase = (name, old, next, want) =>
+  extendsCases.add(name, { old, new: next }, () => cs.extends(D[old], D[next]), want);
+
+const FOUR = ["record.installation", "product.inverter", "standard.as-nzs-4777-2", "jurisdiction.vic"];
+const FOUR_DECODED = FOUR.map((id) => ({ id, exponent: 1 }));
+const K16 = [...KERNEL_IDS.slice(0, 10), ...["entry", "exit", "unclassified", "quantified", "transfer", "locked"].map((s) => `measurement.${s}`)];
+const K20 = [...K16, ...["committed", "unit", "linked", "executed"].map((s) => `measurement.${s}`)];
+assert(JSON.stringify(K20) === JSON.stringify(KERNEL_IDS.slice(0, 20)), "the first 20 kernel facets");
+const ones = (ids) => ids.map((id) => ({ id, exponent: 1 }));
+
+// Kernel/2 section 5: the events, and S and H after each, from the document.
+// S applies the events oldest first: an exit removes its block's entry and
+// states, anything else is added. No event there both exits a block and adds
+// to it, so the order of the facets within an event does not matter here.
+const section5 = docTable(docSection("## 5. ", "## 6. "), "| Event |").slice(2);
+assert(section5.length === 5, "Kernel/2 section 5 has five events");
+const trace = [];
+{
+  const S = new Map();
+  const H = [];
+  for (const [i, row] of section5.entries()) {
+    const add = row[1].split(",").map((c) => unquote(c.trim()));
+    const blockOf = (id) => id.slice(0, id.indexOf("."));
+    for (const id of add) {
+      assert(KERNEL_IDS.includes(id), `Kernel/2 section 5: ${id} is a facet`);
+      if (id.endsWith(".exit")) {
+        assert(add.filter((x) => blockOf(x) === blockOf(id)).length === 1, "an exit is its block's only facet in an event");
+      }
+    }
+    for (const id of add) {
+      H.push(id);
+      if (id.endsWith(".exit")) {
+        for (const k of [...S.keys()]) if (blockOf(k) === blockOf(id)) S.delete(k);
+      } else {
+        S.set(id, true);
+      }
+    }
+    trace.push({ event: `e${i + 1}`, S: [...S.keys()], H: [...H], wantS: unquote(row[2]), wantH: unquote(row[3]) });
+  }
+}
+const H_E5 = "1144592878288235028923541329666";
+assert(trace[4].wantH === H_E5, "the spec's H after E5 is Kernel/2's");
+
+// encode.json
+encodeCase("empty", "catalogue-demo", [], V("1"));
+encodeCase("catalogue-example", "catalogue-demo", FOUR, V("1155"));
+encodeCase("list-order", "catalogue-demo", [...FOUR].reverse(), V("1155"));
+encodeCase("set-family", "catalogue-demo", ["standard.as-nzs-4777-2", "standard.as-nzs-5033", "standard.as-nzs-3000"], V("3059"));
+encodeCase("unknown-facet", "catalogue-demo", ["product.heat-pump"], E("UNKNOWN_FACET", { facet: "product.heat-pump" }));
+encodeCase(
+  "unknown-facet-trailing-newline",
+  "catalogue-demo",
+  ["jurisdiction.vic\n"],
+  E("UNKNOWN_FACET", { facet: "jurisdiction.vic\n" }),
+);
+encodeCase(
+  "first-unknown-in-list-order",
+  "catalogue-demo",
+  ["jurisdiction.vic", "product.heat-pump", "phase.single"],
+  E("UNKNOWN_FACET", { facet: "product.heat-pump" }),
+);
+encodeCase(
+  "unknown-before-cardinality",
+  "catalogue-demo",
+  ["jurisdiction.vic", "jurisdiction.nsw", "product.heat-pump"],
+  E("UNKNOWN_FACET", { facet: "product.heat-pump" }),
+);
+encodeCase("one-two-facets", "catalogue-demo", ["jurisdiction.vic", "jurisdiction.nsw"], E("CARDINALITY", { family: "jurisdiction" }));
+encodeCase("one-repeated", "catalogue-demo", times(2, "jurisdiction.vic"), E("CARDINALITY", { family: "jurisdiction" }));
+encodeCase("set-repeated", "catalogue-demo", times(2, "standard.as-nzs-5033"), E("CARDINALITY", { family: "standard" }));
+encodeCase(
+  "first-family-in-families-order",
+  "catalogue-demo",
+  ["record.product-listing", "record.installation", "jurisdiction.vic", "jurisdiction.nsw"],
+  E("CARDINALITY", { family: "jurisdiction" }),
+);
+encodeCase(
+  "two-kinds-broken",
+  "catalogue-demo",
+  [...times(2, "standard.as-nzs-4777-2"), "product.inverter", "product.battery"],
+  E("CARDINALITY", { family: "product" }),
+);
+encodeCase("new-facets", "catalogue-demo-v2", ["product.heat-pump", "phase.single"], V("5183"));
+encodeCase("multiset-repeated", "kernel-2", times(2, "universal.entry"), V("4"));
+for (const t of trace) encodeCase(`section-5-s-${t.event}`, "kernel-2", t.S, V(t.wantS));
+for (const t of trace) encodeCase(`section-5-h-${t.event}`, "kernel-2", t.H, V(t.wantH));
+encodeCase("first-16-primes", "kernel-2", K16, V(P16));
+encodeCase("first-20-primes", "kernel-2", K20, V(P20));
+const all70 = productOf(PRIMES.slice(0, 70));
+assert(all70.toString(2).length === 467, "the product of the first 70 primes has 467 bits");
+encodeCase("all-70", "kernel-2", KERNEL_IDS, V(all70.toString()));
+// Round trips: 1 to 40 kernel facets, repeats allowed, from splitmix64 with a
+// fixed seed of its own.
+{
+  let seed = createHash("sha256").update("coordinate/0 round-trip cases").digest().readBigUInt64BE(0);
+  const draw = () => {
+    seed = (seed + 0x9e3779b97f4a7c15n) & MASK;
+    let z = seed;
+    z = ((z ^ (z >> 30n)) * 0xbf58476d1ce4e5b9n) & MASK;
+    z = ((z ^ (z >> 27n)) * 0x94d049bb133111ebn) & MASK;
+    return z ^ (z >> 31n);
+  };
+  for (let i = 1; i <= 100; i++) {
+    const n = 1 + Number(draw() % 40n);
+    const facets = Array.from({ length: n }, () => KERNEL_IDS[Number(draw() % 70n)]);
+    const product = productOf(facets.map((id) => kernel.facets.find((f) => f.id === id).prime));
+    encodeCase(`round-trip-${String(i).padStart(3, "0")}`, "kernel-2", facets, V(product.toString()));
+  }
+}
+encodeCase("2^1023", "wide-demo", times(1023, "multi.p2"), V(pow2(1023)));
+encodeCase("2^1024", "wide-demo", times(1024, "multi.p2"), E("RANGE"));
+const flagsTo = (last) => wide.facets.filter((f) => f.prime >= 59 && f.prime <= last).map((f) => f.id);
+assert(flagsTo(787).length === 122 && flagsTo(797).length === 123, "122 flag facets to 787, 123 to 797");
+const below = productOf(flagsTo(787).map((id) => Number(id.slice(6))));
+assert(below.toString(2).length === 1021 && below * 797n >= cs.LIMIT, "59 to 787 is 1,021 bits, and 797 more passes 2^1024");
+encodeCase("set-family-below-range", "wide-demo", flagsTo(787), V(below.toString()));
+encodeCase("set-family-range", "wide-demo", flagsTo(797), E("RANGE"));
+encodeCase(
+  "cardinality-before-range",
+  "wide-demo",
+  [...times(1024, "multi.p2"), ...times(2, "flag.p59")],
+  E("CARDINALITY", { family: "flag" }),
+);
+// The nearest coordinates below and above 2^53, 2^63 and 2^64 that decode
+// without error under wide-demo, found by testing 2^k - 1, 2^k - 2, ... and
+// 2^k + 1, 2^k + 2, ... in turn (the spec lists them).
+const nearest = {};
+for (const k of [53, 63, 64]) {
+  for (const [side, step] of [
+    ["below", -1n],
+    ["above", 1n],
+  ]) {
+    let n = (1n << BigInt(k)) + step;
+    while (outcomeOf(() => cs.decode(D["wide-demo"], n.toString())).error) n += step;
+    nearest[`${side}-2^${k}`] = n.toString();
+  }
+}
+assert(
+  canonOf(Object.values(nearest)) ===
+    canonOf([
+      "9007199254740990",
+      "9007199254741096",
+      "9223372036854775800",
+      "9223372036854776017",
+      "18446744073709551600",
+      "18446744073709552034",
+    ]),
+  `the nearest coordinates are those the spec lists: ${JSON.stringify(nearest)}`,
+);
+for (const [name, coordinate] of Object.entries(nearest)) {
+  encodeCase(name, "wide-demo", facetsOf(cs.decode(D["wide-demo"], coordinate)), V(coordinate));
+}
+encodeCase("max-prime", "max-prime-demo", ["big.p2147483647"], V("2147483647"));
+encodeCase("patterns", "patterns-demo", ["zone2.7", "zone-b.x-1", "zone2.7", "zonea.0", "zone-b.4777-3"], V("1470"));
+
+// decode.json
+decodeCase("one", "catalogue-demo", "1", V([]));
+decodeCase("catalogue-example", "catalogue-demo", "1155", V(FOUR_DECODED));
+for (const [name, coordinate] of [
+  ["syntax-zero", "0"],
+  ["syntax-leading-zero", "01"],
+  ["syntax-plus", "+5"],
+  ["syntax-minus", "-5"],
+  ["syntax-leading-space", " 5"],
+  ["syntax-trailing-space", "5 "],
+  ["syntax-trailing-newline", "5\n"],
+  ["syntax-fraction", "5.0"],
+  ["syntax-exponent", "1e3"],
+  ["syntax-empty", ""],
+  ["syntax-fullwidth-digit", String.fromCharCode(0xff15)], // FULLWIDTH DIGIT FIVE
+  ["syntax-number", 5],
+  ["syntax-null", null],
+  ["syntax-array", ["5"]], // String(["5"]) is "5": a value that is not a string is never converted
+  ["syntax-before-range", `0${"1".repeat(399)}`],
+  ["syntax-late-in-long-string", `1${"0".repeat(400)}x`],
+]) {
+  decodeCase(name, "catalogue-demo", coordinate, E("SYNTAX"));
+}
+decodeCase("unknown-factor", "catalogue-demo", "97", E("UNKNOWN_FACTOR"));
+decodeCase("new-facet-under-old-version", "catalogue-demo", "71", E("UNKNOWN_FACTOR"));
+assert(11 * 31 * 97 === 33077 && 2 * 3 * 11 * 31 === 2046 && 5 * 7 * 7 * 13 === 3185, "the products in the case names");
+decodeCase("unknown-factor-before-cardinality", "catalogue-demo", "33077", E("UNKNOWN_FACTOR"));
+decodeCase("one-two-facets", "catalogue-demo", "341", E("CARDINALITY", { family: "jurisdiction" }));
+decodeCase("one-squared", "catalogue-demo", "121", E("CARDINALITY", { family: "jurisdiction" }));
+decodeCase("set-squared", "catalogue-demo", "49", E("CARDINALITY", { family: "standard" }));
+decodeCase("first-family-in-families-order", "catalogue-demo", "2046", E("CARDINALITY", { family: "jurisdiction" }));
+decodeCase("two-kinds-broken", "catalogue-demo", "3185", E("CARDINALITY", { family: "product" }));
+decodeCase("new-facet", "catalogue-demo-v2", "71", V(ones(["product.heat-pump"])));
+decodeCase("old-coordinate-under-new-version", "catalogue-demo-v2", "1155", V(FOUR_DECODED));
+decodeCase("unclassified-as-a-whole", "kernel-2", "1", V([]));
+decodeCase("universal-unclassified", "kernel-2", "5", V(ones(["universal.unclassified"])));
+decodeCase("multiset-squared", "kernel-2", "4", V(facetList(kernel, [["universal.entry", 2]])));
+decodeCase("sqlite-65-bit", "kernel-2", P16, V(ones(K16)));
+decodeCase("sqlite-89-bit", "kernel-2", P20, V(ones(K20)));
+decodeCase(
+  "section-5-h-e5",
+  "kernel-2",
+  H_E5,
+  V(cs.decode(D["kernel-2"], cs.encode(D["kernel-2"], trace[4].H))),
+);
+assert(multiset(facetsOf(cs.decode(D["kernel-2"], H_E5))) === multiset(trace[4].H), "H after E5 decodes to its facets");
+decodeCase("prime-after-dictionary", "kernel-2", "353", E("UNKNOWN_FACTOR"));
+for (const c of encodeCases.cases.filter((c) => c.name.startsWith("round-trip-"))) {
+  decodeCase(c.name, "kernel-2", c.expect);
+}
+for (const k of [53, 63, 64]) decodeCase(`2^${k}`, "wide-demo", pow2(k), V(facetList(wide, [["multi.p2", k]])));
+for (const k of [53, 63, 64]) {
+  decodeCase(`2^${k}-minus-1`, "wide-demo", ((1n << BigInt(k)) - 1n).toString(), E("UNKNOWN_FACTOR"));
+  decodeCase(`2^${k}-plus-1`, "wide-demo", ((1n << BigInt(k)) + 1n).toString(), E("UNKNOWN_FACTOR"));
+}
+for (const [name, coordinate] of Object.entries(nearest)) decodeCase(name, "wide-demo", coordinate);
+decodeCase("2^1023", "wide-demo", pow2(1023), V(facetList(wide, [["multi.p2", 1023]])));
+const limitMinus1 = (cs.LIMIT - 1n).toString();
+assert(limitMinus1.length === 309 && cs.LIMIT_DIGITS === 309, "2^1024 - 1 and 2^1024 have 309 digits");
+decodeCase("2^1024-minus-1", "wide-demo", limitMinus1, E("UNKNOWN_FACTOR"));
+decodeCase("2^1024", "wide-demo", cs.LIMIT.toString(), E("RANGE"));
+decodeCase("2^1024-plus-1", "wide-demo", (cs.LIMIT + 1n).toString(), E("RANGE"));
+decodeCase(
+  "10^308",
+  "wide-demo",
+  `1${"0".repeat(308)}`,
+  V(facetList(wide, [
+    ["multi.p2", 308],
+    ["multi.p5", 308],
+  ])),
+);
+decodeCase("2x10^308", "wide-demo", `2${"0".repeat(308)}`, E("RANGE"));
+decodeCase("309-nines", "wide-demo", "9".repeat(309), E("RANGE"));
+decodeCase("10^309", "wide-demo", `1${"0".repeat(309)}`, E("RANGE"));
+decodeCase("set-squared-wide", "wide-demo", "3481", E("CARDINALITY", { family: "flag" }));
+decodeCase("max-prime", "max-prime-demo", "2147483647", V(ones(["big.p2147483647"])));
+assert((2147483647n ** 2n).toString() === "4611686014132420609", "(2^31 - 1)^2");
+decodeCase("max-prime-squared", "max-prime-demo", "4611686014132420609", V(facetList(maxPrime, [["big.p2147483647", 2]])));
+decodeCase("unknown-small-factor", "max-prime-demo", "2", E("UNKNOWN_FACTOR"));
+assert(2 * 3 * 5 * 7 * 7 === 1470, "1470 is 2 x 3 x 5 x 7^2");
+decodeCase(
+  "patterns",
+  "patterns-demo",
+  "1470",
+  V(facetList(patterns, [
+    ["zone-b.4777-3", 1],
+    ["zonea.0", 1],
+    ["zone-b.x-1", 1],
+    ["zone2.7", 2],
+  ])),
+);
+{
+  const one = decodeCases.cases.find((c) => c.name === "unclassified-as-a-whole").expect;
+  const five = decodeCases.cases.find((c) => c.name === "universal-unclassified").expect;
+  assert(canonOf(one) !== canonOf(five), "REQ-KRN-011: \"1\" and \"5\" decode differently");
+}
+
+// divides.json
+const big400 = `1${"0".repeat(400)}`;
+dividesCase("one-divides-one", "catalogue-demo", "1", "1", V(true));
+dividesCase("one-divides-everything", "catalogue-demo", "1", "1155", V(true));
+dividesCase("query-matches", "catalogue-demo", "231", "1155", V(true));
+dividesCase("query-does-not-match", "catalogue-demo", "231", "3255", V(false));
+dividesCase("query-equals-coordinate", "catalogue-demo", "1155", "1155", V(true));
+dividesCase("query-unknown-factor", "catalogue-demo", "97", "1155", E("UNKNOWN_FACTOR"));
+dividesCase("query-cardinality", "catalogue-demo", "341", "1155", E("CARDINALITY", { family: "jurisdiction" }));
+dividesCase("query-syntax", "catalogue-demo", "01", "1155", E("SYNTAX"));
+dividesCase("query-trailing-newline", "catalogue-demo", "231\n", "1155", E("SYNTAX"));
+dividesCase("coordinate-unknown-factor", "catalogue-demo", "1", "97", E("UNKNOWN_FACTOR"));
+dividesCase("coordinate-cardinality", "catalogue-demo", "1", "341", E("CARDINALITY", { family: "jurisdiction" }));
+dividesCase("coordinate-syntax", "catalogue-demo", "231", 1155, E("SYNTAX"));
+dividesCase("coordinate-syntax-late", "catalogue-demo", "1", `1${"0".repeat(400)}x`, E("SYNTAX"));
+dividesCase("query-error-first", "catalogue-demo", "-5", big400, E("SYNTAX"));
+// The SQLite cases: 53 is the 16th prime, a factor of p16 and p20. SQLite turns
+// both into a double and takes the remainder of 2^63 - 1 = 7^2 x 73 x 127 x 337 x
+// 92737 x 649657 instead, so it misses 53 and finds 73 in p16 and 127 in p20,
+// which hold neither.
+dividesCase("sqlite-65-bit", "kernel-2", "53", P16, V(true));
+dividesCase("sqlite-89-bit", "kernel-2", "53", P20, V(true));
+assert(BigInt(P16) % 53n === 0n && BigInt(P20) % 53n === 0n, "53 divides p16 and p20");
+const MAX_I64 = (1n << 63n) - 1n;
+assert(MAX_I64 === 7n * 7n * 73n * 127n * 337n * 92737n * 649657n, "2^63 - 1 = 7^2 x 73 x 127 x 337 x 92737 x 649657");
+assert(BigInt(P16) % 73n !== 0n && BigInt(P20) % 127n !== 0n, "73 does not divide p16, nor 127 p20");
+dividesCase("sqlite-65-bit-absent", "kernel-2", "73", P16, V(false));
+dividesCase("sqlite-89-bit-absent", "kernel-2", "127", P20, V(false));
+dividesCase("exponent-short", "kernel-2", "4", "2", V(false));
+dividesCase("exponent-enough", "kernel-2", "4", "8", V(true));
+dividesCase("past-2^63", "wide-demo", pow2(63), pow2(64), V(true));
+dividesCase("past-2^63-reversed", "wide-demo", pow2(64), pow2(63), V(false));
+dividesCase("largest", "wide-demo", "2", pow2(1023), V(true));
+
+// check.json
+checkCase("ok", "catalogue-demo", FOUR, "1155", V(true));
+checkCase("ok-list-order", "catalogue-demo", [...FOUR].reverse(), "1155", V(true));
+checkCase("ok-empty", "catalogue-demo", [], "1", V(true));
+checkCase("drift-value", "catalogue-demo", FOUR, "1156", E("DRIFT"));
+checkCase("drift-not-canonical", "catalogue-demo", FOUR, "01155", E("DRIFT"));
+checkCase("drift-number", "catalogue-demo", FOUR, 1155, E("DRIFT"));
+checkCase("drift-unclassified", "catalogue-demo", ["jurisdiction.vic"], "1", E("DRIFT"));
+checkCase("unknown-facet-first", "catalogue-demo", ["product.heat-pump"], "71", E("UNKNOWN_FACET", { facet: "product.heat-pump" }));
+checkCase(
+  "cardinality-first",
+  "catalogue-demo",
+  ["jurisdiction.vic", "jurisdiction.nsw"],
+  "341",
+  E("CARDINALITY", { family: "jurisdiction" }),
+);
+checkCase("range-first", "wide-demo", times(1024, "multi.p2"), "1", E("RANGE"));
+checkCase("section-5-h-e5", "kernel-2", trace[4].H, H_E5, V(true));
+
+// extends.json
+extendsCase("same", "catalogue-demo", "catalogue-demo", V(true));
+extendsCase("same-reordered", "catalogue-demo", "catalogue-demo-reordered", V(true));
+extendsCase("added", "catalogue-demo", "catalogue-demo-v2", V(true));
+extendsCase("family-removed", "catalogue-demo-v2", "catalogue-demo", E("NOT_EXTENSION", { detail: "family" }));
+extendsCase("profile", "catalogue-demo", "kernel-2", E("NOT_EXTENSION", { detail: "profile" }));
+extendsCase("values-changed", "catalogue-demo", "catalogue-demo-values-changed", E("NOT_EXTENSION", { detail: "family" }));
+extendsCase("prime-changed", "catalogue-demo", "catalogue-demo-prime-changed", E("NOT_EXTENSION", { detail: "facet" }));
+extendsCase("facet-removed", "catalogue-demo", "catalogue-demo-facet-removed", E("NOT_EXTENSION", { detail: "facet" }));
+
+// Round trips: every decode case with `expect` encodes back to its coordinate,
+// and every encode case with `expect` decodes back to its facets.
+for (const c of decodeCases.cases.filter((c) => "expect" in c)) {
+  assert(cs.encode(D[c.dictionary], facetsOf(c.expect)) === c.coordinate, `decode ${c.name} encodes back`);
+}
+for (const c of encodeCases.cases.filter((c) => "expect" in c)) {
+  assert(multiset(facetsOf(cs.decode(D[c.dictionary], c.expect))) === multiset(c.facets), `encode ${c.name} decodes back`);
+}
+// Every case: a name, the members of its file, and exactly one of expect and error.
+const valid = new Set(dictionaryCases.valid.map((c) => c.name));
+for (const { cases } of [encodeCases, decodeCases, dividesCases, checkCases, extendsCases]) {
+  for (const c of cases) {
+    assert(("expect" in c) !== ("error" in c), `${c.name}: exactly one of expect and error`);
+    for (const k of ["dictionary", "old", "new"]) if (k in c) assert(valid.has(c[k]), `${c.name}: ${k} is a valid dictionary`);
+  }
+}
+
+write(`${CO}/encode.json`, pretty(encodeCases.cases));
+write(`${CO}/decode.json`, pretty(decodeCases.cases));
+write(`${CO}/divides.json`, pretty(dividesCases.cases));
+write(`${CO}/check.json`, pretty(checkCases.cases));
+write(`${CO}/extends.json`, pretty(extendsCases.cases));
+
+const coordinateCounts = {
+  dictionaries: `${dictionaryCases.valid.length} valid and ${dictionaryCases.invalid.length} invalid dictionaries`,
+  encode: encodeCases.cases.length,
+  decode: decodeCases.cases.length,
+  divides: dividesCases.cases.length,
+  check: checkCases.cases.length,
+  extends: extendsCases.cases.length,
+};
+console.log(
+  `wrote ${coordinateCounts.dictionaries}, ${coordinateCounts.encode} encode, ${coordinateCounts.decode} decode, ` +
+    `${coordinateCounts.divides} divides, ${coordinateCounts.check} check and ${coordinateCounts.extends} extends cases ` +
+    `to ${join(ROOT, CO)}`,
+);

@@ -1,0 +1,100 @@
+{
+  "v": "coordinate-dictionary/0",
+  "profile": "catalogue-demo/0",
+  "families": [
+    {
+      "name": "jurisdiction\n",
+      "values": "one"
+    },
+    {
+      "name": "product",
+      "values": "one"
+    },
+    {
+      "name": "record",
+      "values": "one"
+    },
+    {
+      "name": "standard",
+      "values": "set"
+    }
+  ],
+  "facets": [
+    {
+      "id": "record.product-listing",
+      "prime": 2
+    },
+    {
+      "id": "record.installation",
+      "prime": 3
+    },
+    {
+      "id": "product.inverter",
+      "prime": 5
+    },
+    {
+      "id": "standard.as-nzs-4777-2",
+      "prime": 7
+    },
+    {
+      "id": "jurisdiction.vic",
+      "prime": 11
+    },
+    {
+      "id": "product.battery",
+      "prime": 13
+    },
+    {
+      "id": "product.pv-module",
+      "prime": 17
+    },
+    {
+      "id": "standard.as-nzs-5033",
+      "prime": 19
+    },
+    {
+      "id": "standard.as-nzs-3000",
+      "prime": 23
+    },
+    {
+      "id": "standard.as-nzs-5139",
+      "prime": 29
+    },
+    {
+      "id": "jurisdiction.nsw",
+      "prime": 31
+    },
+    {
+      "id": "jurisdiction.qld",
+      "prime": 37
+    },
+    {
+      "id": "jurisdiction.sa",
+      "prime": 41
+    },
+    {
+      "id": "jurisdiction.wa",
+      "prime": 43
+    },
+    {
+      "id": "jurisdiction.tas",
+      "prime": 47
+    },
+    {
+      "id": "jurisdiction.act",
+      "prime": 53
+    },
+    {
+      "id": "jurisdiction.nt",
+      "prime": 59
+    },
+    {
+      "id": "record.inspection",
+      "prime": 61
+    },
+    {
+      "id": "standard.as-nzs-4777-1",
+      "prime": 67
+    }
+  ]
+}

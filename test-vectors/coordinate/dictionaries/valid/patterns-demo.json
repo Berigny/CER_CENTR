@@ -1,0 +1,36 @@
+{
+  "v": "coordinate-dictionary/0",
+  "profile": "patterns-demo/10",
+  "families": [
+    {
+      "name": "zone-b",
+      "values": "set"
+    },
+    {
+      "name": "zone2",
+      "values": "multiset"
+    },
+    {
+      "name": "zonea",
+      "values": "one"
+    }
+  ],
+  "facets": [
+    {
+      "id": "zone-b.4777-3",
+      "prime": 2
+    },
+    {
+      "id": "zonea.0",
+      "prime": 3
+    },
+    {
+      "id": "zone-b.x-1",
+      "prime": 5
+    },
+    {
+      "id": "zone2.7",
+      "prime": 7
+    }
+  ]
+}
