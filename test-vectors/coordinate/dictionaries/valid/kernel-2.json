@@ -1,0 +1,316 @@
+{
+  "v": "coordinate-dictionary/0",
+  "profile": "kernel/2",
+  "families": [
+    {
+      "name": "emissions",
+      "values": "multiset"
+    },
+    {
+      "name": "infrastructure",
+      "values": "multiset"
+    },
+    {
+      "name": "inputs",
+      "values": "multiset"
+    },
+    {
+      "name": "measurement",
+      "values": "multiset"
+    },
+    {
+      "name": "registry",
+      "values": "multiset"
+    },
+    {
+      "name": "reporting",
+      "values": "multiset"
+    },
+    {
+      "name": "universal",
+      "values": "multiset"
+    }
+  ],
+  "facets": [
+    {
+      "id": "universal.entry",
+      "prime": 2
+    },
+    {
+      "id": "universal.exit",
+      "prime": 3
+    },
+    {
+      "id": "universal.unclassified",
+      "prime": 5
+    },
+    {
+      "id": "universal.quantified",
+      "prime": 7
+    },
+    {
+      "id": "universal.transfer",
+      "prime": 11
+    },
+    {
+      "id": "universal.locked",
+      "prime": 13
+    },
+    {
+      "id": "universal.committed",
+      "prime": 17
+    },
+    {
+      "id": "universal.unit",
+      "prime": 19
+    },
+    {
+      "id": "universal.linked",
+      "prime": 23
+    },
+    {
+      "id": "universal.executed",
+      "prime": 29
+    },
+    {
+      "id": "measurement.entry",
+      "prime": 31
+    },
+    {
+      "id": "measurement.exit",
+      "prime": 37
+    },
+    {
+      "id": "measurement.unclassified",
+      "prime": 41
+    },
+    {
+      "id": "measurement.quantified",
+      "prime": 43
+    },
+    {
+      "id": "measurement.transfer",
+      "prime": 47
+    },
+    {
+      "id": "measurement.locked",
+      "prime": 53
+    },
+    {
+      "id": "measurement.committed",
+      "prime": 59
+    },
+    {
+      "id": "measurement.unit",
+      "prime": 61
+    },
+    {
+      "id": "measurement.linked",
+      "prime": 67
+    },
+    {
+      "id": "measurement.executed",
+      "prime": 71
+    },
+    {
+      "id": "emissions.entry",
+      "prime": 73
+    },
+    {
+      "id": "emissions.exit",
+      "prime": 79
+    },
+    {
+      "id": "emissions.unclassified",
+      "prime": 83
+    },
+    {
+      "id": "emissions.quantified",
+      "prime": 89
+    },
+    {
+      "id": "emissions.transfer",
+      "prime": 97
+    },
+    {
+      "id": "emissions.locked",
+      "prime": 101
+    },
+    {
+      "id": "emissions.committed",
+      "prime": 103
+    },
+    {
+      "id": "emissions.unit",
+      "prime": 107
+    },
+    {
+      "id": "emissions.linked",
+      "prime": 109
+    },
+    {
+      "id": "emissions.executed",
+      "prime": 113
+    },
+    {
+      "id": "reporting.entry",
+      "prime": 127
+    },
+    {
+      "id": "reporting.exit",
+      "prime": 131
+    },
+    {
+      "id": "reporting.unclassified",
+      "prime": 137
+    },
+    {
+      "id": "reporting.quantified",
+      "prime": 139
+    },
+    {
+      "id": "reporting.transfer",
+      "prime": 149
+    },
+    {
+      "id": "reporting.locked",
+      "prime": 151
+    },
+    {
+      "id": "reporting.committed",
+      "prime": 157
+    },
+    {
+      "id": "reporting.unit",
+      "prime": 163
+    },
+    {
+      "id": "reporting.linked",
+      "prime": 167
+    },
+    {
+      "id": "reporting.executed",
+      "prime": 173
+    },
+    {
+      "id": "inputs.entry",
+      "prime": 179
+    },
+    {
+      "id": "inputs.exit",
+      "prime": 181
+    },
+    {
+      "id": "inputs.unclassified",
+      "prime": 191
+    },
+    {
+      "id": "inputs.quantified",
+      "prime": 193
+    },
+    {
+      "id": "inputs.transfer",
+      "prime": 197
+    },
+    {
+      "id": "inputs.locked",
+      "prime": 199
+    },
+    {
+      "id": "inputs.committed",
+      "prime": 211
+    },
+    {
+      "id": "inputs.unit",
+      "prime": 223
+    },
+    {
+      "id": "inputs.linked",
+      "prime": 227
+    },
+    {
+      "id": "inputs.executed",
+      "prime": 229
+    },
+    {
+      "id": "infrastructure.entry",
+      "prime": 233
+    },
+    {
+      "id": "infrastructure.exit",
+      "prime": 239
+    },
+    {
+      "id": "infrastructure.unclassified",
+      "prime": 241
+    },
+    {
+      "id": "infrastructure.quantified",
+      "prime": 251
+    },
+    {
+      "id": "infrastructure.transfer",
+      "prime": 257
+    },
+    {
+      "id": "infrastructure.locked",
+      "prime": 263
+    },
+    {
+      "id": "infrastructure.committed",
+      "prime": 269
+    },
+    {
+      "id": "infrastructure.unit",
+      "prime": 271
+    },
+    {
+      "id": "infrastructure.linked",
+      "prime": 277
+    },
+    {
+      "id": "infrastructure.executed",
+      "prime": 281
+    },
+    {
+      "id": "registry.entry",
+      "prime": 283
+    },
+    {
+      "id": "registry.exit",
+      "prime": 293
+    },
+    {
+      "id": "registry.unclassified",
+      "prime": 307
+    },
+    {
+      "id": "registry.quantified",
+      "prime": 311
+    },
+    {
+      "id": "registry.transfer",
+      "prime": 313
+    },
+    {
+      "id": "registry.locked",
+      "prime": 317
+    },
+    {
+      "id": "registry.committed",
+      "prime": 331
+    },
+    {
+      "id": "registry.unit",
+      "prime": 337
+    },
+    {
+      "id": "registry.linked",
+      "prime": 347
+    },
+    {
+      "id": "registry.executed",
+      "prime": 349
+    }
+  ]
+}

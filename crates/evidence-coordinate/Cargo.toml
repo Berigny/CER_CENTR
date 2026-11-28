@@ -1,0 +1,19 @@
+[package]
+name = "evidence-coordinate"
+description = "coordinate/0: facet coordinates. Dictionaries and their ids, and encode, decode, divides, check and extends over canonical decimal coordinates below 2^1024. Pure: no I/O, clock, threads or randomness."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+evidence-core = { path = "../evidence-core" }
+
+# The purity guard, as in evidence-log: clippy.toml lists the file system,
+# network, process, thread and clock items, and these lints make any use of
+# them an error.
+[lints.clippy]
+disallowed_methods = "deny"
+disallowed_types = "deny"

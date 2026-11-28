@@ -1,0 +1,166 @@
+[
+  {
+    "name": "one-divides-one",
+    "dictionary": "catalogue-demo",
+    "query": "1",
+    "coordinate": "1",
+    "expect": true
+  },
+  {
+    "name": "one-divides-everything",
+    "dictionary": "catalogue-demo",
+    "query": "1",
+    "coordinate": "1155",
+    "expect": true
+  },
+  {
+    "name": "query-matches",
+    "dictionary": "catalogue-demo",
+    "query": "231",
+    "coordinate": "1155",
+    "expect": true
+  },
+  {
+    "name": "query-does-not-match",
+    "dictionary": "catalogue-demo",
+    "query": "231",
+    "coordinate": "3255",
+    "expect": false
+  },
+  {
+    "name": "query-equals-coordinate",
+    "dictionary": "catalogue-demo",
+    "query": "1155",
+    "coordinate": "1155",
+    "expect": true
+  },
+  {
+    "name": "query-unknown-factor",
+    "dictionary": "catalogue-demo",
+    "query": "97",
+    "coordinate": "1155",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "query-cardinality",
+    "dictionary": "catalogue-demo",
+    "query": "341",
+    "coordinate": "1155",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "jurisdiction"
+    }
+  },
+  {
+    "name": "query-syntax",
+    "dictionary": "catalogue-demo",
+    "query": "01",
+    "coordinate": "1155",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "query-trailing-newline",
+    "dictionary": "catalogue-demo",
+    "query": "231\n",
+    "coordinate": "1155",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "coordinate-unknown-factor",
+    "dictionary": "catalogue-demo",
+    "query": "1",
+    "coordinate": "97",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "coordinate-syntax",
+    "dictionary": "catalogue-demo",
+    "query": "231",
+    "coordinate": 1155,
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "coordinate-syntax-late",
+    "dictionary": "catalogue-demo",
+    "query": "1",
+    "coordinate": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000x",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "query-error-first",
+    "dictionary": "catalogue-demo",
+    "query": "-5",
+    "coordinate": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "sqlite-65-bit",
+    "dictionary": "kernel-2",
+    "query": "53",
+    "coordinate": "32589158477190044730",
+    "expect": true
+  },
+  {
+    "name": "sqlite-89-bit",
+    "dictionary": "kernel-2",
+    "query": "53",
+    "coordinate": "557940830126698960967415390",
+    "expect": true
+  },
+  {
+    "name": "sqlite-65-bit-absent",
+    "dictionary": "kernel-2",
+    "query": "59",
+    "coordinate": "32589158477190044730",
+    "expect": false
+  },
+  {
+    "name": "exponent-short",
+    "dictionary": "kernel-2",
+    "query": "4",
+    "coordinate": "2",
+    "expect": false
+  },
+  {
+    "name": "exponent-enough",
+    "dictionary": "kernel-2",
+    "query": "4",
+    "coordinate": "8",
+    "expect": true
+  },
+  {
+    "name": "past-2^63",
+    "dictionary": "wide-demo",
+    "query": "9223372036854775808",
+    "coordinate": "18446744073709551616",
+    "expect": true
+  },
+  {
+    "name": "past-2^63-reversed",
+    "dictionary": "wide-demo",
+    "query": "18446744073709551616",
+    "coordinate": "9223372036854775808",
+    "expect": false
+  },
+  {
+    "name": "largest",
+    "dictionary": "wide-demo",
+    "query": "2",
+    "coordinate": "89884656743115795386465259539451236680898848947115328636715040578866337902750481566354238661203768010560056939935696678829394884407208311246423715319737062188883946712432742638151109800623047059726541476042502884419075341171231440736956555270413618581675255342293149119973622969239858152417678164812112068608",
+    "expect": true
+  }
+]

@@ -18,8 +18,15 @@ JSON Schema accepts and rejects the same vectors, so the two cannot drift:
   genesis and checkpoint object's content.inline the store-genesis or
   checkpoint schema, unless the golden report has the finding that rejects it
   at that line's seq.
+- coordinate/dictionaries.json: every valid dictionary must pass the
+  coordinate-dictionary schema, and every invalid one whose `detail` comes from
+  a step the schema covers (2, 3, 4, 5a, 5b, 6, 7, 8a, 8d and 8e of
+  spec/coordinate-0.md) must fail it. So must catalogue-demo with a newline
+  appended to one of its strings, or with an unknown member at the top level
+  or in a family, and wide-demo with a 4,097th facet. Step 1 cases (`core`
+  set) are skipped, as above.
 
-Missing store vectors are a failure, not a skip.
+Missing store and coordinate vectors are a failure, not a skip.
 
 JSON Schema patterns are ECMA-262 regular expressions. The jsonschema package
 runs them with Python's `re.search`, whose `$` also matches just before a final
@@ -116,6 +123,7 @@ def main() -> int:
 
     entries_checked = check_entries(failures)
     exports_checked = check_exports(failures)
+    dictionaries_checked = check_dictionaries(failures)
 
     if failures:
         print(f"{len(failures)} disagreement(s):\n  " + "\n  ".join(failures))
@@ -124,6 +132,7 @@ def main() -> int:
     print(f"The log-entry schema agrees with all {entries_checked} store entry vectors.")
     summary = ", ".join(f"{n} {what}" for what, n in exports_checked.items())
     print(f"The store schemas agree with the export vectors: {summary}.")
+    print(f"The coordinate-dictionary schema agrees with all {dictionaries_checked} dictionary vectors.")
     return 0
 
 
@@ -237,6 +246,75 @@ def check_exports(failures: list[str]) -> dict[str, int]:
     if not (counts["genesis contents"] and counts["checkpoint contents"]):
         failures.append("store/exports: no genesis or no checkpoint content checked")
     return counts
+
+
+# The `detail` values of the dictionary checks a schema can express.
+SCHEMA_DETAILS = {
+    "shape",
+    "version",
+    "profile",
+    "family-name",
+    "values",
+    "empty",
+    "too-many",
+    "id-form",
+    "not-integer",
+    "prime-range",
+}
+
+
+def check_dictionaries(failures: list[str]) -> int:
+    """Runs the coordinate-dictionary schema over coordinate/dictionaries.json;
+    returns the cases checked."""
+    root = ROOT / "test-vectors" / "coordinate"
+    vectors = root / "dictionaries.json"
+    if not vectors.exists():
+        failures.append("coordinate/dictionaries.json: missing")
+        return 0
+    schema = validator("coordinate-dictionary-0.schema.json")
+    cases = json.loads(vectors.read_text(encoding="utf-8"))
+
+    def load(kind: str, name: str) -> object:
+        return json.loads((root / "dictionaries" / kind / f"{name}.json").read_bytes())
+
+    checked = 0
+    for case in cases["valid"]:
+        if errors := [e.message for e in schema.iter_errors(load("valid", case["name"]))]:
+            failures.append(f"coordinate/dictionaries/valid/{case['name']}: schema rejects it: {errors[0]}")
+        checked += 1
+    for case in cases["invalid"]:
+        error = case["error"]
+        if "core" in error or error["detail"] not in SCHEMA_DETAILS:
+            continue
+        if not list(schema.iter_errors(load("invalid", case["name"]))):
+            failures.append(f"coordinate/dictionaries/invalid/{case['name']}: schema accepts it ({error['detail']})")
+        checked += 1
+    # A newline after any string of catalogue-demo: the code rejects every one.
+    base = load("valid", "catalogue-demo")
+    variants = [{**base, "v": base["v"] + "\n"}, {**base, "profile": base["profile"] + "\n"}]
+    for key, items in (("families", ("name", "values")), ("facets", ("id",))):
+        for i, item in enumerate(base[key]):
+            for member in items:
+                changed = [dict(x) for x in base[key]]
+                changed[i][member] += "\n"
+                variants.append({**base, key: changed})
+    for variant in variants:
+        if not list(schema.iter_errors(variant)):
+            failures.append("coordinate/dictionaries/valid/catalogue-demo: schema accepts a trailing newline")
+    # Rules that the vectors test only together with another: an unknown member
+    # at the top level or in a family, and 4,097 facets that are each valid.
+    wide = load("valid", "wide-demo")
+    families = [dict(f) for f in base["families"]]
+    families[0]["label"] = "a member the format does not have"
+    others = [
+        ("an unknown member", {**base, "note": "a member the format does not have"}),
+        ("a family with an unknown member", {**base, "families": families}),
+        ("4,097 facets", {**wide, "facets": wide["facets"] + [{"id": "flag.p38891", "prime": 38891}]}),
+    ]
+    for what, variant in others:
+        if not list(schema.iter_errors(variant)):
+            failures.append(f"coordinate/dictionaries: schema accepts a dictionary with {what}")
+    return checked + len(variants) + len(others)
 
 
 if __name__ == "__main__":

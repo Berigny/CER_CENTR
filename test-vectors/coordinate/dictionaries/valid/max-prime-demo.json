@@ -1,0 +1,20 @@
+{
+  "v": "coordinate-dictionary/0",
+  "profile": "max-prime-demo/0",
+  "families": [
+    {
+      "name": "big",
+      "values": "multiset"
+    },
+    {
+      "name": "unused",
+      "values": "one"
+    }
+  ],
+  "facets": [
+    {
+      "id": "big.p2147483647",
+      "prime": 2147483647
+    }
+  ]
+}

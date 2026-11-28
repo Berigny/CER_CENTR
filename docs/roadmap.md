@@ -1,6 +1,6 @@
 # Roadmap: from evidence layer to memory
 
-Status: decisions confirmed by the project maintainer on 26 November 2026 (recorded as D11-D13 in [decisions.md](decisions.md); the rest apply as written [below](#decisions-confirmed-26-november-2026)) and on 27 November 2026 ([the edge track and approvals](#decisions-confirmed-27-november-2026)). The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md). This stays the only roadmap. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
+Status: decisions confirmed by the project maintainer on 26 November 2026 (recorded as D11-D13 in [decisions.md](decisions.md); the rest apply as written [below](#decisions-confirmed-26-november-2026)), on 27 November 2026 ([the edge track and approvals](#decisions-confirmed-27-november-2026)) and on 28 November 2026 ([prime coordinates](#decisions-confirmed-28-november-2026)). The build specification for the first milestone is [m1-store-spec.md](m1-store-spec.md). This stays the only roadmap. Not an official publication of any agency; it describes no agency's process (see the [README](../README.md) notice).
 
 ## What's next, in short
 
@@ -9,7 +9,7 @@ Today the layer can create, sign and verify single evidence objects. To become a
 1. **A safe place to keep what it records.** A store that can only be added to, where anyone can check, offline or in a browser, that nothing was changed or removed since a signed fingerprint of its history was taken.
 2. **Capture from an existing database, without changing it.** Read-only capture turns each change in a register into evidence, with no schema change in the register.
 3. **Continuous comparison in both directions.** On a schedule, the store and the database are compared, and every difference (including edits made outside the normal process) is recorded as evidence. Nothing is repaired automatically.
-4. **Memory reads.** Staff and applications can ask what a record said on any date, under which schema, who changed it and why, and get an answer they can verify.
+4. **Memory reads.** Staff and applications can ask what a record said on any date, under which schema, who changed it and why, and get an answer they can verify. Faceted queries give the same rows in any implementation, from the same dictionary version, watermark and query ([M4b](#m4b-coordinate-column-and-factor-table)); the coordinate arithmetic they rest on, [coordinate/0](../spec/coordinate-0.md), is already built.
 
 Only after that does the layer accept requests to change records: first in shadow mode, where requests are recorded and compared with what staff actually did, and later delivered through the database's own interface, where a change counts as done only when it is read back and seen to have landed. Writing to any real system stays off until the system's owner agrees, one kind of record at a time.
 
@@ -32,12 +32,12 @@ Only after that does the layer accept requests to change records: first in shado
 | M1 | Verifiable store: append-only log, checkpoints, offline verification | M-L: about 5 engineer-weeks (about a quarter of it the JS reference) |
 | M2 | Read-only capture from a synthetic register | L: about 5 engineer-weeks |
 | M3 | Two-way reconciliation, report-only, recorded as evidence | M: about 3 engineer-weeks |
-| M4 | Memory reads: index, query API, bundles, read-only service | L: about 4-5 engineer-weeks for the index, queries, bundles and service; the additions of 27 November 2026 are not yet sized (M4b prime-coordinate column: 1-2 weeks, optional) |
+| M4 | Memory reads: index, query API, bundles, read-only service | L: about 4-5 engineer-weeks for the index, queries, bundles and service; the additions of 27 November 2026 are not yet sized; M4b (coordinate column and factor table, 1-2 weeks) is planned |
 | M5 | Real-data gate: trust, time, replication, privacy operations | M-L: about 4-5 engineer-weeks, plus external legal and security review time |
 | M6 | Requests and the outbox as evidence, in shadow mode (no write code) | L: about 4 engineer-weeks |
 | M7 | Write-through to the synthetic database only (writes opt-in) | L: about 5-6 engineer-weeks |
 | M8 | (optional) Postgres and vendor-platform sources | M-L: about 3-4 engineer-weeks |
-| M9 | (optional) centr/0 profile, register views and prime coordinates | M: about 2-3 engineer-weeks, only once a dictionary and a consumer exist |
+| M9 | (optional) centr/0 profile, register views and a published dictionary | M: about 2-3 engineer-weeks, only once a dictionary and a consumer exist (sized before the coordinate column moved to M4b) |
 
 \*Sizes are estimates for one engineer. The real-data gate (M5) also depends on legal and security review, and on agreeing data access with each real system's owner, which run on their own timelines. These sizes predate the additions of 27 November 2026, which are not yet sized: the approval-status and disagreement views, read labels and grant-scoped tokens (M4); the assert intake (late M4 or early M6); wider key binding, key-bound approver lists and the id directory (M5); approval rules as data and continuity notes (M6; the timing of notes is open); and the edge track.
 
@@ -140,6 +140,8 @@ Make the store the place where staff and applications ask what a record said, un
 
 Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents call before they rely on evidence: what it verifies, its read receipt, and when a read that informs an action is recorded as an `assert`. Its open decisions (where a decision's basis goes, completeness at a checkpoint, an intake for asserts) bear on the index and bundles below. Also [approvals.md](approvals.md), which proposes approver lists and approval rules as published data, an approval-status view, and hooks for tools; its views and labels are M4 deliverables below.
 
+**Built ahead of M4: coordinate/0.** [coordinate/0](../spec/coordinate-0.md) says how a list of facets becomes one coordinate and back, using a dictionary that gives each facet its own prime: the dictionary format and its id, the coordinate as a canonical decimal string below 2^1024, five operations (encode, decode, divides, check and extends) with their codes, a tagged form, and rules for indexes. It is built: crates/evidence-coordinate in Rust, tools/reference/coordinate.mjs as the independent JavaScript implementation, and test-vectors/coordinate/ on synthetic dictionaries, one of them Kernel/2's. It is a separate format outside the core ([D6](decisions.md#d6-one-small-core-many-profiles)) and changes nothing in evidence/0 or store/0. M4b below builds the index column on it.
+
 **Deliverables**
 
 - crates/evidence-index: index.db is derived from log.db behind a watermark (seq plus entry hash) and rebuilds deterministically. Index-vs-log reconciliation reports index_missing, index_extra and index_stale.
@@ -149,7 +151,7 @@ Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents c
   - state: current, forked, deleted or absent, the latest assert per schema, and capture lag.
   - history: ancestors and descendants, with depth, via and truncated.
   - as_of on both clocks: claimed `at`, or recorded, meaning the largest seq with received_at at or before t.
-  - Faceted filter.
+  - Faceted filter, with coordinates and factor rows from [M4b](#m4b-coordinate-column-and-factor-table).
   - Reverse lookups by content hash, schema hash and signer.
   Every answer carries the watermark, the clock used, the echoed limits, and a truncated flag computed by fetching limit+1.
 - Bundles: objects, attestations, entries, a covering checkpoint and inclusion proofs. `evidence bundle verify` works in the CLI, WASM and Python. A bundle can be sealed as an assert, which answers 'what the register showed on date X'.
@@ -158,7 +160,7 @@ Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents c
 - A disagreement view per subject, for the edge profile ([cer-edge.md](cer-edge.md)): more than one head in a lane, a parent with children in more than one lane, and the differences that the approval rules' comparisons find between a record and a linked statement. It is computed from `prev` links over the whole history and writes nothing, with vectors for cases that must be flagged and cases that must not.
 - Read labels: every item a read returns gets the first label that fits: `observed` (a record lane written by capture), `note` (a continuity note), `tool-stated` (any other assert made for someone else, with `on_behalf_of`, whatever the actor's kind; every agent's assert has one) or `stated` (anything else, including a record-lane object not written by capture). Nothing is returned as observed unless capture wrote it.
 - The read-basis profile ([turn-reader open decision 2](turn-reader.md#2-the-basis-profile), working name `read-basis/0`): its shape and the `P_BASIS_*` checks, including `P_BASIS_STALE`, which the `basis-stale` condition in [approvals.md](approvals.md) uses. Vectors and an independent JavaScript reference.
-- test-vectors/lineage: forks, merges, deletes, baselines, late arrivals, and as_of on both clocks. Optional M4b adds a prime-coordinate column, only once a published dictionary exists.
+- test-vectors/lineage: forks, merges, deletes, baselines, late arrivals, and as_of on both clocks. M4b ([below](#m4b-coordinate-column-and-factor-table)) adds a coordinate column and factor rows on a synthetic dictionary; it does not wait for a published one.
 - Late M4, or early M6 at the latest: an intake for asserts ([turn-reader open decision 7](turn-reader.md#7-an-intake-for-asserts)). One request is one batch: the object and its attestation lines, with optional if_heads and write scopes per lane. Before appending, it runs the pure checks: actor id form, an author line signed as actor.id, the kind of on_behalf_of, the record-lane writer, and grants. It refuses with every failed code, and verification repeats the same checks.
 
 **Acceptance**
@@ -170,6 +172,23 @@ Design input: [turn-reader.md](turn-reader.md), the reader tools and AI agents c
 - A bundle verifies offline in the CLI, WASM and Python, and changing one byte makes it fail with a code.
 - HTTP answers are byte-identical to CLI answers. A token scoped to one system gets 403 for the others, and a delegated token gets 403 outside its grant. Without the HMAC key, index.db holds no plaintext sentinel values.
 - The approval-status vectors give the same status, steps and codes in Rust and the JavaScript reference at every log position they name.
+
+#### M4b Coordinate column and factor table
+
+Planned, about 1-2 engineer-weeks. The faceted filter gets coordinates and answers from factor rows, as [coordinate/0](../spec/coordinate-0.md#indexing) sets out ([D14](decisions.md#d14-coordinates-travel-as-decimal-strings-indexes-answer-from-factors)). Synthetic data and a synthetic dictionary only.
+
+**Deliverables**
+
+- A synthetic `coordinate-dictionary/0` for the simulator's records, and a stated rule for which facets each record has.
+- In index.db, behind the same watermark: one row per object with its profile and its coordinate, a decimal string in a text column; factor rows (profile, object, prime, exponent), one per prime, with an index on (profile, prime); and, for each profile, the id of the dictionary used. An object whose facets do not encode gets no rows and is reported with encode's error.
+- The faceted filter decodes the query with coordinate/0 first, and returns the decode error for a query that does not decode, never an empty result. It then answers from the factor rows: every prime of the query, each with at least the query's exponent. Answers carry the watermark and the dictionary id.
+- No arithmetic on coordinates in SQL integer or floating-point types, and no posting list kept as one value that is rewritten on every add. A new dictionary version is taken only if it extends the one held.
+
+**Acceptance** (moved from M9 on 28 November 2026)
+
+- On 100k synthetic objects, queries answered from the factor rows return exactly the same rows as divisibility computed with exact arithmetic, including coordinates above 2^63, and the same error for queries that do not decode.
+- Every coordinate is a decimal string that decodes to exactly its facets.
+- An unknown facet gives a finding, and the object is never indexed under a partial coordinate.
 
 ### M5 Real-data gate: trust, time, replication, privacy operations
 
@@ -275,21 +294,21 @@ Capture from realistic infrastructure once a real system's technology is known, 
 - A crash between reading a change and committing it loses nothing.
 - A dropped replication slot surfaces as a capture gap, never silently.
 
-### M9 (optional) centr/0 profile, register views and prime coordinates
+### M9 (optional) centr/0 profile, register views and a published dictionary
 
-Answer domain queries and publish registers as views over the store. Prime coordinates appear only as a derived, checked export field.
+Answer domain queries and publish registers as views over the store, with a real published dictionary for the coordinates that M4b indexes. Coordinates stay derived and checked, and never part of an id.
 
 **Deliverables**
 
 - A centr/0 profile verifier and vectors, including the absent cases from docs/centr-profile-notes.md.
 - Register snapshots as asserts whose content is a query result at a watermark.
-- A published facet dictionary, and a derived coordinate column that is never part of an id. Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), as in [Kernel/2](kernel-2.md#33-representation-declared). A shared registry of prime ranges is optional.
+- A real published facet dictionary, a `coordinate-dictionary/0` versioned by content, in place of M4b's synthetic one, with the profile's published mapping from source values to facets. Every coordinate carries its dictionary's profile id and indexes key on (profile, coordinate), as in [Kernel/2](kernel-2.md#33-representation-declared). A shared registry of prime ranges is optional.
 
 **Acceptance**
 
 - The centr/0 vectors pass, including the absent cases.
 - A register snapshot recomputed at its recorded watermark is byte-identical.
-- On 100k objects, divisibility queries return exactly the same rows as facet queries, every coordinate is carried as a decimal string and decodes to exactly its facets, and an unknown facet gives a finding.
+- The published dictionary loads under coordinate/0 with its stated id, each later version extends the one before it, and M4b's acceptance test passes with it in place of the synthetic dictionary.
 
 ## Edge track
 
@@ -375,6 +394,14 @@ The analytics track is not yet sized; each step adds to the milestone it sits un
 4. **What matters is how uncertainty is shared and how decisions are enabled, not who runs which system.** The layer records where there is doubt and where a person's decision is still needed, and makes no decision itself.
 5. **Approval is spread in that spirit; ids are pseudonyms; tools are actors.** Approval rests with the parties on published approver lists, and actor ids are pseudonymous. An AI agent is one kind of actor, not only a reader or contributor. The core and the hooks are the same for every tool: grants, verified reads, recorded checks and doubt, witnessing, and continuity notes kept between sessions. Whether a tool may ever fill an approval step is still open; the proposal is that it never does ([approvals.md open question 4](approvals.md#15-open-questions)).
 
+## Decisions (confirmed 28 November 2026)
+
+1. **Reproducible faceted queries join the main proposition.** The [README](../README.md) now says: "Third parties can reproduce both the evidence and the exact results of faceted queries over it: the same dictionary version, watermark and query give the same rows in any implementation. A coordinate decides which records a query returns, not whether a record was classified correctly or captured completely."
+2. **Prime coordinates come forward.** A short spec for computing coordinates, [coordinate/0](../spec/coordinate-0.md), is written now, with vectors on synthetic dictionaries, a Rust implementation and an independent JavaScript one. In M4, the coordinate column (M4b) moves from optional to planned, and the equivalence acceptance test moves from M9 to [M4b](#m4b-coordinate-column-and-factor-table), on synthetic data. M9 keeps the centr/0 profile, register views and a real published dictionary.
+3. **Two wording fixes.** The [Risks](#risks) no longer list prime indexes with embeddings as fuzzy recall: prime coordinates are exact. The README no longer says a faceted query is "a divisibility test on one integer field, which any database or language can run": the coordinate defines what a query means, and databases answer it from a factor table.
+4. **Coordinates travel as decimal strings, and indexes answer from factors** ([D14](decisions.md#d14-coordinates-travel-as-decimal-strings-indexes-answer-from-factors)). SQL integers are 64-bit. SQLite turns a decimal-text coordinate that does not fit into a floating-point number and returns a wrong remainder, silently: on SQLite 3.53, the product of the first 16 primes, a 65-bit number stored as text, gave 33 for `% 53` instead of 0, and an 89-bit product gave 33 too. PostgreSQL's `numeric` takes `mod` exactly at any size. So the canonical coordinate is a decimal string. Indexes store the factorisation as rows (profile, object, prime, exponent) with an index on (profile, prime), and answer "has all these primes with at least these exponents". Divisibility is the reference meaning, and an acceptance test shows that both give the same rows, including coordinates past 2^63. Whole posting lists are not stored as one value rewritten on every add. Divisibility does not make retrieval faster, since a scan reads every row; speed comes from the indexed factor rows. The arithmetic is long established: it is the idea behind Gödel numbering.
+5. **Still open.** [Turn-reader open decision 9](turn-reader.md#9-kernel2-rules-the-reader-depends-on) (Kernel/2's scope, the order within an event, and whether installations and devices get their own dictionary), the device faceted index in [cer-edge.md](cer-edge.md) **[open]**, and [Kernel/2's own open questions](kernel-2.md#8-open-questions). coordinate/0 decides none of them.
+
 ## Risks
 
 - This repository assumes nothing about any real system of record: its technology, whether a replica or extract is available, whether CDC is permitted, whether it is a vendor platform with only an API, and whether it has version columns. This shapes M2 and M3. Mitigation: SorReader and ChangeSource traits with snapshot, change-file, CDC and HTTP adapters, so that capture can follow whichever route a system's owner agrees to.
@@ -384,10 +411,11 @@ The analytics track is not yet sized; each step adds to the milestone it sits un
 - Polling loses history. Snapshot capture sees only the state at each poll, so intermediate versions are never evidenced. Objects and the UI must say 'as observed', and CDC should be used where completeness matters.
 - The change key has subtleties. SoR-computed columns (updated_at, row versions, trigger output) must be left out of the comparable projection, or confirmations never match. An identical manual change looks like a confirmation: that is deliberate in shadow mode, but once writes are on, telling them apart needs the provenance side table, which the SoR owner must approve.
 - Single node, single writer, so no high availability until replication and a warm standby (M5). The flock lease needs a local disk, not NFS. An fsync on every commit limits the append rate; capture batches its commits, and the rate is measured on reference hardware before any real use.
-- Timeline: about 31 engineer-weeks for one engineer to reach writes to the synthetic database (8-9 months with contingency), with memory reads at about week 18 and the write half last. These figures predate the additions of 27 November 2026 and the edge track, which will lengthen them once sized. Mitigation: each milestone ships on its own, and a second engineer can build M4 alongside M3.
+- Timeline: about 31 engineer-weeks for one engineer to reach writes to the synthetic database (8-9 months with contingency), with memory reads at about week 18 and the write half last. These figures predate the additions of 27 November 2026 and the edge track, which will lengthen them once sized, and leave out M4b (1-2 weeks), planned since 28 November 2026. Mitigation: each milestone ships on its own, and a second engineer can build M4 alongside M3.
 - Perception: a system's owner may read any write path as drift toward 'instead'. Mitigation: record D11 now, ship builds for real data that provably contain no delivery code, enable writes per record type under the system owner's published allow-list, always deliver through the SoR's own interface, and treat writes to any real system as a separate decision.
 - Dependency weight goes against the project's minimal-dependency stance (D8, D9): rusqlite bundles C SQLite, and axum and tokio arrive in M4. Mitigation: keep them out of evidence-core, evidence-log, the WASM build and the Python build, enforced by a CI guard.
 - Postgres logical decoding tooling in Rust is thin, and the consuming slot function loses changes on a crash. Use peek followed by advance after a durable commit, and a custom CI image with wal2json. Keep it optional until a real system's stack is known.
-- Scope creep toward fuzzy recall (embeddings, ranking, token or prime indexes). Retrieval stays exact, bounded and verifiable, and prime coordinates appear only as a derived export field. Continuity notes for tools are governed asserts under a grant, not a recall service.
+- Scope creep toward fuzzy recall (embeddings, ranking, similarity search, token indexes). Retrieval stays exact, bounded and verifiable. Prime coordinates are not fuzzy recall: they are an exact derived index, answered from factor rows that are checked against divisibility, with no embeddings, ranking or similarity. Continuity notes for tools are governed asserts under a grant, not a recall service.
+- Coordinates in SQL. SQL integers are 64-bit, and arithmetic on a larger coordinate in an integer or floating-point type gives wrong rows with no error. Mitigation: coordinates are decimal strings in text columns, queries are answered from factor rows, and M4b's acceptance test compares them with exact divisibility past 2^63 ([D14](decisions.md#d14-coordinates-travel-as-decimal-strings-indexes-answer-from-factors)).
 - A review status can be misread as a finding. Statuses are review statuses with no effect outside this layer, and a difference between records is a prompt for review, not a finding. Before M5 no approval is accountability evidence, and every status output says so.
 - Public-repo hygiene: synthetic data and pseudonymous actor ids only; new profile vectors use the opaque id form of [approvals.md](approvals.md#3-parties-and-ids-proposed). Small inconsistencies slip in easily (an early vector's subject key disagreed with its content, since fixed); M2's subject-key check rejects such a mismatch in captured records.

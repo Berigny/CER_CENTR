@@ -1,0 +1,8291 @@
+[
+  {
+    "name": "one",
+    "dictionary": "catalogue-demo",
+    "coordinate": "1",
+    "expect": []
+  },
+  {
+    "name": "catalogue-example",
+    "dictionary": "catalogue-demo",
+    "coordinate": "1155",
+    "expect": [
+      {
+        "id": "record.installation",
+        "exponent": 1
+      },
+      {
+        "id": "product.inverter",
+        "exponent": 1
+      },
+      {
+        "id": "standard.as-nzs-4777-2",
+        "exponent": 1
+      },
+      {
+        "id": "jurisdiction.vic",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "syntax-zero",
+    "dictionary": "catalogue-demo",
+    "coordinate": "0",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-leading-zero",
+    "dictionary": "catalogue-demo",
+    "coordinate": "01",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-plus",
+    "dictionary": "catalogue-demo",
+    "coordinate": "+5",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-minus",
+    "dictionary": "catalogue-demo",
+    "coordinate": "-5",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-leading-space",
+    "dictionary": "catalogue-demo",
+    "coordinate": " 5",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-trailing-space",
+    "dictionary": "catalogue-demo",
+    "coordinate": "5 ",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-trailing-newline",
+    "dictionary": "catalogue-demo",
+    "coordinate": "5\n",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-fraction",
+    "dictionary": "catalogue-demo",
+    "coordinate": "5.0",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-exponent",
+    "dictionary": "catalogue-demo",
+    "coordinate": "1e3",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-empty",
+    "dictionary": "catalogue-demo",
+    "coordinate": "",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-fullwidth-digit",
+    "dictionary": "catalogue-demo",
+    "coordinate": "５",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-number",
+    "dictionary": "catalogue-demo",
+    "coordinate": 5,
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-before-range",
+    "dictionary": "catalogue-demo",
+    "coordinate": "0111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "syntax-late-in-long-string",
+    "dictionary": "catalogue-demo",
+    "coordinate": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000x",
+    "error": {
+      "code": "P_COORDINATE_SYNTAX"
+    }
+  },
+  {
+    "name": "unknown-factor",
+    "dictionary": "catalogue-demo",
+    "coordinate": "97",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "new-facet-under-old-version",
+    "dictionary": "catalogue-demo",
+    "coordinate": "71",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "unknown-factor-before-cardinality",
+    "dictionary": "catalogue-demo",
+    "coordinate": "33077",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "one-two-facets",
+    "dictionary": "catalogue-demo",
+    "coordinate": "341",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "jurisdiction"
+    }
+  },
+  {
+    "name": "one-squared",
+    "dictionary": "catalogue-demo",
+    "coordinate": "121",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "jurisdiction"
+    }
+  },
+  {
+    "name": "set-squared",
+    "dictionary": "catalogue-demo",
+    "coordinate": "49",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "standard"
+    }
+  },
+  {
+    "name": "first-family-in-families-order",
+    "dictionary": "catalogue-demo",
+    "coordinate": "2046",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "jurisdiction"
+    }
+  },
+  {
+    "name": "two-kinds-broken",
+    "dictionary": "catalogue-demo",
+    "coordinate": "3185",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "product"
+    }
+  },
+  {
+    "name": "new-facet",
+    "dictionary": "catalogue-demo-v2",
+    "coordinate": "71",
+    "expect": [
+      {
+        "id": "product.heat-pump",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "old-coordinate-under-new-version",
+    "dictionary": "catalogue-demo-v2",
+    "coordinate": "1155",
+    "expect": [
+      {
+        "id": "record.installation",
+        "exponent": 1
+      },
+      {
+        "id": "product.inverter",
+        "exponent": 1
+      },
+      {
+        "id": "standard.as-nzs-4777-2",
+        "exponent": 1
+      },
+      {
+        "id": "jurisdiction.vic",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "unclassified-as-a-whole",
+    "dictionary": "kernel-2",
+    "coordinate": "1",
+    "expect": []
+  },
+  {
+    "name": "universal-unclassified",
+    "dictionary": "kernel-2",
+    "coordinate": "5",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "multiset-squared",
+    "dictionary": "kernel-2",
+    "coordinate": "4",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "sqlite-65-bit",
+    "dictionary": "kernel-2",
+    "coordinate": "32589158477190044730",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "sqlite-89-bit",
+    "dictionary": "kernel-2",
+    "coordinate": "557940830126698960967415390",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "section-5-h-e5",
+    "dictionary": "kernel-2",
+    "coordinate": "1144592878288235028923541329666",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "prime-after-dictionary",
+    "dictionary": "kernel-2",
+    "coordinate": "353",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "round-trip-001",
+    "dictionary": "kernel-2",
+    "coordinate": "20496802780773827748619744509944509753795507197421",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-002",
+    "dictionary": "kernel-2",
+    "coordinate": "8534998353856141635786042281929490525843940786899261611056762659",
+    "expect": [
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 2
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-003",
+    "dictionary": "kernel-2",
+    "coordinate": "319545685850337519",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-004",
+    "dictionary": "kernel-2",
+    "coordinate": "15321601825057726337",
+    "expect": [
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-005",
+    "dictionary": "kernel-2",
+    "coordinate": "80419357557031257160907228179",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-006",
+    "dictionary": "kernel-2",
+    "coordinate": "288302345018313901362662499387759153909798904940092285741876252843943",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 2
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-007",
+    "dictionary": "kernel-2",
+    "coordinate": "57016114499277398194486536649042117302829420038750784871778865450",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-008",
+    "dictionary": "kernel-2",
+    "coordinate": "34759311317483745447422600505540710129518522839",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-009",
+    "dictionary": "kernel-2",
+    "coordinate": "18463981",
+    "expect": [
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-010",
+    "dictionary": "kernel-2",
+    "coordinate": "11651",
+    "expect": [
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-011",
+    "dictionary": "kernel-2",
+    "coordinate": "7941291404809515447578481448714607490298097362729123681721038233901",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 3
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-012",
+    "dictionary": "kernel-2",
+    "coordinate": "4581385118852456896796345296587206701750400903688989",
+    "expect": [
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-013",
+    "dictionary": "kernel-2",
+    "coordinate": "360869639535459179766457",
+    "expect": [
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-014",
+    "dictionary": "kernel-2",
+    "coordinate": "954659382260042611974875283405176757572001222662579488877578681016520418625",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-015",
+    "dictionary": "kernel-2",
+    "coordinate": "8299",
+    "expect": [
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-016",
+    "dictionary": "kernel-2",
+    "coordinate": "2533057",
+    "expect": [
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-017",
+    "dictionary": "kernel-2",
+    "coordinate": "885742601719894857481289816555568407164485492301",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 2
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-018",
+    "dictionary": "kernel-2",
+    "coordinate": "19295581454317290868553889858195965",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-019",
+    "dictionary": "kernel-2",
+    "coordinate": "3905799982292115566594637186340224441576602543539385583895",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-020",
+    "dictionary": "kernel-2",
+    "coordinate": "1954784001432186758198427367645115261975459554320165141811",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-021",
+    "dictionary": "kernel-2",
+    "coordinate": "127",
+    "expect": [
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-022",
+    "dictionary": "kernel-2",
+    "coordinate": "4267237588458844610",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-023",
+    "dictionary": "kernel-2",
+    "coordinate": "5875801571836940437323207218143581732743055",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 4
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-024",
+    "dictionary": "kernel-2",
+    "coordinate": "11631469573474682686012888903948185585911555532212396131564305",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-025",
+    "dictionary": "kernel-2",
+    "coordinate": "4757332200170375601342257767477",
+    "expect": [
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-026",
+    "dictionary": "kernel-2",
+    "coordinate": "2897779949966129249325853827501105234828050536465",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-027",
+    "dictionary": "kernel-2",
+    "coordinate": "3961458270758747",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-028",
+    "dictionary": "kernel-2",
+    "coordinate": "19771858280452336387060672818457479969509205333104371127107066462850388021",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 2
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 3
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 3
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-029",
+    "dictionary": "kernel-2",
+    "coordinate": "235621177446990774358925194701758125874",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-030",
+    "dictionary": "kernel-2",
+    "coordinate": "767918498534494",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-031",
+    "dictionary": "kernel-2",
+    "coordinate": "8787719",
+    "expect": [
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-032",
+    "dictionary": "kernel-2",
+    "coordinate": "4667699681853784557790116887907334340167185581573999156217600542164306730",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-033",
+    "dictionary": "kernel-2",
+    "coordinate": "283378636196669089302742369301500464700",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 2
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 3
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-034",
+    "dictionary": "kernel-2",
+    "coordinate": "33412945582063212811395774657273251104845",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 2
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-035",
+    "dictionary": "kernel-2",
+    "coordinate": "2148103657",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-036",
+    "dictionary": "kernel-2",
+    "coordinate": "6610222626321188466431176657469049585917535685329013216350",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-037",
+    "dictionary": "kernel-2",
+    "coordinate": "81269584916405355117329919708989722868825181769198216965055",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 3
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-038",
+    "dictionary": "kernel-2",
+    "coordinate": "67",
+    "expect": [
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-039",
+    "dictionary": "kernel-2",
+    "coordinate": "7719384657273739115712381586738572483334485971865160390351965",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-040",
+    "dictionary": "kernel-2",
+    "coordinate": "992997423719863597541341592735257355531742589719256139308345814022",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 3
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-041",
+    "dictionary": "kernel-2",
+    "coordinate": "2899503673665158801598809317854761502299406142306",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 3
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-042",
+    "dictionary": "kernel-2",
+    "coordinate": "317",
+    "expect": [
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-043",
+    "dictionary": "kernel-2",
+    "coordinate": "7696943202136933799814590757024109859809683973276302297888238955397422070",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 3
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-044",
+    "dictionary": "kernel-2",
+    "coordinate": "30830654",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-045",
+    "dictionary": "kernel-2",
+    "coordinate": "513646253359",
+    "expect": [
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-046",
+    "dictionary": "kernel-2",
+    "coordinate": "49765888861272999943141476773981227646859",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-047",
+    "dictionary": "kernel-2",
+    "coordinate": "1244836943105434174885191607311818634026670511097642647382106282",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 3
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-048",
+    "dictionary": "kernel-2",
+    "coordinate": "6667511311029266178292806891",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-049",
+    "dictionary": "kernel-2",
+    "coordinate": "872822251461",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-050",
+    "dictionary": "kernel-2",
+    "coordinate": "3969108163983533232730421312868475425564978326471865351657",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-051",
+    "dictionary": "kernel-2",
+    "coordinate": "83",
+    "expect": [
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-052",
+    "dictionary": "kernel-2",
+    "coordinate": "14512466524979135330448514916131",
+    "expect": [
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-053",
+    "dictionary": "kernel-2",
+    "coordinate": "374454081534063887",
+    "expect": [
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-054",
+    "dictionary": "kernel-2",
+    "coordinate": "1481684549",
+    "expect": [
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-055",
+    "dictionary": "kernel-2",
+    "coordinate": "365962540117483658864867",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-056",
+    "dictionary": "kernel-2",
+    "coordinate": "26526347545048949537876942152203469420836085154026",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-057",
+    "dictionary": "kernel-2",
+    "coordinate": "10540409259756323862291",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-058",
+    "dictionary": "kernel-2",
+    "coordinate": "124466229877561598473207",
+    "expect": [
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-059",
+    "dictionary": "kernel-2",
+    "coordinate": "5005249373",
+    "expect": [
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-060",
+    "dictionary": "kernel-2",
+    "coordinate": "49375590675487111669783514227608699692347899546097664238882121979641822543182",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-061",
+    "dictionary": "kernel-2",
+    "coordinate": "4740687351270331264055483938753997265133",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-062",
+    "dictionary": "kernel-2",
+    "coordinate": "1263020417",
+    "expect": [
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-063",
+    "dictionary": "kernel-2",
+    "coordinate": "82285821768232951356409785314284549899172475163545998418284957295120769890907",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 3
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 3
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-064",
+    "dictionary": "kernel-2",
+    "coordinate": "19211586903951441793095919310314858244719",
+    "expect": [
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-065",
+    "dictionary": "kernel-2",
+    "coordinate": "1043150750231",
+    "expect": [
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-066",
+    "dictionary": "kernel-2",
+    "coordinate": "252262103101",
+    "expect": [
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-067",
+    "dictionary": "kernel-2",
+    "coordinate": "815243589602962550836363008778608782418883686875940200617390698776645",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 4
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-068",
+    "dictionary": "kernel-2",
+    "coordinate": "5982167",
+    "expect": [
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-069",
+    "dictionary": "kernel-2",
+    "coordinate": "178311463141754283285385135",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-070",
+    "dictionary": "kernel-2",
+    "coordinate": "30463204568062227335153",
+    "expect": [
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-071",
+    "dictionary": "kernel-2",
+    "coordinate": "287850279901802424753291398697334307",
+    "expect": [
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-072",
+    "dictionary": "kernel-2",
+    "coordinate": "142319440030605798565922297246483306583017975229074317536515",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-073",
+    "dictionary": "kernel-2",
+    "coordinate": "5536507410909925910480575815103296404947893822608034657496083045",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-074",
+    "dictionary": "kernel-2",
+    "coordinate": "34369238441543045528321672694347823925066553194178690612932700299489033374",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-075",
+    "dictionary": "kernel-2",
+    "coordinate": "1689113722868409224012652643925556426945",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-076",
+    "dictionary": "kernel-2",
+    "coordinate": "10802560229668303033134910564082119904496978730264352539006688471",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-077",
+    "dictionary": "kernel-2",
+    "coordinate": "15302720383443488129887999",
+    "expect": [
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-078",
+    "dictionary": "kernel-2",
+    "coordinate": "263692787196074133468197842165398877167968726459791183111420",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 2
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 3
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-079",
+    "dictionary": "kernel-2",
+    "coordinate": "73811873512637",
+    "expect": [
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-080",
+    "dictionary": "kernel-2",
+    "coordinate": "105273063134529758898947959477197720230853130628351743566",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 3
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 3
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-081",
+    "dictionary": "kernel-2",
+    "coordinate": "719719989429861167",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-082",
+    "dictionary": "kernel-2",
+    "coordinate": "186321233237665842069",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-083",
+    "dictionary": "kernel-2",
+    "coordinate": "468014332569514790257992849321967312458374258701654346",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-084",
+    "dictionary": "kernel-2",
+    "coordinate": "57074191427356684492865683621283538725064770907543941522489881410",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 3
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-085",
+    "dictionary": "kernel-2",
+    "coordinate": "6557",
+    "expect": [
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-086",
+    "dictionary": "kernel-2",
+    "coordinate": "311781241418657523846637827112503542310012",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 2
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-087",
+    "dictionary": "kernel-2",
+    "coordinate": "7725574383949",
+    "expect": [
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-088",
+    "dictionary": "kernel-2",
+    "coordinate": "1217541869",
+    "expect": [
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-089",
+    "dictionary": "kernel-2",
+    "coordinate": "4029341348590665355389235345198856685912395841550961012532885748387507",
+    "expect": [
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 3
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.executed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-090",
+    "dictionary": "kernel-2",
+    "coordinate": "7724425090121329867234254524695507344774206538083530",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 2
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-091",
+    "dictionary": "kernel-2",
+    "coordinate": "313",
+    "expect": [
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-092",
+    "dictionary": "kernel-2",
+    "coordinate": "391954252727687544542811435150261922915733307760638586098960489104974700881349",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 3
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-093",
+    "dictionary": "kernel-2",
+    "coordinate": "12791784007516914698288453671261099815483562849706859",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-094",
+    "dictionary": "kernel-2",
+    "coordinate": "65333164280232474100023268910542498106318383962288473609905200114133093626114",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 2
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 2
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-095",
+    "dictionary": "kernel-2",
+    "coordinate": "8451664828924397298929270330569232697778636256992764442458",
+    "expect": [
+      {
+        "id": "universal.entry",
+        "exponent": 1
+      },
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.executed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.entry",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 2
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-096",
+    "dictionary": "kernel-2",
+    "coordinate": "1961594740012189962461239311816764553096927576876470530954316035899854495500089554485",
+    "expect": [
+      {
+        "id": "universal.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.executed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.entry",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unit",
+        "exponent": 2
+      },
+      {
+        "id": "infrastructure.entry",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.locked",
+        "exponent": 4
+      },
+      {
+        "id": "infrastructure.committed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 2
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-097",
+    "dictionary": "kernel-2",
+    "coordinate": "39785388807615136081",
+    "expect": [
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.executed",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.unit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-098",
+    "dictionary": "kernel-2",
+    "coordinate": "10213445779544346963457334129010312611818002894011224194128249413279357417",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.exit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.entry",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.executed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.locked",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.linked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "round-trip-099",
+    "dictionary": "kernel-2",
+    "coordinate": "3634276842169097719758277142925332099876757497931635914989507271321447391",
+    "expect": [
+      {
+        "id": "universal.quantified",
+        "exponent": 3
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.committed",
+        "exponent": 1
+      },
+      {
+        "id": "universal.unit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.linked",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.exit",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 2
+      },
+      {
+        "id": "inputs.unclassified",
+        "exponent": 3
+      },
+      {
+        "id": "inputs.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.linked",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.transfer",
+        "exponent": 2
+      },
+      {
+        "id": "registry.entry",
+        "exponent": 1
+      },
+      {
+        "id": "registry.exit",
+        "exponent": 1
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.executed",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "round-trip-100",
+    "dictionary": "kernel-2",
+    "coordinate": "10088953865987486306432483186451521105466421485024169457499",
+    "expect": [
+      {
+        "id": "universal.exit",
+        "exponent": 1
+      },
+      {
+        "id": "universal.quantified",
+        "exponent": 3
+      },
+      {
+        "id": "universal.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "universal.locked",
+        "exponent": 1
+      },
+      {
+        "id": "universal.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.locked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.committed",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.unit",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.linked",
+        "exponent": 1
+      },
+      {
+        "id": "measurement.executed",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.entry",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.exit",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.locked",
+        "exponent": 1
+      },
+      {
+        "id": "emissions.committed",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.unclassified",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.transfer",
+        "exponent": 1
+      },
+      {
+        "id": "reporting.committed",
+        "exponent": 1
+      },
+      {
+        "id": "inputs.exit",
+        "exponent": 1
+      },
+      {
+        "id": "infrastructure.quantified",
+        "exponent": 2
+      },
+      {
+        "id": "registry.quantified",
+        "exponent": 1
+      },
+      {
+        "id": "registry.locked",
+        "exponent": 1
+      },
+      {
+        "id": "registry.committed",
+        "exponent": 4
+      },
+      {
+        "id": "registry.linked",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "2^53",
+    "dictionary": "wide-demo",
+    "coordinate": "9007199254740992",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 53
+      }
+    ]
+  },
+  {
+    "name": "2^63",
+    "dictionary": "wide-demo",
+    "coordinate": "9223372036854775808",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 63
+      }
+    ]
+  },
+  {
+    "name": "2^64",
+    "dictionary": "wide-demo",
+    "coordinate": "18446744073709551616",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 64
+      }
+    ]
+  },
+  {
+    "name": "2^53-minus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "9007199254740991",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^53-plus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "9007199254740993",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^63-minus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "9223372036854775807",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^63-plus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "9223372036854775809",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^64-minus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "18446744073709551615",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^64-plus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "18446744073709551617",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "below-2^53",
+    "dictionary": "wide-demo",
+    "coordinate": "9007199254740990",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p3",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p5",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p53",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p157",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1613",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p2731",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p8191",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "above-2^53",
+    "dictionary": "wide-demo",
+    "coordinate": "9007199254741096",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 3
+      },
+      {
+        "id": "multi.p17",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p19",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p53",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1259",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p4969",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p10513",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "below-2^63",
+    "dictionary": "wide-demo",
+    "coordinate": "9223372036854775800",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 3
+      },
+      {
+        "id": "multi.p3",
+        "exponent": 2
+      },
+      {
+        "id": "multi.p5",
+        "exponent": 2
+      },
+      {
+        "id": "multi.p7",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p11",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p13",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p31",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p41",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p61",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p151",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p331",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1321",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "above-2^63",
+    "dictionary": "wide-demo",
+    "coordinate": "9223372036854776017",
+    "expect": [
+      {
+        "id": "multi.p7",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p31",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p673",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p853",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1669",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p5821",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p7621",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "below-2^64",
+    "dictionary": "wide-demo",
+    "coordinate": "18446744073709551600",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 4
+      },
+      {
+        "id": "multi.p3",
+        "exponent": 2
+      },
+      {
+        "id": "multi.p5",
+        "exponent": 2
+      },
+      {
+        "id": "multi.p7",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p11",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p13",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p31",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p41",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p61",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p151",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p331",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1321",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "above-2^64",
+    "dictionary": "wide-demo",
+    "coordinate": "18446744073709552034",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p7",
+        "exponent": 1
+      },
+      {
+        "id": "multi.p31",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p673",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p853",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p1669",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p5821",
+        "exponent": 1
+      },
+      {
+        "id": "flag.p7621",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "2^1023",
+    "dictionary": "wide-demo",
+    "coordinate": "89884656743115795386465259539451236680898848947115328636715040578866337902750481566354238661203768010560056939935696678829394884407208311246423715319737062188883946712432742638151109800623047059726541476042502884419075341171231440736956555270413618581675255342293149119973622969239858152417678164812112068608",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 1023
+      }
+    ]
+  },
+  {
+    "name": "2^1024-minus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137215",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  },
+  {
+    "name": "2^1024",
+    "dictionary": "wide-demo",
+    "coordinate": "179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137216",
+    "error": {
+      "code": "P_COORDINATE_RANGE"
+    }
+  },
+  {
+    "name": "2^1024-plus-1",
+    "dictionary": "wide-demo",
+    "coordinate": "179769313486231590772930519078902473361797697894230657273430081157732675805500963132708477322407536021120113879871393357658789768814416622492847430639474124377767893424865485276302219601246094119453082952085005768838150682342462881473913110540827237163350510684586298239947245938479716304835356329624224137217",
+    "error": {
+      "code": "P_COORDINATE_RANGE"
+    }
+  },
+  {
+    "name": "10^308",
+    "dictionary": "wide-demo",
+    "coordinate": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "expect": [
+      {
+        "id": "multi.p2",
+        "exponent": 308
+      },
+      {
+        "id": "multi.p5",
+        "exponent": 308
+      }
+    ]
+  },
+  {
+    "name": "2x10^308",
+    "dictionary": "wide-demo",
+    "coordinate": "200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "error": {
+      "code": "P_COORDINATE_RANGE"
+    }
+  },
+  {
+    "name": "309-nines",
+    "dictionary": "wide-demo",
+    "coordinate": "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+    "error": {
+      "code": "P_COORDINATE_RANGE"
+    }
+  },
+  {
+    "name": "10^309",
+    "dictionary": "wide-demo",
+    "coordinate": "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "error": {
+      "code": "P_COORDINATE_RANGE"
+    }
+  },
+  {
+    "name": "set-squared-wide",
+    "dictionary": "wide-demo",
+    "coordinate": "3481",
+    "error": {
+      "code": "P_COORDINATE_CARDINALITY",
+      "family": "flag"
+    }
+  },
+  {
+    "name": "max-prime",
+    "dictionary": "max-prime-demo",
+    "coordinate": "2147483647",
+    "expect": [
+      {
+        "id": "big.p2147483647",
+        "exponent": 1
+      }
+    ]
+  },
+  {
+    "name": "max-prime-squared",
+    "dictionary": "max-prime-demo",
+    "coordinate": "4611686014132420609",
+    "expect": [
+      {
+        "id": "big.p2147483647",
+        "exponent": 2
+      }
+    ]
+  },
+  {
+    "name": "unknown-small-factor",
+    "dictionary": "max-prime-demo",
+    "coordinate": "2",
+    "error": {
+      "code": "P_COORDINATE_UNKNOWN_FACTOR"
+    }
+  }
+]

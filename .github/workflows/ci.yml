@@ -25,17 +25,19 @@ jobs:
           EVIDENCE_CRASH_ITERS: 50
       - name: Purity guards (T14)
         run: |
-          for p in evidence-core evidence-log evidence-wasm evidence-py; do
+          for p in evidence-core evidence-log evidence-coordinate evidence-wasm evidence-py; do
             out=$(cargo tree -p "$p" -e normal --prefix none --locked)
             test -n "$out"
             if echo "$out" | grep -qE '^(rusqlite|libsqlite3-sys|tokio|axum) '; then echo "$p is not pure"; exit 1; fi
           done
           # grep exits 1 when nothing matches: a match (0) or an error (2) fails the step.
-          s=0; grep -rnE 'std::(fs|net|process|thread)|SystemTime|Instant|UNIX_EPOCH' crates/evidence-log/src || s=$?
-          test "$s" -eq 1
-          # The same modules in a braced import, such as use std::{fs, io::Read};
-          s=0; grep -rlzP 'std::\{[^;]*\b(fs|net|process|thread)\b' crates/evidence-log/src || s=$?
-          test "$s" -eq 1
+          for d in crates/evidence-log/src crates/evidence-coordinate/src; do
+            s=0; grep -rnE 'std::(fs|net|process|thread)|SystemTime|Instant|UNIX_EPOCH' "$d" || s=$?
+            test "$s" -eq 1
+            # The same modules in a braced import, such as use std::{fs, io::Read};
+            s=0; grep -rlzP 'std::\{[^;]*\b(fs|net|process|thread)\b' "$d" || s=$?
+            test "$s" -eq 1
+          done
 
   wasm:
     runs-on: ubuntu-latest
@@ -94,6 +96,9 @@ jobs:
         run: |
           node tools/make-vectors.mjs
           git diff --exit-code -- test-vectors
+          # git diff does not see a file the generator adds: none may be untracked.
+          git status --porcelain -- test-vectors
+          test -z "$(git status --porcelain -- test-vectors)"
       - name: JS reference agrees with the vectors
         run: node tools/check-vectors.mjs
       - uses: actions/setup-python@v5

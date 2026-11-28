@@ -1,0 +1,357 @@
+{
+  "valid": [
+    {
+      "name": "catalogue-demo",
+      "id": "sha256:005aad78a1aaae4ef493f0f8b20facec76f5dadddefc8de05903754998ca6278"
+    },
+    {
+      "name": "catalogue-demo-reordered",
+      "id": "sha256:005aad78a1aaae4ef493f0f8b20facec76f5dadddefc8de05903754998ca6278"
+    },
+    {
+      "name": "catalogue-demo-v2",
+      "id": "sha256:ac1f2e1c8dec7f4e6e81576ed82a86d0dcfc32214ee21a81fef72fc5b64d85e4"
+    },
+    {
+      "name": "catalogue-demo-values-changed",
+      "id": "sha256:bae85dd91206144e646e57ecd4f591c6f513e858619d5b3c2b2759cea9cab329"
+    },
+    {
+      "name": "catalogue-demo-prime-changed",
+      "id": "sha256:cb248a22af88df5d885262b70783e53cfb844b2cff4d5d73beb8c18220bbfd0f"
+    },
+    {
+      "name": "catalogue-demo-facet-removed",
+      "id": "sha256:1374b9d7c01c6e494df9780d6172ee601de46b71e7c4430d9c4d52b0e89865d9"
+    },
+    {
+      "name": "kernel-2",
+      "id": "sha256:28ec5d10ee5e6e5fd8effc7515e9adec7f049f75beeccce5064d738d922cac71"
+    },
+    {
+      "name": "wide-demo",
+      "id": "sha256:9e66e2eb49ec6843c862b7352428bc7a878a0686607bf7bd090f132939cb8680"
+    },
+    {
+      "name": "max-prime-demo",
+      "id": "sha256:9f998a41162f8420e2d375ca7b3f34ceae1e7e938bdeed3d9f010389d7402183"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "not-json",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_PARSE"
+      }
+    },
+    {
+      "name": "duplicate-member",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_DUPLICATE_KEY"
+      }
+    },
+    {
+      "name": "number-range",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_NUMBER_RANGE"
+      }
+    },
+    {
+      "name": "not-utf-8",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_PARSE"
+      }
+    },
+    {
+      "name": "byte-order-mark",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_PARSE"
+      }
+    },
+    {
+      "name": "lone-surrogate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_PARSE"
+      }
+    },
+    {
+      "name": "nesting-too-deep",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape",
+        "core": "E_PARSE"
+      }
+    },
+    {
+      "name": "not-an-object",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "member-missing",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "member-unknown",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "prime-not-a-number",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "shape-before-version",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "shape"
+      }
+    },
+    {
+      "name": "version",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "version"
+      }
+    },
+    {
+      "name": "version-before-profile",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "version"
+      }
+    },
+    {
+      "name": "profile",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "profile"
+      }
+    },
+    {
+      "name": "profile-leading-zero",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "profile"
+      }
+    },
+    {
+      "name": "profile-trailing-newline",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "profile"
+      }
+    },
+    {
+      "name": "family-name",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-name"
+      }
+    },
+    {
+      "name": "family-name-trailing-newline",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-name"
+      }
+    },
+    {
+      "name": "name-before-values",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-name"
+      }
+    },
+    {
+      "name": "values",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "values"
+      }
+    },
+    {
+      "name": "values-before-duplicate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "values"
+      }
+    },
+    {
+      "name": "family-duplicate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-duplicate"
+      }
+    },
+    {
+      "name": "family-order",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-order"
+      }
+    },
+    {
+      "name": "families-before-facets",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-order"
+      }
+    },
+    {
+      "name": "families-before-empty",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "family-order"
+      }
+    },
+    {
+      "name": "empty",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "empty"
+      }
+    },
+    {
+      "name": "too-many",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "too-many"
+      }
+    },
+    {
+      "name": "id-form",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-form"
+      }
+    },
+    {
+      "name": "id-form-trailing-newline",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-form"
+      }
+    },
+    {
+      "name": "checks-within-a-facet",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-form"
+      }
+    },
+    {
+      "name": "unknown-family",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "unknown-family"
+      }
+    },
+    {
+      "name": "id-duplicate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "id-duplicate"
+      }
+    },
+    {
+      "name": "not-integer",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "not-integer"
+      }
+    },
+    {
+      "name": "integer-before-range",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "not-integer"
+      }
+    },
+    {
+      "name": "prime-range-low",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-range"
+      }
+    },
+    {
+      "name": "prime-range-high",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-range"
+      }
+    },
+    {
+      "name": "range-before-primality",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-range"
+      }
+    },
+    {
+      "name": "range-before-order",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-range"
+      }
+    },
+    {
+      "name": "not-prime",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "not-prime"
+      }
+    },
+    {
+      "name": "primality-before-order",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "not-prime"
+      }
+    },
+    {
+      "name": "document-order",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "not-prime"
+      }
+    },
+    {
+      "name": "prime-duplicate",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-duplicate"
+      }
+    },
+    {
+      "name": "prime-order",
+      "error": {
+        "code": "P_COORDINATE_DICTIONARY",
+        "detail": "prime-order"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 // Re-checks test-vectors/ with the JavaScript reference implementation.
 // Object vectors that expect a code evidence.mjs does not implement are skipped
-// and listed. Missing store vectors are a failure, not a skip. Exit status 1 on
-// any disagreement.
+// and listed. Missing store and coordinate vectors are a failure, not a skip.
+// Exit status 1 on any disagreement.
 //
 //   node tools/check-vectors.mjs
 
@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as ev from "./reference/evidence.mjs";
 import * as log from "./reference/log.mjs";
+import * as cs from "./reference/coordinate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "test-vectors");
 const read = (...p) => readFileSync(join(ROOT, ...p), "utf8");
@@ -329,9 +330,122 @@ if (exportCases) {
   if (tree.root(0) !== null || tree.root(101) !== null) failures.push("store/tree: a prefix outside the tree");
 }
 
+// --- Coordinate vectors (coordinate/0), checked with coordinate.mjs ----------------
+// Every file must be present. A case passes when the canonical form of the
+// result, or of the error, equals that of `expect` or `error`.
+
+const COORDINATE_DIR = join(ROOT, "coordinate");
+const coordinateCounts = {};
+const coordinateOutcome = (fn) => {
+  try {
+    return { expect: fn() };
+  } catch (e) {
+    if (!(e instanceof cs.CoordinateError)) throw e;
+    return { error: e.error };
+  }
+};
+const sameOutcome = (got, c) =>
+  "expect" in c ? "expect" in got && ev.canonicalize(got.expect) === ev.canonicalize(c.expect)
+    : "error" in got && ev.canonicalize(got.error) === ev.canonicalize(c.error);
+const dictionaries = {};
+const COORDINATE_FILES = ["dictionaries.json", "encode.json", "decode.json", "divides.json", "check.json", "extends.json"];
+if (COORDINATE_FILES.map((f) => required("coordinate", f)).every(Boolean)) {
+  const readCases = (file) => JSON.parse(read("coordinate", file));
+  const dicts = readCases("dictionaries.json");
+  for (const [kind, member] of [
+    ["valid", "id"],
+    ["invalid", "error"],
+  ]) {
+    const files = readdirSync(join(COORDINATE_DIR, "dictionaries", kind)).sort();
+    const names = dicts[kind].map((c) => `${c.name}.json`).sort();
+    if (JSON.stringify(files) !== JSON.stringify(names)) failures.push(`coordinate/dictionaries/${kind}: files and cases differ`);
+    for (const c of dicts[kind]) {
+      const where = `coordinate/dictionaries/${kind}/${c.name}`;
+      if (JSON.stringify(Object.keys(c)) !== JSON.stringify(["name", member])) failures.push(`${where}: members`);
+      const path = join(COORDINATE_DIR, "dictionaries", kind, `${c.name}.json`);
+      if (!existsSync(path)) continue;
+      const got = coordinateOutcome(() => cs.parseDictionary(readFileSync(path)));
+      if (kind === "valid") {
+        if (!got.expect || got.expect.id !== c.id) failures.push(`${where}: got ${JSON.stringify(got.error ?? got.expect.id)}`);
+        else dictionaries[c.name] = got.expect;
+      } else if (!sameOutcome(got, { error: c.error })) {
+        failures.push(`${where}: want ${JSON.stringify(c.error)}, got ${JSON.stringify(got.error ?? "a dictionary")}`);
+      }
+    }
+  }
+  coordinateCounts.dictionaries = dicts.valid.length + dicts.invalid.length;
+
+  // The members of each file's cases, before `expect` or `error`.
+  const operations = {
+    "encode.json": [["dictionary", "facets"], (d, c) => cs.encode(d[c.dictionary], c.facets)],
+    "decode.json": [["dictionary", "coordinate"], (d, c) => cs.decode(d[c.dictionary], c.coordinate)],
+    "divides.json": [["dictionary", "query", "coordinate"], (d, c) => cs.divides(d[c.dictionary], c.query, c.coordinate)],
+    "check.json": [["dictionary", "facets", "coordinate"], (d, c) => cs.check(d[c.dictionary], c.facets, c.coordinate)],
+    "extends.json": [["old", "new"], (d, c) => cs.extends(d[c.old], d[c.new])],
+  };
+  for (const [file, [members, run]] of Object.entries(operations)) {
+    const cases = readCases(file);
+    const names = new Set();
+    for (const c of cases) {
+      const where = `coordinate/${file.replace(".json", "")}/${c.name}`;
+      const outcomeMember = "expect" in c ? "expect" : "error";
+      if (JSON.stringify(Object.keys(c)) !== JSON.stringify(["name", ...members, outcomeMember]) || names.has(c.name)) {
+        failures.push(`${where}: members ${Object.keys(c).join(", ")}, or a name used twice`);
+        continue;
+      }
+      names.add(c.name);
+      const unknown = ["dictionary", "old", "new"].filter((k) => k in c && !(c[k] in dictionaries));
+      if (unknown.length) {
+        failures.push(`${where}: ${unknown.join(", ")} is not a valid dictionary`);
+        continue;
+      }
+      const got = coordinateOutcome(() => run(dictionaries, c));
+      if (!sameOutcome(got, c)) failures.push(`${where}: got ${JSON.stringify(got)}`);
+    }
+    coordinateCounts[file.replace(".json", "")] = cases.length;
+  }
+
+  // The checks the spec asks of the generator, made again: decode results
+  // encode back, encode results decode back to their facets, and divides
+  // agrees with exact divisibility of the two integers.
+  const sorted = (ids) => JSON.stringify([...ids].sort());
+  for (const c of readCases("decode.json").filter((c) => "expect" in c && c.dictionary in dictionaries)) {
+    const back = coordinateOutcome(() => cs.encode(dictionaries[c.dictionary], cs.expand(c.expect)));
+    if (back.expect !== c.coordinate) failures.push(`coordinate/decode/${c.name}: does not encode back`);
+  }
+  for (const c of readCases("encode.json").filter((c) => "expect" in c && c.dictionary in dictionaries)) {
+    const back = coordinateOutcome(() => cs.expand(cs.decode(dictionaries[c.dictionary], c.expect)));
+    if (!back.expect || sorted(back.expect) !== sorted(c.facets)) failures.push(`coordinate/encode/${c.name}: does not decode back`);
+  }
+  for (const c of readCases("divides.json").filter((c) => "expect" in c)) {
+    if ((BigInt(c.coordinate) % BigInt(c.query) === 0n) !== c.expect) {
+      failures.push(`coordinate/divides/${c.name}: disagrees with exact divisibility`);
+    }
+  }
+}
+// An invalid argument is E_USAGE, never a coordinate/0 result.
+if (dictionaries["catalogue-demo"]) {
+  const d = dictionaries["catalogue-demo"];
+  const usage = [
+    () => cs.encode(d, "jurisdiction.vic"),
+    () => cs.encode(d, [11]),
+    () => cs.decode(d.value, "1"), // a dictionary value, not a loaded dictionary
+    () => cs.parseDictionary(null),
+  ];
+  for (const [i, fn] of usage.entries()) {
+    const got = outcome(fn);
+    if (got.code !== "E_USAGE") failures.push(`coordinate/usage ${i}: got ${JSON.stringify(got)}`);
+  }
+}
+
 console.log(`skipped by evidence.mjs (not implemented there): ${skipped.join(", ") || "none"}`);
 console.log("checked evidence/0 steps 1-5 and attestation/0 shapes of every object vector with log.mjs");
 console.log(`checked ${exportCases} store export cases`);
+console.log(
+  `checked coordinate/0: ${Object.entries(coordinateCounts)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(", ")}`,
+);
 if (failures.length) {
   console.error(`${failures.length} disagreement(s):\n  ${failures.join("\n  ")}`);
   process.exit(1);

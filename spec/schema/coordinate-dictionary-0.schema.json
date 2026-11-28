@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:evidence-layer:schema:coordinate-dictionary:0",
+  "title": "Facet dictionary (coordinate-dictionary/0)",
+  "description": "A profile's published dictionary for coordinate/0: its families, each with its rule for how many of its facets a coordinate may hold, and its facets, each with a distinct prime. The dictionary id is sha256 of the RFC 8785 canonical form. Rules the schema cannot express (names, ids and primes distinct and sorted, every facet in a declared family, primality, and the order in which the checks run) are in spec/coordinate-0.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "profile", "families", "facets"],
+  "properties": {
+    "v": { "const": "coordinate-dictionary/0" },
+    "profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*/(0|[1-9][0-9]*)$",
+      "description": "The id of the profile that publishes the dictionary, such as kernel/2."
+    },
+    "families": {
+      "type": "array",
+      "description": "Sorted by name in code point order, names distinct.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "values"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "values": {
+            "enum": ["one", "set", "multiset"],
+            "description": "one: at most one facet of the family, with exponent 1. set: distinct facets, each with exponent 1. multiset: any facets, repeated any number of times."
+          }
+        }
+      }
+    },
+    "facets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "description": "Sorted by ascending prime, ids and primes distinct.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "prime"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9-]*$",
+            "description": "<family>.<name>, where <family> is the name of a family in families."
+          },
+          "prime": {
+            "type": "integer",
+            "minimum": 2,
+            "exclusiveMaximum": 2147483648,
+            "description": "A prime below 2^31. Must also be prime (checked outside the schema)."
+          }
+        }
+      }
+    }
+  }
+}

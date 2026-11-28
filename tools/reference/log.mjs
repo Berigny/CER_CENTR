@@ -112,8 +112,9 @@ function nestsDeeperThan(text, limit) {
 
 // evidence/0's strict parse: the nesting limit, evidence.mjs's parseStrict
 // (number range, lone surrogates), then duplicate member names. The nesting
-// check comes first, because parseStrict and canonicalize recurse.
-function parseStrictJson(text, maxDepth = MAX_DEPTH) {
+// check comes first, because parseStrict and canonicalize recurse. Exported
+// for coordinate.mjs, which loads dictionaries with the same rules.
+export function parseStrictJson(text, maxDepth = MAX_DEPTH) {
   if (nestsDeeperThan(text, maxDepth)) fail("E_PARSE", `nesting deeper than ${maxDepth}`);
   const value = parseStrict(text);
   if (hasDuplicateMembers(text)) fail("E_DUPLICATE_KEY", "a member name appears twice in one object");

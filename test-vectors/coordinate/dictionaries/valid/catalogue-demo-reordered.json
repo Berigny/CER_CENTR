@@ -1,0 +1,25 @@
+{
+	"facets" : [	{	"prime" :2 ,"id":"\u0072ecord.product-listing"},
+		{	"prime" :3 ,"id":"record.installation"},
+		{	"prime" :5 ,"id":"product.inverter"},
+		{	"prime" :7.0 ,"id":"\u0073tandard.as-nzs-4777-2"},
+		{	"prime" :11 ,"id":"jurisdiction.vic"},
+		{	"prime" :13 ,"id":"product.battery"},
+		{	"prime" :17 ,"id":"\u0070roduct.pv-module"},
+		{	"prime" :19 ,"id":"standard.as-nzs-5033"},
+		{	"prime" :23 ,"id":"standard.as-nzs-3000"},
+		{	"prime" :29 ,"id":"\u0073tandard.as-nzs-5139"},
+		{	"prime" :31 ,"id":"jurisdiction.nsw"},
+		{	"prime" :37 ,"id":"jurisdiction.qld"},
+		{	"prime" :41 ,"id":"\u006aurisdiction.sa"},
+		{	"prime" :43 ,"id":"jurisdiction.wa"},
+		{	"prime" :47 ,"id":"jurisdiction.tas"},
+		{	"prime" :53 ,"id":"\u006aurisdiction.act"},
+		{	"prime" :58.99999999999999999 ,"id":"jurisdiction.nt"},
+		{	"prime" :61 ,"id":"record.inspection"},
+		{	"prime" :67 ,"id":"\u0073tandard.as-nzs-4777-1"}
+	],
+	"profile":"catalogue\u002Ddemo/0",
+	"families":[ { "values":"one",  "name" : "\u006aurisdiction" },{ "values":"one",  "name" : "product" },{ "values":"one",  "name" : "record" },{ "values":"set",  "name" : "\u0073tandard" } ],
+	"v" : "coordinate-dictionary\u002f0"
+}

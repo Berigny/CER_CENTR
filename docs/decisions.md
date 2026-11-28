@@ -28,7 +28,7 @@ The number rule is by magnitude, not by how the number is written. A rule like "
 
 ## D6. One small core, many profiles
 
-The core has no gate clauses, prime coordinates, verdicts or registers. Keeping them out keeps the core small and testable. They can come back as profiles and query layers once there is a concrete use, each with its own vectors.
+The core has no gate clauses, prime coordinates, verdicts or registers. Keeping them out keeps the core small and testable. They can come back as profiles and query layers once there is a concrete use, each with its own vectors. Prime coordinates came back on 28 November 2026 as [coordinate/0](../spec/coordinate-0.md), a separate format with its own vectors, outside the core.
 
 ## D7. The vectors are the contract
 
@@ -75,3 +75,19 @@ The evidence layer starts by only reading. It records what it observes in a syst
 - Questions about what the store knew on a date use the store's clock. Questions about what was true at a time, according to the writers, use `at`.
 - An `at` more than 5 minutes after `received_at` is counted in store reports, never rejected or rewritten.
 - Objects that the store or its services author in a chain take `at` = the later of their clock and their predecessors' `at`, so a clock step backwards cannot break the prev ordering rule.
+
+## D14. Coordinates travel as decimal strings; indexes answer from factors
+
+Confirmed 28 November 2026 ([roadmap](roadmap.md#decisions-confirmed-28-november-2026)); the rules are in [coordinate/0](../spec/coordinate-0.md#indexing).
+
+- The canonical coordinate is a decimal string: in JSON, in exports and in index columns. Never a JSON number, and never an SQL integer or floating-point value.
+- An index stores each object's factorisation as rows (profile, object, prime, exponent), with an index on (profile, prime), and answers a faceted query as "has all these primes, each with at least these exponents".
+- Divisibility is the reference meaning of a query. An acceptance test (roadmap M4b) shows that the factor rows give the same rows, including coordinates past 2^63.
+- No posting list is stored as one value that is rewritten on every add.
+
+Why:
+
+- evidence/0 rejects JSON numbers above 2^53 − 1, where they stop being exact. A product of a handful of primes passes that quickly.
+- SQL integers are 64-bit. SQLite turns a decimal-text coordinate that does not fit into a floating-point number and returns a wrong remainder, with no error. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave 33 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33 too. PostgreSQL's `numeric` takes `mod` exactly at any size. Because the failure in one engine is silent, indexes answer from factor rows, whose primes and exponents fit 32-bit integers in any database, and keep divisibility as the check.
+- A divisibility scan reads every row of the profile. It is the reference and the check on the index, not the fast path; speed comes from the indexed factor rows.
+- A posting list kept as one value is rewritten on every add, so each add costs more as the list grows.

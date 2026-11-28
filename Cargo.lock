@@ -230,6 +230,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "evidence-coordinate"
+version = "0.1.0"
+dependencies = [
+ "evidence-core",
+]
+
+[[package]]
 name = "evidence-core"
 version = "0.1.0"
 dependencies = [

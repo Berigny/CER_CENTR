@@ -1,0 +1,65 @@
+[
+  {
+    "name": "same",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo",
+    "expect": true
+  },
+  {
+    "name": "same-reordered",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo-reordered",
+    "expect": true
+  },
+  {
+    "name": "added",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo-v2",
+    "expect": true
+  },
+  {
+    "name": "family-removed",
+    "old": "catalogue-demo-v2",
+    "new": "catalogue-demo",
+    "error": {
+      "code": "P_COORDINATE_NOT_EXTENSION",
+      "detail": "family"
+    }
+  },
+  {
+    "name": "profile",
+    "old": "catalogue-demo",
+    "new": "kernel-2",
+    "error": {
+      "code": "P_COORDINATE_NOT_EXTENSION",
+      "detail": "profile"
+    }
+  },
+  {
+    "name": "values-changed",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo-values-changed",
+    "error": {
+      "code": "P_COORDINATE_NOT_EXTENSION",
+      "detail": "family"
+    }
+  },
+  {
+    "name": "prime-changed",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo-prime-changed",
+    "error": {
+      "code": "P_COORDINATE_NOT_EXTENSION",
+      "detail": "facet"
+    }
+  },
+  {
+    "name": "facet-removed",
+    "old": "catalogue-demo",
+    "new": "catalogue-demo-facet-removed",
+    "error": {
+      "code": "P_COORDINATE_NOT_EXTENSION",
+      "detail": "facet"
+    }
+  }
+]

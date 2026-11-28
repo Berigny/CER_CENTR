@@ -51,3 +51,33 @@ Vectors for [store/0](../spec/store-0.md), generated through the independent Jav
 - Tampered cases (`1xx`) have no `inputs.json`. Each is either edited from a valid case, with the manifest's segment hashes recomputed unless the case says otherwise, or built by the reference writer with one rule broken on purpose. `description` says which, and [store/0](../spec/store-0.md#export-cases) lists every case and the findings its report holds. `129-findings-truncated` holds the same files as `125-invalid-object-not-held` and has `max_findings` 2.
 - `130-witness-nonce-zero` and `131-attestation-small-order-key` hold signatures that an Ed25519 check without the small-order rule accepts (Node's `crypto.verify` does), with R or the key a point of small order. evidence/0 rejects them: an implementation that checks with such a library must also reject small-order R and keys itself, in every encoding (see [store/0](../spec/store-0.md), step k).
 - `003-attestations-two-checkpoints` has `proofs`: `inclusion`, one `{seq, size, leaf_hash, proof, root}` for each seq from 1 to the size of the latest checkpoint, against that checkpoint; and `consistency`, one `{old_size, new_size, old_root, new_root, proof}` from the first checkpoint to the second. Every proof is valid: verify each to true, with leaf index `seq` − 1. An implementation that produces proofs also reproduces each one from the export's lines.
+
+## Coordinates
+
+Vectors for [coordinate/0](../spec/coordinate-0.md), generated through the independent JavaScript implementation `tools/reference/coordinate.mjs`. The spec's [vector files](../spec/coordinate-0.md#vector-files) section is the contract for their layout and lists every required case. The dictionaries are synthetic: `catalogue-demo` uses public category names (Australian jurisdictions and published AS/NZS standards) with arbitrary primes, and is not a published dictionary.
+
+| Path | Contents |
+|---|---|
+| `coordinate/dictionaries.json` | `{valid, invalid}`. Each `valid` case is `{name, id}`: `dictionaries/valid/<name>.json` loads, with that dictionary id. Each `invalid` case is `{name, error}`: loading `dictionaries/invalid/<name>.json` fails with that `P_COORDINATE_DICTIONARY` error. |
+| `coordinate/dictionaries/valid/<name>.json` | A valid dictionary. |
+| `coordinate/dictionaries/invalid/<name>.json` | The bytes under test. Read them as raw bytes: some are not UTF-8, and some are not JSON. |
+| `coordinate/encode.json` | A list of `{name, dictionary, facets, expect}` or `{name, dictionary, facets, error}`. `expect` is a coordinate string. |
+| `coordinate/decode.json` | A list of `{name, dictionary, coordinate, expect}` or `{name, dictionary, coordinate, error}`. `expect` is a list of `{id, exponent}` in ascending prime order. |
+| `coordinate/divides.json` | A list of `{name, dictionary, query, coordinate, expect}` or `{name, dictionary, query, coordinate, error}`. `expect` is `true` or `false`. |
+| `coordinate/check.json` | A list of `{name, dictionary, facets, coordinate, expect}` or `{name, dictionary, facets, coordinate, error}`. `coordinate` is the claimed one, and `expect` is `true`. |
+| `coordinate/extends.json` | A list of `{name, old, new, expect}` or `{name, old, new, error}`. `expect` is `true`. |
+
+- `dictionary`, `old` and `new` name valid dictionaries. `coordinate` and `query` are passed to the operation as they are: strings, except in the cases that test that a coordinate must be a string, where they are JSON numbers.
+- A case passes when the canonical form of the result, or of the error, equals the canonical form of `expect` or `error`, byte for byte. Errors hold no free text.
+- Every file is written with two-space indentation and a final LF, except the invalid dictionaries and `catalogue-demo-reordered`. Dictionary ids are over the canonical form, never the file's bytes.
+
+`dictionaries/`:
+
+- `catalogue-demo` is the spec's example. `catalogue-demo-reordered` is the same dictionary written differently, with the same id: members in another order, tabs and CRLF line ends, `\u` escapes in some strings, and the primes 7 and 59 written `7.0` and `58.99999999999999999`. `catalogue-demo-v2` extends `catalogue-demo`; `-values-changed`, `-prime-changed` and `-facet-removed` do not.
+- `kernel-2` is built from Kernel/2's allocation rule, with the identifiers of [Kernel/2](../docs/kernel-2.md) section 2.2, and the generator checks it against the table of section 2.3. `wide-demo` holds the first 4,096 primes, exactly the facet limit. `max-prime-demo` holds one facet at 2^31 − 1, the largest prime allowed, and a family with no facets.
+- The invalid dictionaries are those the spec lists, at least one for every `detail`, and four more for step 1: `not-utf-8`, `byte-order-mark`, `lone-surrogate` and `nesting-too-deep` (1,000 levels), each `shape` with `core` `E_PARSE`. The cases named `<a>-before-<b>` break two checks and expect the earlier one.
+
+Operations:
+
+- The cases are those the spec lists. The `section-5-` cases are S and H after each event of Kernel/2 section 5: the generator computes them from the events' `add` lists and checks them against that table. The 100 `round-trip-` encode cases draw 1 to 40 Kernel/2 facets with splitmix64 from a fixed seed, and the decode cases of the same names decode their results.
+- The generator checks that every decode result encodes back to its coordinate, that every encode result decodes back to its facets, and that every result the spec states (the dictionary ids, the nearest coordinates to 2^53, 2^63 and 2^64, the products of the first 16 and 20 primes, and so on) is the one the reference gives. `tools/check-vectors.mjs` also checks every `divides` result against exact integer division, and `tools/check_schema_vectors.py` runs [`coordinate-dictionary-0.schema.json`](../spec/schema/coordinate-dictionary-0.schema.json) over the dictionaries.
