@@ -1,0 +1,7 @@
+{
+  "description": "In byte order: capacity_kw 9007199254740993 in content.inline; then subject.key repeated. Step 1 reports E_NUMBER_RANGE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_NUMBER_RANGE"
+  }
+}

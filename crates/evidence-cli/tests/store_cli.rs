@@ -746,6 +746,43 @@ fn t3_object_vectors_through_a_cli_store() {
     assert_eq!(num(at(&report, &["head"]), "seq"), 12);
 }
 
+/// The object vectors whose bytes have several step-1 faults
+/// (`1NN-step1-precedence-*`): `evidence verify` reports the vector's code,
+/// and the store's intake rejects the file with that same code and adds
+/// nothing.
+#[test]
+fn step1_precedence_vectors_through_verify_and_append() {
+    let tmp = tempdir();
+    let s = tmp.path().join("s");
+    init(&s, "step1");
+    let mut cases: Vec<PathBuf> = fs::read_dir(vectors().join("objects"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| case_name(p).contains("-step1-precedence-"))
+        .collect();
+    cases.sort();
+    assert!(cases.len() >= 20, "{} step-1 vectors", cases.len());
+    for dir in &cases {
+        let name = case_name(dir);
+        let file = dir.join("object.json");
+        let code = text(at(&read_json(&dir.join("case.json")), &["expect"]), "code");
+        assert!(
+            ["E_PARSE", "E_NUMBER_RANGE", "E_DUPLICATE_KEY"].contains(&code.as_str()),
+            "{name}"
+        );
+        let report = evidence(args!["verify", file]).expect(1).value();
+        assert_eq!(text(&report, "code"), code, "{name}: evidence verify");
+        let run = store(args!["append", s, file]).expect(1);
+        assert_eq!(
+            run.stdout,
+            line_of(&rejected_line(&code, path_text(&file), None)),
+            "{name}: store append"
+        );
+    }
+    let report = store(args!["verify", s]).expect(0).value();
+    assert_eq!(num(at(&report, &["head"]), "seq"), 2);
+}
+
 // ---------------------------------------------------------------------------
 // Section 8: the command line
 

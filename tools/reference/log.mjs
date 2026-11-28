@@ -21,6 +21,7 @@ import {
   canonicalize,
   digest,
   EvidenceError,
+  MAX_DEPTH,
   objectId,
   parseStrict,
   publicKey,
@@ -46,79 +47,18 @@ function hasExactly(obj, names) {
   return keys.length === names.length && names.every((n) => Object.hasOwn(obj, n));
 }
 
-// True if some object in `text` names a member twice. JSON.parse keeps the last
-// one silently, while evidence/0's strict rules reject the text
-// (E_DUPLICATE_KEY). Names are compared after decoding, so "v" and "v"
-// collide. Only for text that JSON.parse has already accepted.
-function hasDuplicateMembers(text) {
-  const open = []; // one entry per open container: a Set of names, or null for an array
-  let expectName = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      let j = i + 1;
-      while (text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
-      if (expectName) {
-        const names = open[open.length - 1];
-        const name = JSON.parse(text.slice(i, j + 1));
-        if (names.has(name)) return true;
-        names.add(name);
-        expectName = false;
-      }
-      i = j;
-    } else if (c === "{") {
-      open.push(new Set());
-      expectName = true;
-    } else if (c === "[") {
-      open.push(null);
-      expectName = false;
-    } else if (c === "}" || c === "]") {
-      open.pop();
-      expectName = false;
-    } else if (c === ",") {
-      expectName = open[open.length - 1] instanceof Set;
-    }
-  }
-  return false;
-}
-
-// How deep arrays and objects may nest: the limit of the Rust evidence/0
-// parser (evidence_core::json::MAX_DEPTH). A segment line wraps its entry and
-// item in one more object, so a line may nest one level deeper, and every
-// object that evidence/0 accepts still fits in a line.
-export const MAX_DEPTH = 128;
+// How deep arrays and objects may nest: evidence/0's limit (evidence.mjs's
+// MAX_DEPTH). A segment line wraps its entry and item in one more object, so a
+// line may nest one level deeper, and every object that evidence/0 accepts
+// still fits in a line.
+export { MAX_DEPTH };
 export const MAX_LINE_DEPTH = MAX_DEPTH + 1;
 
-// True if arrays and objects in `text` nest deeper than `limit`. It counts
-// brackets outside strings in one pass, without recursion, so hostile nesting
-// cannot exhaust the stack. Exact for valid JSON; for anything else JSON.parse
-// decides.
-function nestsDeeperThan(text, limit) {
-  let depth = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      i += 1;
-      while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
-    } else if (c === "{" || c === "[") {
-      depth += 1;
-      if (depth > limit) return true;
-    } else if (c === "}" || c === "]") {
-      depth -= 1;
-    }
-  }
-  return false;
-}
-
-// evidence/0's strict parse: the nesting limit, evidence.mjs's parseStrict
-// (number range, lone surrogates), then duplicate member names. The nesting
-// check comes first, because parseStrict and canonicalize recurse. Exported
-// for coordinate.mjs, which loads dictionaries with the same rules.
+// evidence/0's strict parse of JSON text: evidence.mjs's parseStrict, with its
+// fixed order of step-1 codes. Exported for coordinate.mjs, which loads
+// dictionaries with the same rules.
 export function parseStrictJson(text, maxDepth = MAX_DEPTH) {
-  if (nestsDeeperThan(text, maxDepth)) fail("E_PARSE", `nesting deeper than ${maxDepth}`);
-  const value = parseStrict(text);
-  if (hasDuplicateMembers(text)) fail("E_DUPLICATE_KEY", "a member name appears twice in one object");
-  return value;
+  return parseStrict(text, maxDepth);
 }
 
 // Byte order of the UTF-8 encodings, which is how Rust orders `String`s.

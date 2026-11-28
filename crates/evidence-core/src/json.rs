@@ -8,6 +8,12 @@
 //! - numbers are IEEE 754 doubles, and any number with magnitude above
 //!   2^53 - 1 is rejected (identifiers, big integers and money belong in strings);
 //! - nesting is limited to [`MAX_DEPTH`].
+//!
+//! When the bytes have more than one fault, the code follows a fixed
+//! precedence, whatever the faults' byte positions (evidence/0 step 1):
+//! `E_PARSE` if they have any fault other than a number out of range or a
+//! repeated name, otherwise `E_NUMBER_RANGE` if any number is out of range,
+//! otherwise `E_DUPLICATE_KEY`.
 
 use std::collections::HashSet;
 
@@ -102,6 +108,14 @@ impl Value {
 }
 
 /// Parse one JSON text under the strict rules above.
+///
+/// Every fault that is not a number out of range or a repeated member name is
+/// `E_PARSE` (not UTF-8, a byte order mark, a syntax error, an unescaped
+/// control character, a lone surrogate, bytes after the value, nesting deeper
+/// than [`MAX_DEPTH`]), and the parser stops there. It notes the first number
+/// out of range and the first repeated name and reads on, so one pass over
+/// the bytes finds the code of the precedence: `E_PARSE`, then
+/// `E_NUMBER_RANGE`, then `E_DUPLICATE_KEY`.
 pub fn parse(bytes: &[u8]) -> Result<Value> {
     if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
         return Err(Error::new(Code::Parse, "byte order mark is not allowed"));
@@ -113,12 +127,20 @@ pub fn parse(bytes: &[u8]) -> Result<Value> {
         s: bytes,
         pos: 0,
         depth: 0,
+        number_range: None,
+        duplicate_key: None,
     };
     p.ws();
     let v = p.value()?;
     p.ws();
     if p.pos != p.s.len() {
         return Err(p.err("trailing characters after the JSON value"));
+    }
+    if let Some(e) = p.number_range {
+        return Err(e);
+    }
+    if let Some(e) = p.duplicate_key {
+        return Err(e);
     }
     Ok(v)
 }
@@ -127,6 +149,10 @@ struct Parser<'a> {
     s: &'a [u8],
     pos: usize,
     depth: usize,
+    /// The first number out of range, reported only if no `E_PARSE` fault follows.
+    number_range: Option<Error>,
+    /// The first repeated member name, reported only if there is no other fault.
+    duplicate_key: Option<Error>,
 }
 
 impl Parser<'_> {
@@ -193,10 +219,12 @@ impl Parser<'_> {
             }
             let key = self.string()?;
             if !seen.insert(key.clone()) {
-                return Err(Error::new(
-                    Code::DuplicateKey,
-                    format!("member name {key:?} appears more than once"),
-                ));
+                self.duplicate_key.get_or_insert_with(|| {
+                    Error::new(
+                        Code::DuplicateKey,
+                        format!("member name {key:?} appears more than once"),
+                    )
+                });
             }
             self.ws();
             self.expect(b':')?;
@@ -374,10 +402,12 @@ impl Parser<'_> {
         // Rust's float parser is correctly rounded, like ECMAScript's.
         let v: f64 = text.parse().map_err(|_| self.err("invalid number"))?;
         if v.abs() > MAX_SAFE_INTEGER || !v.is_finite() {
-            return Err(Error::new(
-                Code::NumberRange,
-                format!("number {text} has magnitude above 2^53 - 1; use a string"),
-            ));
+            self.number_range.get_or_insert_with(|| {
+                Error::new(
+                    Code::NumberRange,
+                    format!("number {text} has magnitude above 2^53 - 1; use a string"),
+                )
+            });
         }
         Ok(Value::Number(v))
     }
@@ -394,7 +424,7 @@ mod tests {
     #[test]
     fn rejects_what_lenient_parsers_accept() {
         assert_eq!(code(r#"{"a":1,"a":2}"#), Code::DuplicateKey);
-        assert_eq!(code(r#"{"a":1,"a":2}"#), Code::DuplicateKey);
+        assert_eq!(code(r#"{"a":1,"\u0061":2}"#), Code::DuplicateKey);
         assert_eq!(code("9007199254740992"), Code::NumberRange);
         assert_eq!(code("1e400"), Code::NumberRange);
         assert_eq!(code(r#""\ud800""#), Code::Parse);
@@ -403,6 +433,83 @@ mod tests {
         assert_eq!(code("[1,]"), Code::Parse);
         assert_eq!(code("\u{feff}{}"), Code::Parse);
         assert_eq!(code(&"[".repeat(MAX_DEPTH + 1)), Code::Parse);
+    }
+
+    /// Step 1's precedence: `E_PARSE`, then `E_NUMBER_RANGE`, then
+    /// `E_DUPLICATE_KEY`, in whichever byte order the faults come.
+    #[test]
+    fn step_one_precedence() {
+        let big = "9007199254740993";
+        for (input, want) in [
+            // Each pair, both ways round.
+            (format!(r#"{{"a":1,"a":2,"b":{big}}}"#), Code::NumberRange),
+            (format!(r#"{{"b":{big},"a":1,"a":2}}"#), Code::NumberRange),
+            (r#"{"a":1,"a":2,"b":}"#.to_string(), Code::Parse),
+            (r#"{"b":,"a":1,"a":2}"#.to_string(), Code::Parse),
+            (format!(r#"{{"b":{big},"c":01}}"#), Code::Parse),
+            (format!(r#"{{"c":01,"b":{big}}}"#), Code::Parse),
+            // All three.
+            (format!(r#"{{"a":1,"a":2,"b":{big},"c":tru}}"#), Code::Parse),
+            (
+                format!(r#"{{"c":[1,],"b":{big},"a":1,"a":2}}"#),
+                Code::Parse,
+            ),
+            (format!(r#"{{"b":{big},"a":1,"a":2"#), Code::Parse),
+            // Faults in nested values.
+            (
+                format!(r#"[{{"a":{{"x":1,"x":2}}}},[[{big}]]]"#),
+                Code::NumberRange,
+            ),
+            (
+                r#"{"a":[[-1e400]],"b":{"x":1,"x":2}}"#.to_string(),
+                Code::NumberRange,
+            ),
+            (r#"[{"x":1,"x":2},{"y":"\udc00"}]"#.to_string(), Code::Parse),
+            // The number is the value of a repeated name, first or second.
+            (format!(r#"{{"a":{big},"a":1}}"#), Code::NumberRange),
+            (format!(r#"{{"a":1,"a":{big}}}"#), Code::NumberRange),
+            // A lone surrogate is E_PARSE, before or after the other faults.
+            (format!(r#"{{"a":{big},"b":"\ud800"}}"#), Code::Parse),
+            (r#"{"a":"\ud800","a":1}"#.to_string(), Code::Parse),
+            // Bytes after a document that only repeats a name.
+            (r#"{"a":1,"a":2} x"#.to_string(), Code::Parse),
+            (r#"{"a":1,"a":2}{}"#.to_string(), Code::Parse),
+            // A name spelled with an escape still repeats it.
+            (
+                format!(r#"{{"a":1,"\u0061":2,"b":{big}}}"#),
+                Code::NumberRange,
+            ),
+            (r#"{"a":1,"\u0061":2}"#.to_string(), Code::DuplicateKey),
+            // Nesting past the limit, after the other two faults.
+            (
+                format!(
+                    r#"{{"a":1,"a":{big},"b":{}{}}}"#,
+                    "[".repeat(MAX_DEPTH),
+                    "]".repeat(MAX_DEPTH)
+                ),
+                Code::Parse,
+            ),
+        ] {
+            assert_eq!(code(&input), want, "{input}");
+        }
+        // Not UTF-8, or a byte order mark, after or before the other faults.
+        let mut bytes = format!(r#"{{"a":1,"a":{big},"b":""#).into_bytes();
+        bytes.extend_from_slice(b"\xff\"}");
+        assert_eq!(parse(&bytes).unwrap_err().code, Code::Parse);
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(format!(r#"{{"a":1,"a":{big}}}"#).as_bytes());
+        assert_eq!(parse(&bytes).unwrap_err().code, Code::Parse);
+    }
+
+    /// The detail names the first fault of the reported kind.
+    #[test]
+    fn step_one_detail_is_the_first_of_its_kind() {
+        let e = parse(br#"{"a":1,"b":1e400,"a":2,"b":2,"c":-1e400}"#).unwrap_err();
+        assert_eq!(e.code, Code::NumberRange);
+        assert!(e.detail.contains("1e400") && !e.detail.contains("-1e400"));
+        let e = parse(br#"{"a":1,"b":1,"b":2,"a":2}"#).unwrap_err();
+        assert_eq!(e.code, Code::DuplicateKey);
+        assert!(e.detail.contains("\"b\""));
     }
 
     #[test]

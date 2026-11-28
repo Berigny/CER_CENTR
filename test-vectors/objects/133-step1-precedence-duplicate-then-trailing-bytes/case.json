@@ -1,0 +1,7 @@
+{
+  "description": "Two op members, as in 106, then a second JSON value, {}, on the next line. The first value is complete; the bytes after it are not strict JSON. Step 1 reports E_PARSE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

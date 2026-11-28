@@ -84,11 +84,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Object vectors are those on main (T13)
+      - name: Object vectors on main are unchanged (T13)
         if: github.event_name == 'pull_request'
         run: |
           git fetch --no-tags --depth=1 origin main
-          git diff --exit-code FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
+          git diff --exit-code --diff-filter=DMRT FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22

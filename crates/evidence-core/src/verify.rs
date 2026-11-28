@@ -1,6 +1,6 @@
 //! The verification pipeline. Stops at the first failure and reports one code.
 //!
-//! 1. parse            E_PARSE, E_DUPLICATE_KEY, E_NUMBER_RANGE
+//! 1. parse            E_PARSE, then E_NUMBER_RANGE, then E_DUPLICATE_KEY (D15)
 //! 2. shape            E_SHAPE
 //! 3. timestamp        E_TIMESTAMP
 //! 4. id               E_ID_MISMATCH

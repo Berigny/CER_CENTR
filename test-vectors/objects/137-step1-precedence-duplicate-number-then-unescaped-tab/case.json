@@ -1,0 +1,7 @@
+{
+  "description": "actor.id repeated, then capacity_kw 9007199254740993 in content.inline, then a tab written unescaped in subject.key. Strict JSON allows a control character in a string only when it is escaped. Step 1 reports E_PARSE: E_PARSE comes first, then E_NUMBER_RANGE, then E_DUPLICATE_KEY, whatever the byte positions.",
+  "expect": {
+    "ok": false,
+    "code": "E_PARSE"
+  }
+}

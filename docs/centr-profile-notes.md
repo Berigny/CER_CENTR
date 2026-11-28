@@ -1,22 +1,37 @@
 # Notes for a CENTR profile (`centr/0`)
 
-Not a spec yet, and not an official publication of any agency (see the [README](../README.md) notice). This records what a profile for the Consumer Energy National Technical Regulator (CENTR) might carry, and design pitfalls such a profile should avoid.
+Not a spec yet, and not an official publication of any agency (see the [README](../README.md) notice). This records what a profile for the Consumer Energy National Technical Regulator (CENTR) might carry, and design pitfalls such a profile should avoid. The profile is planned for roadmap milestone [M9](roadmap.md#m9-optional-centr0-profile-register-views-and-a-published-dictionary) and is not built. Points decided on 28 November 2026 are marked Decided; those that need a decision outside the project are marked gated.
 
 Context, from public sources (November 2026): the Clean Energy Regulator is preparing, subject to legislation, to take on the role of CENTR under the Consumer Energy National Technical Regulatory Framework (2026–2029). The regulator's page lists that role as including registering suppliers and accrediting installers, certifying regulated products and maintaining public lists of certified products, collecting and managing information about installed devices, and monitoring compliance and responding to potential breaches. The same page says the Department of Climate Change, Energy, the Environment and Water (DCCEEW) will lead the development of the legislation and of the National CER Technical Code ([Clean Energy Regulator](https://cer.gov.au/national-technical-regulator)). The Energy and Climate Change Ministerial Council endorsed the framework on 11 September 2026, and the framework provides for a Technical Requirements Office within DCCEEW to maintain the Code ([framework](https://www.energy.gov.au/energy-and-climate-change-ministerial-council/working-groups/electricity-working-group/consumer-energy-resources-sub-working-group/consumer-energy-national-technical-regulatory-framework)). Check each point against the linked pages before relying on it.
 
 ## What the profile would add
 
-Under `ext["centr/0"]`, only what the core cannot say and the system of record does not already hold:
+Under `ext["centr/0"]`, only what the core cannot say and the system of record does not already hold. **Decided (28 November 2026):** these three members, and no others until a profile rule needs one:
 
-- `regime`: `legacy` or `national-code`. The framework will not apply retrospectively ([Clean Energy Regulator](https://cer.gov.au/national-technical-regulator)), so "is this Code-compliant?" and "was this lawful at the time?" are different questions.
-- Code clause references for certification decisions (clause and revision).
-- Jurisdiction, where it determines which licence applies.
+- `regime`: `legacy` or `national-code`, spelled exactly so. The framework will not apply retrospectively ([Clean Energy Regulator](https://cer.gov.au/national-technical-regulator)), so "is this Code-compliant?" and "was this lawful at the time?" are different questions. The legislation was still being developed when this was written; a value it later needs is added in a new profile version.
+- `clauses`: for a certification decision, the Code clauses it rests on, each an object with two strings, `clause` and `revision`. The National CER Technical Code is still in development, so synthetic vectors use placeholder clause ids, marked as placeholders, until a revision is published.
+- `jurisdiction`: the state or territory as its upper-case abbreviation (`ACT`, `NSW`, `NT`, `QLD`, `SA`, `TAS`, `VIC`, `WA`), present only where it determines which licence applies.
+
+The spellings of `regime` and `jurisdiction` match object vector 005 and export case 107, which already carry `{"regime": "national-code", "jurisdiction": "VIC"}`; those vectors are frozen, and their ids cover these values.
 
 Product, installer and installation details stay in their systems of record and are referenced through `subject` and `schema`.
 
 ## The public registers are queries
 
 The certified product list, installer register and supplier register would be views over evidence objects, not separate databases. Publishing a list is itself an `assert` object whose content is the query result. That answers "what did the public list show on date X?" without keeping a second copy in sync.
+
+**Record types.** **Decided (28 November 2026):** centr/0 starts with the record types behind these three registers, in this order: certified products, installers, suppliers. Installation records come next. Before its vectors are cut, each type gets a table of what it must and may contain, and every rule in a table has a vector that must pass and one that must fail, including the absent cases (for example no installer listed, or an optional field left out). M9's register views query exactly these types, and the tables say which facets the published dictionary needs. The tables are written at M9.
+
+## The published dictionary
+
+M9 replaces M4b's synthetic coordinate dictionary with a real published one, with the profile's mapping from source values to facets. **Decided (28 November 2026):** the defaults are these.
+
+- It is drawn only from public category lists (record type, product class, standard, jurisdiction) and labelled unofficial: not issued by any agency. Its profile id stays under the project's control.
+- Installation and device facets go in a dictionary and profile tag of their own, not Kernel/2's ([Kernel/2 section 1](kernel-2.md#1-purpose-and-scope)). Every facet is a non-personal class, never a site, premises or household attribute.
+- Codes are defined once, with a published mapping from source values to facet ids (for example `VIC` to a jurisdiction facet), and everything else is generated from them ([D2](decisions.md#d2-point-at-the-existing-schema-dont-restate-the-domain)).
+- Each dictionary version is published as an evidence `assert`, as register snapshots are, so which version was in force at a log position can be proved. A dictionary id is a content hash and carries no time.
+
+**Gated:** an external publisher and a first consumer decide when a real dictionary ships, before M9. Until then, every dictionary is synthetic, and no coordinate is computed for a real record.
 
 ## Design pitfalls to avoid
 
@@ -28,8 +43,10 @@ The certified product list, installer register and supplier register would be vi
 | A gate's pass condition needs a check result that is never recorded | The gate can never pass | Every check is covered by a vector that must pass and one that must fail. |
 | Signer check ignores the decision | A `refused` decision counts as approval | Approval is a signed `approve` attestation; refusal is an `assert` object, not an attestation. |
 | Licence check reads an optional field unconditionally | Crashes on schema-valid records that omit the field; passes when no installer is listed | Profile rules state what each record type must contain, and the profile vectors test the absent case. |
-| Attendance photos checked for presence only | Photos taken in different places, or out of order, pass the check | Check order and geographic consistency, or keep that check in the system of record and record its result as an `assert`. |
+| Attendance photos checked for presence only | Photos taken in different places, or out of order, pass the check | Keep the order and geographic consistency check in the system of record, and record its result as an `assert`. The centr/0 verifier reads that result, never photo times or geotags **[gated]**. |
 | Any open challenge blocks a status change | Anyone filing a challenge can delist a product | Only a decision with interim effect (an `assert` by a delegate) changes status. |
 | Plain hash of the site address "for privacy" | Reversible by hashing every address in a public address dataset; photo geotags can reveal the site anyway | Keep personal information out of the object; use keyed hashes where linking is needed (see Privacy in the spec). |
-| A prime range chosen without checking other schemes | Coordinates from two schemes that share primes can be confused when nothing says which scheme they belong to | Tag every coordinate with its dictionary's profile id and key indexes on (profile, coordinate), as Kernel/2 does. A shared registry of prime ranges is optional. |
+| A prime range chosen without checking other schemes | Coordinates from two schemes that share primes can be confused when nothing says which scheme they belong to | Tag every coordinate with its dictionary's profile id and key indexes on (profile, coordinate), or on (profile, name, coordinate) where a profile derives more than one coordinate, as Kernel/2 does. A shared registry of prime ranges is optional. |
 | Remainders of coordinates taken in SQL integer or floating-point types | A floating-point type is exact only up to 2^53, and SQLite turns decimal text above 2^63 into a floating-point number, so the remainder can be wrong with no error raised and queries return wrong rows | Store coordinates as decimal strings and answer queries from factor rows (profile, object, prime, exponent), checked against exact divisibility ([coordinate/0](../spec/coordinate-0.md#indexing)). |
+
+**Attendance photos.** **Gated:** the system-of-record owner decides where the photo check lives, before M9. Until then, the default is the one in the table: the system of record keeps the check, its result is recorded as an `assert`, and photo times and geotags, which are location data about a site, stay out of the log. Nothing real proceeds until then.

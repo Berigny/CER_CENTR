@@ -91,3 +91,15 @@ Why:
 - SQL integers are 64-bit. SQLite turns a decimal-text coordinate that does not fit into a floating-point number and returns a wrong remainder, with no error. On SQLite 3.53, the product of the first 16 primes, 32589158477190044730 (65 bits), stored as text, gave 33 for `% 53` instead of 0, and the 89-bit product of the first 20 primes gave 33 too. PostgreSQL's `numeric` takes `mod` exactly at any size coordinate/0 allows. Because the failure in one engine is silent, indexes answer from factor rows, whose primes and exponents fit 32-bit integers in any database, and keep divisibility as the check.
 - A divisibility scan reads every row of the profile. It is the reference and the check on the index, not the fast path; speed comes from the indexed factor rows.
 - A posting list kept as one value is rewritten on every add, so each add costs more as the list grows.
+
+## D15. Step-1 faults are reported in a fixed order
+
+Decided 28 November 2026; the rule is in [evidence/0](../spec/evidence-0.md#parsing-and-canonical-form).
+
+- When an object's bytes have more than one step-1 fault, the code is `E_PARSE` if they have any fault other than a repeated name or a number out of range, otherwise `E_NUMBER_RANGE` if any number is out of range, otherwise `E_DUPLICATE_KEY`. Where the faults are in the bytes does not matter.
+- This clarifies the frozen evidence/0. Bytes with one fault, and every existing vector, keep their result. The object vectors 116 to 138 (`step1-precedence-`) have several faults each.
+
+Why:
+
+- Which fault a parser meets first depends on how it is built. The Rust core reported the first fault in byte order. The JavaScript reference, which uses the platform's JSON parser, found parse and number faults first and repeated names in a separate pass, as implementations built on a platform parser usually do, but only in the values that parser kept: `{"a": 9007199254740993, "a": 1}` gave `E_DUPLICATE_KEY`. Both were changed: the Rust core reads on past repeated names and numbers out of range, and the JavaScript reference also checks the values a repeated name drops (vectors 131 and 136). A fixed order is one they can meet; byte order is hard to meet without a parser of one's own.
+- D7 needs one expected code per input. Before this, `{"a": 1, "a": 2, "b": 9007199254740993}` gave `E_DUPLICATE_KEY` in Rust and `E_NUMBER_RANGE` in JavaScript, and [coordinate/0](../spec/coordinate-0.md#loading-a-dictionary) had to leave the code of such bytes out of its contract. Both now give `E_NUMBER_RANGE`.

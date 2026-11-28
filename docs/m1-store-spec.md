@@ -912,7 +912,7 @@ Each case is built so that its golden report contains the named code, and the ge
 
 - **T1. Store vectors in four implementations.** `entries.json`, `merkle.json` and every export case give the expected result in Rust (`crates/evidence-log/tests/vectors.rs`), the JS reference (`tools/check-vectors.mjs`), WASM (`js/test.mjs`) and Python (`tests/test_store_vectors.py`). For exports, canonical(report) equals canonical(case.expect) byte for byte.
 - **T2. Writer agreement** (`crates/evidence-store/tests/writer_vectors.rs`). Replaying each 0xx `inputs.json` with `ScriptClock` and the test seed, into both `SqliteLog` and `MemLog`, exports a manifest and segments byte-identical to the committed files.
-- **T3. All 20 object vectors through the CLI store** (`crates/evidence-cli/tests/store_cli.rs`, `t3_object_vectors_through_a_cli_store`), on a store created by `store init` with `store-demo.seed`. Each `store append` below is one invocation per file.
+- **T3. The 20 object vectors of M1 (001-005 and 101-115) through the CLI store** (`crates/evidence-cli/tests/store_cli.rs`, `t3_object_vectors_through_a_cli_store`), on a store created by `store init` with `store-demo.seed`. Each `store append` below is one invocation per file.
   1. Append 001-005: exit 0, `duplicate: false`, at seqs 3-7 (003 at seq 5).
   2. `store get <003 id> --require approve` exits 1; its report has code E_ATTESTATION_MISSING, which is case 113's code, and `attestations` is `[]`.
   3. `store attest` 003's `attestations.jsonl`: exit 0. Three lines land at seqs 8-10: author and approve for 003, and author for 001.
@@ -995,10 +995,10 @@ Each case is built so that its golden report contains the named code, and the ge
 - **T13. Core unchanged:**
   - `crates/evidence-core/tests/vectors.rs` passes unmodified;
   - `verify_lookup` with a `Store` gives the same reports as `verify` on every object vector;
-  - on pull requests, the committed object vectors equal those on `main`. The `vectors` job, before it regenerates anything:
+  - on pull requests, no committed object, canon or number vector on `main` is changed or removed; new vectors are added only under a recorded decision, as [D15](decisions.md#d15-step-1-faults-are-reported-in-a-fixed-order) added 116 to 138. The `vectors` job, before it regenerates anything:
     ```sh
     git fetch --no-tags --depth=1 origin main
-    git diff --exit-code FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
+    git diff --exit-code --diff-filter=DMRT FETCH_HEAD -- test-vectors/objects test-vectors/canon.json test-vectors/numbers.json
     ```
     `actions/checkout` fetches one commit, so the step fetches `main` itself; no `fetch-depth: 0` is needed.
 - **T14. Purity guards** (step of the `rust` job). `cargo tree` must succeed and print something for each crate, so a typo in a crate name cannot pass. Each `grep` must exit 1 (nothing found), so a typo in the path cannot pass either:

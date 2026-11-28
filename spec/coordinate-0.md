@@ -77,7 +77,7 @@ A dictionary is a JSON object with exactly these members. This one is the vector
 
 Its id is `sha256:005aad78a1aaae4ef493f0f8b20facec76f5dadddefc8de05903754998ca6278`.
 
-This dictionary is synthetic and illustrative. Its names are public categories (Australian jurisdictions and published AS/NZS standards), but it is not a published dictionary, its primes are arbitrary, and it does not decide which dictionary, if any, installation or device records would use. That is open ([turn-reader.md open decision 9](../docs/turn-reader.md#9-kernel2-rules-the-reader-depends-on), [cer-edge.md](../docs/cer-edge.md)). One product class per record, which makes `product` a `one` family, is also a simplification for the illustration: an installation record usually covers several products, such as PV modules and an inverter, often with a battery, and a dictionary for such records could make that family a `set`.
+This dictionary is synthetic and illustrative. Its names are public categories (Australian jurisdictions and published AS/NZS standards), but it is not a published dictionary, its primes are arbitrary, and it is not the dictionary that installation and device records will use: they get a coordinate/0 dictionary and profile tag of their own, not Kernel/2's ([turn-reader.md decision 9](../docs/turn-reader.md#9-kernel2-rules-the-reader-depends-on), [Kernel/2 section 1](../docs/kernel-2.md#1-purpose-and-scope)). One product class per record, which makes `product` a `one` family, is also a simplification for the illustration: an installation record usually covers several products, such as PV modules and an inverter, often with a battery, and a dictionary for such records could make that family a `set`.
 
 | Member | Rule |
 |---|---|
@@ -110,7 +110,7 @@ Loading takes a dictionary's bytes and gives either a valid dictionary and its i
 
 | Step | Check | `detail` |
 |---|---|---|
-| 1 | The bytes are strict JSON. | `shape`, with `core` set to evidence/0's code: `E_PARSE`, `E_DUPLICATE_KEY` or `E_NUMBER_RANGE` |
+| 1 | The bytes are strict JSON. | `shape`, with `core` set to evidence/0's code: `E_PARSE`, `E_NUMBER_RANGE` or `E_DUPLICATE_KEY`, in evidence/0's fixed order |
 | 2 | The value has the dictionary's shape: an object with exactly the members `v`, `profile`, `families` and `facets`; `v` and `profile` are strings; `families` is an array of objects with exactly `name` and `values`, both strings; `facets` is an array of objects with exactly `id`, a string, and `prime`, a number. | `shape` |
 | 3 | `v` is `"coordinate-dictionary/0"`. | `version` |
 | 4 | `profile` matches its pattern. | `profile` |
@@ -133,7 +133,7 @@ Loading takes a dictionary's bytes and gives either a valid dictionary and its i
 - The number of facets (steps 6 and 7) is checked before any facet, so 5,000 facets give `too-many` whatever they hold.
 - A repeated name, id or prime is a duplicate even where it also breaks the order: families `a`, `b`, `a` give `family-duplicate`, not `family-order`.
 - The range is checked before primality, so 1 and 2^31 give `prime-range`, and primality is only ever tested below 2^31, where trial division up to 46,340 is enough.
-- Step 1 gives the code of evidence/0's strict parser. Each vector has one step-1 fault. Where the bytes have more than one, evidence/0 does not yet fix which code comes first, and the two parsers in this repository differ: `{"a": 1, "a": 2, "b": 9007199254740993}` gives `E_DUPLICATE_KEY` in the Rust core and `E_NUMBER_RANGE` in the JavaScript reference. Until evidence/0 fixes it, `core` for such bytes is not part of the contract.
+- Step 1 gives the code of evidence/0's strict parser. Where the bytes have more than one step-1 fault, evidence/0 fixes the code whatever their positions ([D15](../docs/decisions.md#d15-step-1-faults-are-reported-in-a-fixed-order)): `E_PARSE`, then `E_NUMBER_RANGE`, then `E_DUPLICATE_KEY`. So `{"a": 1, "a": 2, "b": 9007199254740993}` gives `shape` with `core` `E_NUMBER_RANGE`, in the Rust core and in the JavaScript reference alike. Each dictionary vector has one step-1 fault; evidence/0's object vectors test bytes with several.
 - An implementation that takes an already parsed value starts at step 2. A NaN or an infinity, which only a value built in code can hold, fails step 8d (`not-integer`), and a number above 2^53 − 1 fails step 8e (`prime-range`).
 - The JSON Schema is [`schema/coordinate-dictionary-0.schema.json`](schema/coordinate-dictionary-0.schema.json). It holds the checks a schema can express: steps 2, 3, 4, 5a, 5b, 6, 7, 8a, 8d and 8e. A schema cannot express the rest (distinct and sorted names, ids and primes, declared families, primality) or the order of the checks. As for evidence/0 and store/0, implementations check every rule in code, and `tools/check_schema_vectors.py` runs the schema over the dictionary vectors so the two cannot drift ([D9](../docs/decisions.md#d9-hand-written-shape-checks-in-the-core)): every valid dictionary passes it, and every invalid one whose `detail` comes from one of those steps fails it.
 
@@ -263,7 +263,7 @@ A reader decodes the coordinate with the dictionary that `dictionary` names, and
 
 A tagged form is invalid if its `profile` is not the named dictionary's `profile`, or if its coordinate does not decode under the named dictionary. A reader rejects it, with the decode error in the second case.
 
-Reading a tagged form is not one of coordinate/0's five operations. coordinate/0 gives no codes for a tagged form that is not three string members, whose `profile` does not match, or whose dictionary the reader does not hold, and there are no tagged-form vectors yet. The first export or index format that reads tagged forms (M4's bundles, or the coordinate column of [M4b](../docs/roadmap.md#m4b-coordinate-column-and-factor-table)) defines those codes and adds the vectors.
+Reading a tagged form is not one of coordinate/0's five operations, and there are no tagged-form codes or vectors yet: none for a tagged form that is not three string members, whose `profile` does not match, or whose dictionary the reader does not hold. Decided 28 November 2026: [M4b](../docs/roadmap.md#m4b-coordinate-column-and-factor-table), the coordinate column of M4's index and the first format that reads a tagged form, defines those codes, in coordinate/0's `P_COORDINATE_` code space, and adds their vectors. M4's bundles and any later format that reads a tagged form use the same codes rather than defining their own.
 
 **Several coordinates per object.** The tagged form says which dictionary a coordinate belongs to, not which of an object's coordinates it is. A profile that derives more than one coordinate for an object names each one. Kernel/2 derives `S` and `H` for every event, both under `kernel/2` and its one dictionary, so an export carries each tagged form under its coordinate name. For a unit after Kernel/2's event E4:
 

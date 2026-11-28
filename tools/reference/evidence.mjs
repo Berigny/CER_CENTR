@@ -2,10 +2,11 @@
 // dependencies (Node >= 20). It exists so the Rust core is checked against a
 // second implementation, not just against itself.
 //
-// Scope: canonicalisation, ids, inline content hashes, Ed25519 attestations and
-// required purposes. Not covered here (the Rust core and the JSON Schema cover
-// them): duplicate member names (JSON.parse keeps the last one silently), shape
-// rules, calendar checks on timestamps, and prev links.
+// Scope: the strict parse of step 1, canonicalisation, ids, inline content
+// hashes, Ed25519 attestations and required purposes. Not covered here (the
+// Rust core and the JSON Schema cover them): shape rules, calendar checks on
+// timestamps, and prev links. tools/reference/log.mjs adds the shape and
+// calendar checks that a log needs.
 
 import {
   createHash,
@@ -23,33 +24,115 @@ export class EvidenceError extends Error {
   }
 }
 
-// Parse JSON text with the evidence/0 number and string rules.
-export function parseStrict(text) {
+// How deep arrays and objects may nest: the limit of the Rust evidence/0
+// parser (evidence_core::json::MAX_DEPTH). `{}` and `[]` are depth 1.
+export const MAX_DEPTH = 128;
+
+const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const NUMBER = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
+
+// evidence/0 step 1: strict JSON, given as text or as bytes (decoded as strict
+// UTF-8, keeping a byte order mark so that JSON.parse rejects it). Returns the
+// value. When the input has several faults, the code is fixed whatever their
+// positions: E_PARSE if it has any fault other than a number out of range or
+// a repeated name (not UTF-8, a byte order mark, a syntax error, a lone
+// surrogate, nesting deeper than `maxDepth`), otherwise E_NUMBER_RANGE if any
+// number has magnitude above 2^53 - 1, otherwise E_DUPLICATE_KEY if an object
+// names a member twice.
+//
+// The nesting check comes first, because JSON.parse and canonicalize recurse.
+// JSON.parse then decides the syntax. It keeps only the last of a repeated
+// member, so the other faults are found by reading the text's tokens, which
+// also sees the values JSON.parse drops.
+export function parseStrict(input, maxDepth = MAX_DEPTH) {
+  let text = input;
+  if (typeof input !== "string") {
+    try {
+      text = utf8.decode(input);
+    } catch {
+      throw new EvidenceError("E_PARSE", "input is not valid UTF-8");
+    }
+  }
+  if (nestsDeeperThan(text, maxDepth)) throw new EvidenceError("E_PARSE", `nesting deeper than ${maxDepth}`);
   let value;
   try {
     value = JSON.parse(text);
   } catch (e) {
     throw new EvidenceError("E_PARSE", e.message);
   }
-  check(value);
+  const fault = tokenFault(text);
+  if (fault) throw new EvidenceError(fault.code, fault.detail);
   return value;
 }
 
-function check(v) {
-  if (typeof v === "number") {
-    if (!(Math.abs(v) <= Number.MAX_SAFE_INTEGER)) {
-      throw new EvidenceError("E_NUMBER_RANGE", `number ${v} has magnitude above 2^53 - 1`);
-    }
-  } else if (typeof v === "string") {
-    if (!v.isWellFormed()) throw new EvidenceError("E_PARSE", "lone surrogate in string");
-  } else if (Array.isArray(v)) {
-    v.forEach(check);
-  } else if (v !== null && typeof v === "object") {
-    for (const [k, item] of Object.entries(v)) {
-      if (!k.isWellFormed()) throw new EvidenceError("E_PARSE", "lone surrogate in member name");
-      check(item);
+// True if arrays and objects in `text` nest deeper than `limit`. It counts
+// brackets outside strings in one pass, without recursion, so hostile nesting
+// cannot exhaust the stack. Exact for valid JSON; for anything else JSON.parse
+// decides, and the code is E_PARSE either way.
+function nestsDeeperThan(text, limit) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      i += 1;
+      while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+    } else if (c === "{" || c === "[") {
+      depth += 1;
+      if (depth > limit) return true;
+    } else if (c === "}" || c === "]") {
+      depth -= 1;
     }
   }
+  return false;
+}
+
+// The step-1 fault of text that JSON.parse has accepted, or null, in one pass
+// over its tokens: a string or member name that is not well-formed Unicode (a
+// lone surrogate) is E_PARSE and ends the pass; otherwise the first number
+// out of range, and otherwise the first member name repeated in one object.
+// Names are compared after decoding, so "v" and "\u0076" collide.
+function tokenFault(text) {
+  let range = null;
+  let duplicate = null;
+  const open = []; // one entry per open container: a Set of names, or null for an array
+  let expectName = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
+      const s = JSON.parse(text.slice(i, j + 1));
+      if (!s.isWellFormed()) return { code: "E_PARSE", detail: "lone surrogate in a string" };
+      if (expectName) {
+        const names = open[open.length - 1];
+        if (names.has(s)) duplicate ??= `member name ${JSON.stringify(s)} appears more than once`;
+        names.add(s);
+        expectName = false;
+      }
+      i = j;
+    } else if (c === "-" || (c >= "0" && c <= "9")) {
+      NUMBER.lastIndex = i;
+      const token = NUMBER.exec(text)[0];
+      if (!(Math.abs(Number(token)) <= Number.MAX_SAFE_INTEGER)) {
+        range ??= `number ${token} has magnitude above 2^53 - 1`;
+      }
+      i += token.length - 1;
+    } else if (c === "{") {
+      open.push(new Set());
+      expectName = true;
+    } else if (c === "[") {
+      open.push(null);
+      expectName = false;
+    } else if (c === "}" || c === "]") {
+      open.pop();
+      expectName = false;
+    } else if (c === ",") {
+      expectName = open[open.length - 1] instanceof Set;
+    }
+  }
+  if (range) return { code: "E_NUMBER_RANGE", detail: range };
+  if (duplicate) return { code: "E_DUPLICATE_KEY", detail: duplicate };
+  return null;
 }
 
 // RFC 8785: JSON.stringify for primitives; members sorted by UTF-16 code
@@ -143,8 +226,9 @@ export function verifyAttestation(att) {
 
 // --- Verification (integrity subset) -----------------------------------------
 
-export function verifyIntegrity(objectText, { attestations = "", require = [] } = {}) {
-  const obj = parseStrict(objectText);
+// `input` is the object as JSON text or bytes.
+export function verifyIntegrity(input, { attestations = "", require = [] } = {}) {
+  const obj = parseStrict(input);
   const id = objectId(obj);
   if (obj.id !== id) {
     throw new EvidenceError("E_ID_MISMATCH", `id is ${obj.id} but the object hashes to ${id}`);
@@ -158,7 +242,14 @@ export function verifyIntegrity(objectText, { attestations = "", require = [] } 
   const counts = {};
   for (const line of attestations.split("\n")) {
     if (!line.trim()) continue;
-    const att = parseStrict(line);
+    // A line that is not strict JSON is not attestation/0 (evidence/0 step 7).
+    let att;
+    try {
+      att = parseStrict(line);
+    } catch (e) {
+      if (e instanceof EvidenceError) throw new EvidenceError("E_ATTESTATION_SHAPE", `not strict JSON (${e.code})`);
+      throw e;
+    }
     if (att.object !== id) continue;
     if (!verifyAttestation(att)) {
       throw new EvidenceError("E_SIGNATURE_INVALID", `${att.purpose} signature by ${att.signer}`);
@@ -174,6 +265,7 @@ export function verifyIntegrity(objectText, { attestations = "", require = [] } 
 // Error codes this reference can detect; vectors expecting other codes are skipped.
 export const SUPPORTED_CODES = new Set([
   "E_PARSE",
+  "E_DUPLICATE_KEY",
   "E_NUMBER_RANGE",
   "E_ID_MISMATCH",
   "E_CONTENT_HASH_MISMATCH",
